@@ -88,10 +88,6 @@ docs/                           milestone and fix pack templates, routines, rele
 .github/workflows/foreman-guards.yml
 ```
 
-## Credits
-
-Some ways of working were sharpened after reading [scalex-os/atlas](https://github.com/scalex-os/atlas): roles with forbidden actions, numbered handoff files, scope checks per commit, a reflect step after each sprint.
-
 ## License
 
 MIT, see [LICENSE](LICENSE).
