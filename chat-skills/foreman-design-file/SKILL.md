@@ -5,7 +5,7 @@ description: Use when a project needs a token-based docs/design.md as single sou
 
 # Design file
 
-Write a complete `docs/design.md`: the project's design system as a machine-readable, commented Markdown file. It is the single source of truth for every agent that builds UI. No guessing colors, no inventing spacing, no inconsistency between components.
+Write a complete `docs/design.md`: the project's design system as a machine-readable, commented Markdown file. It is the single source of truth for every agent that builds UI, so colors, spacing and components stay consistent and nothing is guessed.
 
 An agent reads this file as context and derives all visual decisions from it without questions. Every token has a name, a value and a usage rule.
 

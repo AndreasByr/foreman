@@ -5,7 +5,7 @@ description: Flow for milestone orders ("Run milestone M004", any milestone, sli
 
 # Milestone flow
 
-Adds to `CLAUDE.md` and `foreman-delegation`. Delegation rules (workers code, session accepts, run `verify` first, no push to `main`/`prod`, no deploy) apply in full and are not repeated.
+Adds to `CLAUDE.md` and `foreman-delegation`. Delegation rules (workers code, session accepts, run `verify` first, no push to `main`/`prod`, no deploy) apply in full; this skill does not repeat them.
 
 ## Input
 
@@ -13,7 +13,7 @@ Order "Run milestone M004". Read without changing: `docs/milestones/M004/CONTEXT
 
 ## One slice per call
 
-1. **No `STATE.md` yet:** split the milestone into slices and create `docs/milestones/M004/STATE.md` from `docs/milestones/_TEMPLATE/STATE.md`. Then stop. The split is the call.
+1. **No `STATE.md` yet:** split the milestone into slices and create `docs/milestones/M004/STATE.md` from `docs/milestones/_TEMPLATE/STATE.md`. Then stop: the split is all this call does.
    - Read `docs/learnings.md` first and plan around matching entries.
    - A slice is one demonstrable capability with 1 to 7 tasks; each task fits one context window.
    - **Check plan per slice** in `STATE.md`: success criterion (a testable sentence), check (test file or command), kind (automatic / browser / human only), design board.
@@ -45,7 +45,7 @@ Missing prerequisite, unclear requirement, or failing verification after all wor
 
 ## All slices done: independent validation
 
-Not the session reviews its own work. Three separate wrapper calls with role `validation`; the session puts raw sources into each task (brief, requirements, diff since the start commit recorded in `STATE.md`, slice reports), not its own assessment.
+The session does not review its own work. Three separate wrapper calls with role `validation`; the session puts raw sources into each task (brief, requirements, diff since the start commit recorded in `STATE.md`, slice reports), not its own assessment.
 
 | Reviewer | Checks | Verdict |
 |---|---|---|

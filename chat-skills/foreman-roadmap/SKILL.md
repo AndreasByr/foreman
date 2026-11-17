@@ -5,11 +5,11 @@ description: Use when the human needs a roadmap for a project or version: milest
 
 # Roadmap
 
-Build a complete roadmap an agent team can execute: milestones, slices, dependencies, parallel strands, and a human-testing section per milestone. It is a realistic plan, not a wish list.
+Build a complete roadmap an agent team can execute: milestones, slices, dependencies, parallel strands, and a human-testing section per milestone. Plan realistically.
 
 ## Reality of this workflow
 
-Agents write the code. Several sessions build several milestones at the same time, one batch branch per milestone (`batch/mNNN`). The bottleneck is human testing and approval (UAT). Everything below follows from that.
+Agents write the code. Several sessions build several milestones at the same time, one batch branch per milestone (`batch/mNNN`). The bottleneck is human testing and approval (UAT).
 
 | Phase | Duration | Who |
 |---|---|---|
@@ -37,7 +37,7 @@ With requirements present, ask only: who tests (names or roles), hard deadlines,
 
 ### 2. Derive milestones and strands
 
-- Every milestone is proven done only by passed human testing, not by "works on my machine".
+- Only passed human testing proves a milestone done.
 - Dependencies are explicit. A dependent milestone starts only after the testing approval of its predecessor. Independent milestones start at once.
 - More than 5 days of coding: split it, concretely, and say where the clean cut is. Check whether the parts fit separate strands.
 - Cut milestones so they touch few shared files (schema, translations, navigation). Parallel strands then rarely conflict.
@@ -92,4 +92,4 @@ Each milestone block has: type, strand, goal, coding and testing days, dependenc
 
 - **Several releases:** detail only the next release; later releases get their own roadmap before they start.
 - **Testing capacity unclear:** list it as a risk and estimate conservatively (nearer 5 days than 2). With parallel strands, check whether UAT can absorb several milestones at once.
-- **Agent drifts while coding:** the norm, not an exception. That is why slices are small with clear done states.
+- **Agent drifts while coding:** this is normal. Slices are small with clear done states for that reason.

@@ -5,7 +5,7 @@ description: Use for a critical review of a running app in five roles (UX critic
 
 # foreman-role-review
 
-Where `foreman-pretest` checks **whether the functions work**, this skill checks **whether the app is good, clean, correct, accessible and secure**, from five independent viewpoints. The Agent takes on five roles one after another, rates the app by fixed criteria, collects all findings and writes **a report first**. A fix pack goes out only after the human's explicit approval.
+`foreman-pretest` checks whether the functions work. This skill checks whether the app is good, clean, correct, accessible and secure, from five independent viewpoints. The Agent takes on five roles one after another, rates the app by fixed criteria, collects all findings and writes a report first. A fix pack goes out only after the human's explicit approval.
 
 Read `.foreman.json` for the active modules.
 
@@ -41,7 +41,7 @@ Without a clear "yes, send the pack" (or approval of single items), nothing goes
 
 ## Principle: independent of the plan
 
-Each role rates the app as a stranger expert seeing it for the first time, **without** the roadmap or the milestone's intent as an excuse. "Planned that way" is no counter-argument. The question is not "does it meet the requirement" but "is it good / correct / clean / secure". A finding that contradicts intended behavior becomes a product decision for the human, never a silent drop.
+Each role rates the app as a stranger expert seeing it for the first time, **without** the roadmap or the milestone's intent as an excuse. "Planned that way" is no counter-argument. Each role asks "is it good / correct / clean / secure". A finding that contradicts intended behavior becomes a product decision for the human, never a silent drop.
 
 One pass per role. Hold the mindset, finish the role, then switch. Do not mix; the separation is why different classes of defects turn up.
 

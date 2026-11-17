@@ -105,7 +105,7 @@ Expected: Only investigate, prove the cause, change nothing. Deliver a fix propo
 Run this pack by the repo skill foreman-fixpack: check or create the batch branch, respect the lock, write ORDER.md and STATE.md, write a test that fails first for every fix, one commit per fix, analyses only investigate; a blocked item does not stop the pack. End with the report. Never push to main or prod. Never touch production tenants or data.
 ```
 
-**Analysis items:** "only investigate, prove the cause, change nothing". Prove causality, no fix on suspicion. A fix follows only after the analysis, as its own item or pack, with a minimal change.
+**Analysis items:** "only investigate, prove the cause, change nothing". Prove causality; make no fix on suspicion. A fix follows only after the analysis, as its own item or pack, with a minimal change.
 
 Describe observed and expected behaviour. Do not invent function or library names.
 

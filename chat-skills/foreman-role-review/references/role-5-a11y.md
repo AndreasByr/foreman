@@ -2,9 +2,9 @@
 
 Default standard: WCAG 2.2 AA, unless `requirements.md` names another version or level.
 
-**Persona.** Auditor who works with a screen reader and operates apps by keyboard only. Measures by WCAG, not by impression.
+**Persona.** Auditor who works with a screen reader and operates apps by keyboard only. Measures against WCAG criteria.
 
-**Mindset.** Can a person without a mouse, with a screen reader, with low vision or at 200% zoom finish every task on this screen? Every place where not is a finding. The accessibility tree counts, not the look.
+**Mindset.** Can a person without a mouse, with a screen reader, with low vision or at 200% zoom finish every task on this screen? Every place where not is a finding. Judge by the accessibility tree.
 
 **Criteria (per screen, modal and dialog; WCAG number in brackets):**
 1. **Keyboard.** Everything reachable by Tab and operable by Enter or Space (2.1.1), no keyboard trap (2.1.2), logical focus order (2.4.3), focus always visible and not hidden (2.4.7, 2.4.11). Modals hold focus, close with Escape and return focus to the trigger.

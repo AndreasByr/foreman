@@ -1,6 +1,6 @@
 # Reflect after UAT approval
 
-Runs after every UAT approval, once per approved unit, after the approval is complete in all places. Purpose: what went wrong becomes a lesson, and skills get shorter instead of longer.
+Runs after every UAT approval, once per approved unit, after the approval is complete in all places. Purpose: turn what went wrong into a lesson and keep skills short.
 
 ## Gather
 

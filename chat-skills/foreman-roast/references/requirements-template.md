@@ -3,7 +3,7 @@
 Fill every section. Write "none" where nothing applies.
 
 ```markdown
-# <Project name> — Requirements
+# <Project name>: Requirements
 
 ## Project goal
 <1 or 2 sentences, precise, no buzzwords. What is built, for whom, which problem it solves.>

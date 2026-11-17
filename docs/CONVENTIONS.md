@@ -5,8 +5,8 @@ Every file in foreman follows these. Skills, templates and prompts use the same 
 ## Language and voice
 
 - English. Short sentences. No marketing words.
-- Prompts for agents describe **what**, not how. They say "the Agent", never a product or model name.
-- Model names appear in exactly one place: `tools/delegate/config.toml`. Skills and prompts name a **role**, never a model.
+- Prompts for agents describe what to achieve, not how. They say "the Agent", never a product or model name.
+- Model names appear in exactly one place: `tools/delegate/config.toml`. Skills and prompts name a role, never a model.
 
 ## Names
 
@@ -35,7 +35,7 @@ A project without staging uses only `main` and `dev`; the installer asks.
 
 `planning` · `slice` · `rework` · `validation` · `batch-pr` · `fixpack` · `awaiting-merge` · `pretest-waiting` · `pretest-running` · `needs-input` · `uat-ready` · `release-ready` · `done`
 
-A **unit** is a milestone or a fix pack. `STATE.md` is the only source of truth for its status. Trackers (Linear, Notion) are mirrors written by `scripts/state-mirror.mjs`, never by a model.
+A unit is a milestone or a fix pack. `STATE.md` is the only source of truth for its status. Trackers (Linear, Notion) are mirrors written by `scripts/state-mirror.mjs`, never by a model.
 
 Other `STATE.md` header fields: `Target: dev | main`, `Batch-branch:`, `Lock: free | <ISO time> <run id>`, `Tracker: <id> | -`, `Pretest-round: <N>`. The status line reads `Status: <status> · since <UTC YYYY-MM-DDTHH:MMZ> · <note>`.
 

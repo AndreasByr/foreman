@@ -5,7 +5,7 @@ description: Batch branches and batch PRs. Load for any fix order with a "Batch-
 
 # Batch branch, batch PR, batch merge
 
-Every PR costs a full CI run and, after the merge, a deploy. Small fixes are therefore collected. Goal: at most 1 to 2 PRs per day and target branch. Merge windows are fixed, default every 4 hours.
+Every PR costs a full CI run and, after the merge, a deploy. Agents therefore collect small fixes on batch branches. Goal: at most 1 to 2 PRs per day and target branch. Merge windows are fixed, default every 4 hours.
 
 | Batch branch | Base | Batch PR to | Content |
 |---|---|---|---|

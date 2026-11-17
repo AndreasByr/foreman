@@ -5,7 +5,7 @@ description: Flow for fix packs. An order headed "Fix pack:" bundles several fix
 
 # Fix pack
 
-Adds to `CLAUDE.md`, `foreman-delegation` (workers code, session accepts) and `foreman-batch` (batch branch, worktree, push). Their rules are not repeated.
+Adds to `CLAUDE.md`, `foreman-delegation` (workers code, session accepts) and `foreman-batch` (batch branch, worktree, push). This skill does not repeat their rules.
 
 A fix pack bundles several fixes and analyses into **one** order and **one** session. It runs like a milestone but is none: no brief, no roadmap change, no slices, no `docs/milestones/`. Every fix, even a single one, is a fix pack.
 

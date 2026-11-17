@@ -39,7 +39,7 @@ Dependent slices are sequential. Independent slices may run in parallel.
 
 ### Human Testing
 
-The testing block is equal to the coding block. It is the approval.
+The testing block is equal to the coding block and is the approval.
 
 #### Test goal
 <What this section proves, from the user's view, 1 or 2 sentences.>
@@ -62,7 +62,7 @@ Go/no-go: <the one criterion that blocks dependent milestones when unmet. Always
 
 #### Test flow checklist
 
-Each step is worded so two people reach the same result. Expected results always stand there.
+Each step is worded so two people reach the same result. Every checkable step states its expected result.
 
 **Flow A: <main use case>**
 - [ ] Step 1: <concrete action, e.g. "open <staging-url>/login">

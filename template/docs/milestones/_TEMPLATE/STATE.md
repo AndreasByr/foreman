@@ -5,7 +5,7 @@ Lock: free
 Tracker: -
 Pretest-round: 0
 
-# M000 – <title>
+# M000: <title>
 
 Start commit: <sha of the batch branch when work started>
 

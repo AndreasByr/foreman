@@ -7,14 +7,14 @@ description: Use when the human presents a project idea and wants it challenged 
 
 Challenge a project idea, sharpen it, and turn it into a clear goal and `docs/requirements.md`. Nothing is built, designed or planned before this is done.
 
-A good roast is not an attack. It is the hardest feedback a well-meaning, experienced sparring partner can give, delivered before the human spends time and money in the wrong direction.
+A good roast is the hardest feedback a well-meaning, experienced sparring partner can give, delivered before the human spends time and money in the wrong direction.
 
 ## Rules
 
 - Ask at most 3 questions per round. Build on the previous answers.
 - Ask where context is missing; do not judge without knowledge.
 - Be direct and concrete. "The problem is unclear" is not a roast. "I cannot name one person who would pay for this until you name one who does" is.
-- No empty praise, no put-downs.
+- Give no empty praise and no put-downs.
 - Write in the language the human uses.
 - Chat writes no code and pushes nothing. The only output is the requirements file.
 
@@ -32,7 +32,7 @@ Give a plain verdict per category:
 |---|---|
 | Problem | Is it real and painful enough that people pay or invest time? Would 100 people spend money on it today? |
 | Target group | Clear, reachable, large enough? Or so niche it never gains traction? |
-| Uniqueness | What is really different? If five similar tools exist, why would this one win? What would users lose if it never existed? |
+| Uniqueness | What is different? If five similar tools exist, why would this one win? What would users lose if it never existed? |
 | Feasibility | Is the scope realistic for the team and budget? Hidden complexity (legal, technical, operational)? External dependencies? |
 | Value | How does it earn money or create measurable benefit? "We will see later" is a finding. |
 | Scope | What is the true minimum to test the core hypothesis? What is packed in unnecessarily? |

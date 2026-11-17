@@ -17,7 +17,7 @@ Single source for version numbers, tags and the changelog process. Other files p
 
 Rules:
 
-1. The minor changes only when the roadmap phase changes. The patch rises only for fixes of the current line. The next roadmap is not released piece by piece but collected.
+1. The minor changes only when the roadmap phase changes. The patch rises only for fixes of the current line. The next roadmap is collected and released as one version.
 2. A release is a deploy to `prod`. Whether it holds a milestone, several small tasks or a hotfix does not change the number; the changelog tells the difference.
 3. `0.0.x` versions before the first production deploy are not tags.
 4. After launch SemVer applies: patch for fixes, minor for features, major for breaking changes.

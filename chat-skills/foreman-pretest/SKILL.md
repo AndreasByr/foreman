@@ -1,11 +1,11 @@
 ---
 name: foreman-pretest
-description: Use before UAT, after a unit is deployed to staging or dev, or for a re-test after fixes. Claude tests the unit's flows in a browser, verifies permissions via API, compares every page with the design board, and sends all findings as one fix pack.
+description: Use before UAT, after a unit is deployed to staging or dev, or for a re-test after fixes. The Agent tests the unit's flows in a browser, verifies permissions via API, compares every page with the design board, and sends all findings as one fix pack.
 ---
 
 # foreman-pretest
 
-Before the human spends time on UAT, Claude tests the unit's flows in a browser against the deployed staging (or dev) build. Goal: find bugs and send them **together as one fix pack**, so one coding session starts instead of one per finding.
+Before the human spends time on UAT, the Agent tests the unit's flows in a browser against the deployed staging (or dev) build. Goal: find bugs and send them together as one fix pack, so one coding session starts instead of one per finding.
 
 This is a pre-filter, not UAT. The human approves.
 
@@ -18,7 +18,7 @@ units done → validation → CI green → deployed to staging/dev
 → PRETEST → one fix pack (via foreman-fix) → re-test → UAT (human, only approval)
 ```
 
-Test the **deployed** build only. First check that the environment runs the expected commit (deploy verification is green). Old build or crash loop: do not test, report it.
+Test the deployed build only. First check that the environment runs the expected commit (deploy verification is green). Old build or crash loop: do not test, report it.
 
 ## Prerequisites
 
@@ -77,6 +77,6 @@ Run the skill again for the affected flows once the fixes are deployed. Read `re
 - **Test tenants only.** Never switch to a production tenant or touch production data, not even to look.
 - **No irreversible real side effects** without explicit approval.
 - **Untranslated backend errors** (another language, raw codes) are a finding of their own.
-- **No code.** Claude tests and orders; the coding side changes. Do not create or edit routines.
+- **No code.** The Agent tests and orders; the coding side changes. Do not create or edit routines.
 - **Findings seen once** are marked "observation, once" and sent as an analysis item, never as a finished diagnosis.
 - Language: English unless the project says otherwise; one result file per unit and round.

@@ -12,10 +12,10 @@ The core needs GitHub, Claude Code and a claude.ai account with skills. Everythi
 
 ## Choosing
 
-- **Solo, no budget for extra tools:** core only. You trigger runs by hand.
-- **Claude quota is tight:** add `ollama`. Cheap roles move to Ollama, Claude keeps planning and validation.
-- **You want to see progress on your phone:** add `linear` or `notion`. Both are mirrors; nothing breaks when they are down or at a plan limit.
-- **You want it to run while you sleep:** add `autopilot`.
+- Solo, no budget for extra tools: core only. You trigger runs by hand.
+- Claude quota is tight: add `ollama`. Cheap roles move to Ollama, Claude keeps planning and validation.
+- You want to see progress on your phone: add `linear` or `notion`. Both are mirrors; nothing breaks when they are down or at a plan limit.
+- You want it to run while you sleep: add `autopilot`.
 
 ## Model distribution
 

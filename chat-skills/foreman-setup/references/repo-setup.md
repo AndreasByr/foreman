@@ -38,7 +38,7 @@ Limits: the deny rule covers `git push` in the shell tool only. Through GitHub M
 ## Environment and dispatcher
 
 1. Create a cloud environment with the repo. Network allows the worker provider's host (module `ollama`: `ollama.com`) and the key goes in as an API credential. Never share the key in chat.
-2. **Routines must be created from a Claude Code session in the cloud environment (via `create_trigger`), or in the web UI under claude.ai/code/routines. Never from a chat.** A `create_trigger` from a chat session (claude.ai chat or project chat, even with a shell and the repo) creates a routine without the cloud environment: no worker key, no network to the provider. Only routines made from the cloud environment inherit it, and only those can chat fire with `fire_trigger`.
+2. **Routines must be created from a Claude Code session in the cloud environment (via `create_trigger`), or in the web UI under claude.ai/code/routines. Never from a chat.** A `create_trigger` from a chat session (claude.ai chat or project chat, even with a shell and the repo) creates a routine without the cloud environment: no worker key, no network to the provider. Only routines made from the cloud environment inherit it, and chat can fire only those with `fire_trigger`.
 
    Before creating, check in the current session: `[ -n "$OLLAMA_API_KEY" ]` (module `ollama`) and that the provider host is reachable. If a check fails, the session is the wrong one. Do not create the dispatcher. Instead:
    - put the dispatcher prompt in the repo as `docs/routines/<name>.md` (the installer provides them),

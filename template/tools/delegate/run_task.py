@@ -530,7 +530,7 @@ def main(argv=None):
     if role not in cfg["roles"]:
         die(f"role '{role}' not in {config_path.name} (available: {', '.join(cfg['roles'])})", 2)
     if not is_worker(cfg, role):
-        die(f"role '{role}' has who=\"{cfg['roles'][role]['who']}\": the session does it itself, not the wrapper", 2)
+        die(f"role '{role}' has who=\"{cfg['roles'][role]['who']}\": the session does it itself. Pick a role the wrapper runs", 2)
     errs = validate_config(cfg, config_path.name)
     if errs:
         die("invalid config:\n  - " + "\n  - ".join(errs), 2)
@@ -562,7 +562,7 @@ def main(argv=None):
             return 4
         print("pre-check: verify command is runnable.")
     if not shutil.which("claude"):
-        die("`claude` CLI not in PATH.", 3)
+        die("`claude` CLI not in PATH. Install it or add it to PATH.", 3)
     d = cfg["defaults"]
     ollama_down = False
     if any(provider_of(cfg, r) == "ollama" for r in chain) and not os.environ.get(d.get("api_key_env", ""), ""):
@@ -570,7 +570,7 @@ def main(argv=None):
             print(f"WARNING: {d.get('api_key_env')} is not set -> fallback models are used.", file=sys.stderr)
             ollama_down = True
         else:
-            die(f"{d.get('api_key_env')} is not set and a role has no fallback.", 3)
+            die(f"{d.get('api_key_env')} is not set and a role has no fallback. Set the variable or add a fallback_model.", 3)
     if (any(provider_of(cfg, r) == "claude" for r in chain) and d.get("claude_login") != "inherit"
             and not any(os.environ.get(n) for n in claude_auth_names(cfg))):
         print(f"WARNING: none of {', '.join(claude_auth_names(cfg))} is set; Claude workers run with a clean HOME and may "

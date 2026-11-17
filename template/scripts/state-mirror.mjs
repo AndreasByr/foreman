@@ -147,7 +147,7 @@ async function linear(query, variables) {
 async function mirrorLinear(units, cfg, dry) {
   const team = await linear(`query($k:String!){teams(filter:{key:{eq:$k}}){nodes{id states{nodes{id name}} labels(first:250){nodes{id name}}}}}`, { k: cfg.teamKey });
   const t = team.teams.nodes[0];
-  if (!t) throw new Error(`Linear team ${cfg.teamKey} not found`);
+  if (!t) throw new Error(`Linear team ${cfg.teamKey} not found. Check teamKey in .foreman.json`);
   const stateId = (n) => t.states.nodes.find((s) => s.name === n)?.id;
   const labelId = (n) => t.labels.nodes.find((l) => l.name === n)?.id;
   for (const u of units) {

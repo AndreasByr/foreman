@@ -1,4 +1,4 @@
-# M000 – <title>
+# M000: <title>
 
 Brief for the Agent. Write what, not how. No task list, no implementation details, no secrets, no deploy steps. Refer to documents; do not copy them. More than about 10 capabilities: split the milestone.
 

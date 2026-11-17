@@ -5,10 +5,10 @@ cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 fail=0
 
 if grep -rqs '"opusplan"\|opusplan' .claude/settings.json .claude/settings.local.json 2>/dev/null; then
-  echo "FAIL: opusplan in .claude/settings*.json (autonomous runs never enter plan mode and run on the smaller model)"; fail=1
+  echo "FAIL: opusplan in .claude/settings*.json (autonomous runs never enter plan mode and run on the smaller model). Set a fixed model name."; fail=1
 fi
 if grep -vs '^[[:space:]]*#' tools/delegate/config.toml | grep -q 'opusplan'; then
-  echo "FAIL: opusplan in tools/delegate/config.toml"; fail=1
+  echo "FAIL: opusplan in tools/delegate/config.toml. Set a fixed model name."; fail=1
 fi
 
 size() { wc -c < "$1" | tr -d ' '; }
@@ -28,7 +28,7 @@ for f in .claude/skills/*/SKILL.md; do
 done
 
 n=$(git ls-files tools/delegate/tasks 2>/dev/null | grep -v '\.gitkeep$' | wc -l | tr -d ' ')
-if [ "$n" -gt 0 ]; then echo "FAIL: $n worker task files are committed in tools/delegate/tasks"; fail=1; fi
+if [ "$n" -gt 0 ]; then echo "FAIL: $n worker task files are committed in tools/delegate/tasks. Remove them with git rm --cached."; fail=1; fi
 
 [ $fail = 0 ] && echo "foreman config check: ok"
 exit $fail

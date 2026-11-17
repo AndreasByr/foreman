@@ -20,7 +20,7 @@ export function batchSpec(arg) {
     const key = arg.toLowerCase();
     return { branch: `batch/${key}`, base: 'dev', key };
   }
-  throw new Error(`Target must be main, dev or a milestone (e.g. M022), not "${arg}"`);
+  throw new Error(`Use main, dev or a milestone (e.g. M022) as target, not "${arg}"`);
 }
 
 export function batchBranchName(arg) {

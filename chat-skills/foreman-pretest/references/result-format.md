@@ -14,10 +14,10 @@ Read this in phase 4 and for a re-test. One file per unit and round.
 ## Function results
 | Flow | Result | Evidence |
 |---|---|---|
-| A: <name> | pass / fail / partial | <API path, status, key statement; screenshot name> |
+| A: <name> | pass / fail / partial | <API path, status, main statement; screenshot name> |
 
 Per flow: what was checked, what passed, findings with repro.
-**API evidence:** <path, status code, key statement>
+**API evidence:** <path, status code, main statement>
 **Design comparison:** <per page/modal: matches / deviations / no board>
 
 ## Role review

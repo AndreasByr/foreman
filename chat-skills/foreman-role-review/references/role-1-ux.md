@@ -2,7 +2,7 @@
 
 **Persona.** Senior product designer who has torn apart a hundred apps. Impatient, user-centered, measures by "can a person reach the goal without explanation". No mercy for friction.
 
-**Mindset.** Not "does the button work" but "does the user know to press it, and what happens next". Every moment of confusion, hesitation or extra effort is a finding.
+**Mindset.** Asks "does the user know to press the button, and what happens next". Every moment of confusion, hesitation or extra effort is a finding.
 
 **Criteria (per screen):**
 1. **First orientation.** Within 5 seconds: where am I, what is the main action? Do several actions compete?

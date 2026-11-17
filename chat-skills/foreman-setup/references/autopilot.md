@@ -95,13 +95,13 @@ An existing routine made from chat cannot be switched from a schedule routine to
 
 Workers on Ollama Cloud. The worker key is an API credential in the cloud environment, the environment network allows the provider host, and the wrapper falls back to a Claude model when the provider fails. See `references/delegation.md`.
 
-## Hard-won rules
+## Rules from experience
 
 - Routines are created from a Claude Code session in the cloud environment or in the UI, never from chat.
 - The delegation fires work runs with `curl`; its environment needs network "Full".
 - No background subagent in a routine; no `fire_trigger` inside a routine.
 - A bundle of several units is closed unit by unit; the check script catches units that stay in `batch-pr`.
-- A multi-approval payload is verified in all places (state, tracker, learnings), not just `STATE.md`.
+- A multi-approval payload is verified in all places (state, tracker, learnings), not only `STATE.md`.
 - Test login for third-party OAuth: see `SKILL.md` section 7.
 - Analysis before fix: a bug order starts as an analysis order that proves the cause.
 
