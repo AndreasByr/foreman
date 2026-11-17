@@ -75,15 +75,16 @@ Details: [docs/MODULES.md](docs/MODULES.md).
 
 ## Recommended skills
 
-These skills check prose and interfaces. The role review and the pretest use a writing check and the `better-*` skills when they are installed; foreman works without them.
+These skills check prose, interfaces and page design. The role review and the pretest use a writing check and the `better-*` skills when they are installed; foreman works without them.
 
 | Skill | What it does | Install |
 |---|---|---|
 | [`/no-ai-slop`](https://github.com/petergyang/no-ai-slop) | Edits or audits prose so it keeps your voice and loses AI phrasing. Good for briefs, changelogs, READMEs and UI text. | `npx skills add petergyang/no-ai-slop --skill no-ai-slop --global --yes` |
 | [`/humanizer`](https://github.com/blader/humanizer) | Rewrites AI-sounding text using the patterns from Wikipedia's "Signs of AI writing". | `git clone https://github.com/blader/humanizer.git ~/.claude/skills/humanizer` |
+| [`/hallmark`](https://github.com/nutlope/hallmark) | Design skill for new pages and landing pages that should look designed, not generated. A project's own `docs/design.md` takes precedence; Hallmark then adds its floor rules and page structure. | `npx skills add nutlope/hallmark -g` |
 | [`/better-*`](https://github.com/jakubkrehel/skills) | Interface skills: `better-writing`, `better-interface`, `better-ui`, `better-layout`, `better-typography`, `better-colors`, `better-accessibility`, plus `build-design` and `interface-review`. | `npx skills add jakubkrehel/skills` |
 
-All three are MIT licensed. In claude.ai, upload the skill folders the same way as the foreman chat skills.
+All four are MIT licensed (Hallmark's photo library has its own per-image licenses). In claude.ai, upload the skill folders the same way as the foreman chat skills.
 
 ## What gets installed
 
