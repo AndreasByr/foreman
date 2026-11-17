@@ -1,0 +1,120 @@
+# Role -> model mapping for the delegation wrapper (run_task.py). The only place where model IDs appear.
+# Setup (foreman-setup) fills the exact IDs; replace every <...> placeholder before use. --dry-run rejects placeholders.
+#
+# who = "worker"  -> the wrapper starts the model as a separate `claude -p` instance (model chosen per role).
+# who = "session" -> the Claude Code session does it itself (model = "session").
+#
+# Model spec: "claude/<id>" (Anthropic model, id passed to --model) or "ollama/<id>" (Ollama Cloud, needs the
+# Ollama module and the key named in api_key_env). Never use `opusplan`: autonomous runs never enter plan mode and
+# would quietly run on the smaller model.
+#
+# Active preset: claude-only. To switch, comment out the "claude-only" role blocks below and uncomment the "ollama" block.
+[meta]
+active = "claude-only"
+
+[defaults]
+timeout_seconds = 900                      # per attempt
+claude_auth_env = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"]  # names only; the first set ones reach Claude workers
+# claude_login = "inherit"                 # opt-in, weaker isolation: reuse the host login (subscription sessions)
+# --- ollama module only ---
+# base_url        = "https://ollama.com"   # Anthropic-compatible endpoint
+# api_key_env     = "OLLAMA_API_KEY"       # NAME of the environment variable, never the value
+# fallback_model  = "claude/<small-model-id>"   # used when the Ollama API is unusable (key, limit, server, network, timeout)
+
+# ===== Preset "claude-only" (active) =====
+# small = cheap/fast model, mid = standard coding model, large = strongest model.
+[roles.research]
+who = "worker"
+model = "claude/<small-model-id>"
+readonly = true
+
+[roles.planning]
+who = "worker"
+model = "claude/<large-model-id>"
+readonly = true
+
+[roles.validation]
+who = "worker"
+model = "claude/<large-model-id>"
+readonly = true
+
+[roles.execution]
+who = "worker"
+model = "claude/<mid-model-id>"
+
+[roles.execution_simple]
+who = "worker"
+model = "claude/<small-model-id>"
+
+[roles.completion]
+who = "worker"
+model = "claude/<small-model-id>"
+
+[roles.subagent]
+who = "worker"
+model = "claude/<small-model-id>"
+
+# ===== Preset "ollama" (comment out the claude-only research/execution_simple/completion/subagent blocks above first) =====
+# Also set base_url, api_key_env and fallback_model in [defaults]. planning, validation and execution stay on Claude.
+# [roles.research]
+# who = "worker"
+# provider = "ollama"
+# model = "ollama/<research-model-id>"
+# readonly = true
+#
+# [roles.execution_simple]
+# who = "worker"
+# provider = "ollama"
+# model = "ollama/<coding-model-id>"
+#
+# [roles.completion]
+# who = "worker"
+# provider = "ollama"
+# model = "ollama/<agent-model-id>"
+#
+# [roles.subagent]
+# who = "worker"
+# provider = "ollama"
+# model = "ollama/<agent-model-id>"
+
+# ===== Roles the session plays itself =====
+[roles.discuss]
+who = "session"
+model = "session"
+
+[roles.uat]
+who = "session"
+model = "session"
+
+# Escalation: on failure the task is repeated with the next role. When the chain is exhausted the wrapper exits 1
+# and the session takes over.
+[escalation]
+research         = []
+planning         = []
+validation       = []
+execution        = []
+execution_simple = ["execution"]
+completion       = ["execution"]
+subagent         = ["execution"]
+
+# Rights of the worker instance. Tools not listed are denied in -p mode. Add your test runner, e.g. "Bash(npm *)".
+# git, rm, curl and wget are always denied by the wrapper, whatever is listed here. Readonly roles get only
+# Read/Glob/Grep (plus MCP servers marked readonly_ok).
+[claude]
+permission_mode  = "acceptEdits"
+allowed_tools    = ["Read", "Write", "Edit", "Glob", "Grep", "Bash(node *)", "Bash(ls *)", "Bash(cat *)", "Bash(mkdir *)"]
+disallowed_tools = []
+
+# Optional extra MCP servers for workers, one table each. Example (documentation lookup, read only):
+# [mcp.docs]
+# url = "https://example.com/mcp"        # http server; or command = "...", args = [...] for a local one
+# api_key_env = "DOCS_API_KEY"           # optional, name of the variable
+# api_key_header = "X-Api-Key"           # header that carries it
+# readonly_ok = true                     # also available to readonly roles
+# hint = "Use the docs server before answering from memory."
+
+# Optional extra variables for workers and verify commands.
+# [env]
+# pass = ["CI"]                          # host variables passed through by name
+# [env.set]
+# BASE_URL = "http://localhost:3000"     # literal values (never secrets)
