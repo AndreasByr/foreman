@@ -9,7 +9,7 @@ Per approved unit, in this order:
    - Target `main`: `Status: release-ready`.
    - Lock free, log line, commit, push to the unit's batch branch.
    - Milestone: bring the `STATE.md` commit to `dev` (merging into `dev` is allowed), check with `git merge-base --is-ancestor` that all commits are in `origin/dev`; only then delete `batch/mnnn` on the remote. Otherwise keep it and report.
-2. **Mirror:** `node scripts/state-mirror.mjs` (modules linear, notion). Expected result: target `dev`: ticket done, phase mark removed, open subtasks done; target `main`: ticket stays in review with the release-ready mark; all handoff rows of the unit set to taken over.
+2. **Mirror:** `node scripts/state-mirror.mjs` (modules linear, notion). Expected result: target `dev`: ticket done, phase mark removed, checklist ticked; target `main`: ticket stays in review with the release-ready mark; all handoff rows of the unit set to taken over.
 3. **Check:** run the mirror's check mode (`node scripts/state-mirror.mjs --check`) or read the tracker and handoff again; compare with the expected result: no "UAT ready" mark left, no handoff row of the unit in another phase than taken over. Without modules: skip.
 4. **Reflect:** `references/reflect.md`.
 5. **Reconcile** (once after the last unit of the payload): list units whose `STATE.md` says `done` or `release-ready` and compare with the trackers (`node scripts/state-mirror.mjs --check`). Fix every difference by re-running the mirror; repeat until the check is clean.

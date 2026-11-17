@@ -6,7 +6,7 @@ The core needs GitHub, Claude Code and a claude.ai account with skills. Everythi
 |---|---|---|
 | (core) | chat skills, repo skills, delegation wrapper with Claude workers, push guard, CI checks, batch branches, STATE.md | GitHub, Claude Code |
 | `ollama` | worker roles on Ollama Cloud models (Anthropic-compatible endpoint) | `OLLAMA_API_KEY` in the cloud environment, network access to `ollama.com` |
-| `linear` | tracker mirror: one ticket per unit, status and phase label set by `scripts/state-mirror.mjs`, done tickets archived after 7 days | `LINEAR_API_KEY`, team with the statuses `Todo`, `In Progress`, `Wait for Merge`, `Testing`, `In Review`, `Done` |
+| `linear` | tracker mirror: one ticket per unit (no sub-issues, slices as a checklist), status and phase label set by `scripts/state-mirror.mjs`, done tickets archived after 7 days | `LINEAR_API_KEY`, team with the statuses `Todo`, `In Progress`, `Wait for Merge`, `Testing`, `In Review`, `Done` |
 | `notion` | pretest handoff rows and a UAT list mirrored from `STATE.md` | `NOTION_TOKEN`, a database with columns Name, Unit, Round, Phase, Kind |
 | `autopilot` | three routines (delegation, work run, pretest), `scripts/autopilot-check.sh`, `foreman-dispatch-run` | Claude Code routines, a cloud environment with the repo |
 
