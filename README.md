@@ -1,105 +1,108 @@
 # foreman
 
-A way of building software with Claude where you decide, Claude plans and checks, and cheaper workers write the code. Packaged as skills, a delegation wrapper and guard rails you install into any repo.
+You describe what you want. Claude plans it, cheaper models write the code, scripts check it, and you test the result before it ships. foreman sets this up in your repo and in your Claude chat, and it adapts to what you already have.
 
-foreman came out of running one real product through several releases with one developer and agents doing nearly all of the coding. Each rule was added after something went wrong without it; [docs/learnings.md](docs/learnings.md) lists what happened.
+## What you get
+
+- **Projects that keep moving without you.** A small script on your server checks every 10 minutes what is due and starts a Claude Code run for it: build the next slice, merge a batch, run the browser pretest, take over your answer. No model is involved in that check, so it costs no tokens.
+- **Less to test yourself.** Each change goes through tests, a scope check, a review and an automated browser pretest (screenshots, accessibility, five review roles). You only get what needs a second real account or a product decision, as a checklist in your ticket.
+- **Lower cost.** The session model plans and accepts. The coding runs on cheaper workers (Ollama Cloud, your ChatGPT plan through a gateway, or Claude itself as fallback). Subscriptions only, no API billing needed.
+- **One place to look.** Every unit of work has a ticket. When the agent needs you, the ticket moves to "Action Required" with the question, the options and a recommendation.
+- **A fast lane for demos.** For a prototype, foreman writes one prompt that a single Claude Code session runs from idea to working app, without servers, tickets or schedules.
+
+## What you need
+
+| You have | You can use |
+|---|---|
+| A coding agent (Claude Code recommended, OpenCode or similar works) | Quick projects and the repo workflow |
+| + a GitHub account | Branch model, batch PRs, CI guards |
+| + a server, VPS or always-on machine | The autopilot (central dispatcher) |
+| + [itsaplan](https://github.com/croffasia/itsaplan) (self-hosted, recommended) or Linear | Tickets, dashboard, answers and UAT approvals by comment |
+| + Ollama Cloud key and/or ChatGPT plan | Cheap workers through the delegation wrapper or a LiteLLM gateway |
+
+None of the extras is required. Without a tracker, questions, answers and UAT checklists live as files in the repo. Without a server, you start runs yourself or use a scheduled Claude Code routine as a fallback. Claude Code is the recommendation because its routines can be started by API, which is what the dispatcher calls.
+
+## Install
+
+The setup skill asks what you know, what you need, what you have and how you work, then gives you the exact install command and a checklist with time estimates. Plan 10 minutes for the chat part and 15 to 60 minutes for the rest, depending on what you already run.
+
+1. **Get the skills (2 min).**
+   ```bash
+   git clone https://github.com/AndreasByr/foreman && cd foreman
+   ./scripts/package-chat-skills.sh        # writes dist/foreman-<name>.zip
+   ```
+   Upload the zips in claude.ai under Settings → Capabilities → Skills.
+2. **Run the setup (10 min).** In a new chat, say "set up foreman". `foreman-setup` interviews you and recommends a profile: Quick, Repo or Autopilot.
+3. **Install into your repo (2 min).** Run the command the setup gave you, for example:
+   ```bash
+   ./install.sh ../my-app --project my-app --name "My App" --agent claude-code \
+     --modules tracker-itsaplan,delegate,autopilot,pretest \
+     --recommended-skills all --skills-scope project
+   ```
+4. **Finish the checklist.** Typical items: create the tracker project, set environment variables, install the dispatcher on your server ([dispatcher/README.md](dispatcher/README.md)), create the work-run routine.
+
+Starting a new project later: say "new project" (`foreman-project`). It asks whether a quick project fits and recommends one or the other.
 
 ## How it works
 
 ```
-you ──► chat (claude.ai) ──► Claude Code session ──► workers ──► checks ──► batch PR ──► pretest ──► you (UAT) ──► release
-        roast, roadmap,       cuts slices, writes     write code   scope,     every 4 h     browser +
-        design, briefs        task files, accepts     (no git)     tests,                   5-role review
-                                                                   review
+you ──► chat ──► work run (Claude Code) ──► workers ──► checks ──► batch PR ──► pretest ──► you (UAT) ──► release
+        idea,    slices, task files,         write code  tests,     every 4 h     browser,     checklist     Friday
+        roadmap, acceptance                  (no git)    scope,                   axe, 5 roles in ticket
+        briefs                                           review
+                     ▲
+                     └── central dispatcher (cron, every 10 min, no LLM)
 ```
 
-- Plan expensive, execute cheap: the session model plans and accepts; workers run as separate `claude -p` processes with a role (`research`, `execution`, …). Roles map to models in one file.
-- Hand off through files: briefs, `STATE.md`, task files and reports live in the repo. A fresh run picks up where the last one stopped.
-- One source of truth: `STATE.md` holds each unit's status. Linear and Notion are optional mirrors written by a script, never by a model.
-- Check mechanically first: scope check, tests, a red-then-green test, then a review. A security finding escalates after one failed fix.
-- Guard rails are code: a PreToolUse hook blocks pushes to `main`/`prod`, force pushes and remote deletions; CI rejects `opusplan` and oversized rule files.
-- Small fixed load: `CLAUDE.md` stays under 2 KB, hooks inject only a short core, skills load details on demand, worker files are git-ignored.
+- `STATE.md` is the single source of truth for each unit. A script mirrors it to the tracker; models never write tickets directly.
+- Hand-off happens through files in the repo: briefs, task files, pretest results with a `Verdict:` line, reports.
+- Checks are mechanical first: scope, tests, a test that was red before the fix, then a review. Guard rails are code: hooks and git hooks block pushes to `main`/`prod`, force pushes and remote deletions.
+- The fixed context stays small: `CLAUDE.md` under 2 KB, details load as skills on demand.
 
-The full set is in [docs/PRINCIPLES.md](docs/PRINCIPLES.md), the lifecycle in [docs/WORKFLOW.md](docs/WORKFLOW.md).
+Principles: [docs/PRINCIPLES.md](docs/PRINCIPLES.md). Lifecycle: [docs/WORKFLOW.md](docs/WORKFLOW.md). Lessons from real use: [docs/learnings.md](docs/learnings.md).
 
-## Install
-
-### 1. Chat skills (claude.ai)
-
-```bash
-git clone https://github.com/AndreasByr/foreman && cd foreman
-./scripts/package-chat-skills.sh        # writes dist/foreman-<name>.zip
-```
-
-Upload each zip in claude.ai under Settings → Capabilities → Skills. Start a new project chat and say "set up a new project with foreman" (`foreman-setup`).
+## Chat skills
 
 | Skill | Use it to |
 |---|---|
-| `foreman-setup` | set up a project: scope, modules, install, routines |
+| `foreman-setup` | set up foreman for your situation, step by step |
+| `foreman-project` | start a new project, full or quick |
+| `foreman-quick` | write the one-shot prompt for a demo or prototype |
 | `foreman-roast` | challenge an idea and end with `docs/requirements.md` |
 | `foreman-roadmap` | versions, milestones, slices, human test flows |
-| `foreman-design-file` | token-based `docs/design.md` for agents |
-| `foreman-brief` | milestone briefs, situation report, hand-off to Claude Code |
-| `foreman-fix` | bugs and fix packs (one session for many findings) |
-| `foreman-pretest` | test a milestone in the browser before UAT |
-| `foreman-role-review` | UX, UI, bugs, pentest, accessibility review of a running app |
+| `foreman-design-file` | token-based `docs/design.md` and design boards |
+| `foreman-brief` | milestone briefs and the situation report |
+| `foreman-fix` | bugs and fix packs (one run for many findings) |
+| `foreman-pretest` | a manual browser test from the chat |
+| `foreman-role-review` | UX, UI, bugs, pentest and accessibility review |
 | `foreman-release` | release with monitoring until the deploy is green |
 | `foreman-orchestrator` | save tokens in chat by delegating big mechanical work |
 
-### 2. Repo side
-
-```bash
-./install.sh ../my-app --project my-app --name "My App" \
-  --modules ollama,linear,notion,autopilot --session-model <exact-opus-model-id>
-```
-
-Leave out the modules you don't want. The installer never overwrites files without `--force`, merges an existing `.claude/settings.json`, and writes `CLAUDE.foreman.md` if you already have a `CLAUDE.md`. Then:
-
-```bash
-cd ../my-app
-# fill exact model IDs in tools/delegate/config.toml, then
-python3 tools/delegate/run_task.py --dry-run --role execution
-bash scripts/check-config.sh && python3 scripts/test-guard.py
-```
-
-### 3. Modules
+## Modules
 
 | Module | Adds |
 |---|---|
-| `ollama` | worker roles on Ollama Cloud |
-| `linear` | ticket mirror and auto-archive (free plans count active issues) |
-| `notion` | pretest handoff rows and UAT list |
-| `autopilot` | hourly delegation, work runs by API trigger, pretest routine |
+| `tracker-itsaplan` | ticket mirror, "Action Required" column, answers and UAT approvals by comment (recommended) |
+| `tracker-linear` | the same for Linear, one ticket per unit |
+| `delegate` | worker roles (research, execution, testing …) mapped to models in one file |
+| `gateway` | LiteLLM example config: Ollama plus ChatGPT plan, Claude subscription as fallback |
+| `autopilot` | check script for the central dispatcher, work-run routine, batch windows |
+| `pretest` | browser pretest inside the work run: Playwright, test login, axe, verdict file |
 
-Details: [docs/MODULES.md](docs/MODULES.md).
+Details: [docs/MODULES.md](docs/MODULES.md). Agents other than Claude Code: `--agent opencode` or `--agent other` writes an `AGENTS.md`; see [docs/MODULES.md](docs/MODULES.md).
 
 ## Recommended skills
 
-These skills check prose, interfaces and page design. The role review and the pretest use a writing check and the `better-*` skills when they are installed; foreman works without them.
+The setup offers to install these, globally or only for one project, and asks first. foreman works without them.
 
 | Skill | What it does | Install |
 |---|---|---|
-| [`/no-ai-slop`](https://github.com/petergyang/no-ai-slop) | Edits or audits prose so it keeps your voice and loses AI phrasing. Good for briefs, changelogs, READMEs and UI text. | `npx skills add petergyang/no-ai-slop --skill no-ai-slop --global --yes` |
-| [`/humanizer`](https://github.com/blader/humanizer) | Rewrites AI-sounding text using the patterns from Wikipedia's "Signs of AI writing". | `git clone https://github.com/blader/humanizer.git ~/.claude/skills/humanizer` |
-| [`/hallmark`](https://github.com/nutlope/hallmark) | Design skill for new pages and landing pages that should look designed, not generated. A project's own `docs/design.md` takes precedence; Hallmark then adds its floor rules and page structure. | `npx skills add nutlope/hallmark -g` |
-| [`/better-*`](https://github.com/jakubkrehel/skills) | Interface skills: `better-writing`, `better-interface`, `better-ui`, `better-layout`, `better-typography`, `better-colors`, `better-accessibility`, plus `build-design` and `interface-review`. | `npx skills add jakubkrehel/skills` |
+| [`/no-ai-slop`](https://github.com/petergyang/no-ai-slop) | Edits or audits prose so it keeps your voice and loses AI phrasing. | `npx skills add petergyang/no-ai-slop --skill no-ai-slop --global --yes` |
+| [`/humanizer`](https://github.com/blader/humanizer) | Rewrites AI-sounding text using Wikipedia's "Signs of AI writing". | `git clone https://github.com/blader/humanizer.git ~/.claude/skills/humanizer` |
+| [`/hallmark`](https://github.com/nutlope/hallmark) | Design rules and page structure for new pages and landing pages. Your `docs/design.md` takes precedence. | `npx skills add nutlope/hallmark -g` |
+| [`/better-*`](https://github.com/jakubkrehel/skills) | Interface skills: writing, interface, UI, layout, typography, colors, accessibility. | `npx skills add jakubkrehel/skills` |
 
-All four are MIT licensed (Hallmark's photo library has its own per-image licenses). In claude.ai, upload the skill folders the same way as the foreman chat skills.
-
-## What gets installed
-
-```
-CLAUDE.md                       rules, under 2 KB
-.foreman.json                   scope, modules, branches, mirror config
-.claude/settings.json           session model, hooks, deny rules
-.claude/hooks/                  inject-core.sh, session-setup.sh, guard-git.py
-.claude/skills/foreman-*        delegation, milestone, fixpack, batch, deploy, dispatch-run
-.githooks/pre-commit            no commits on main/prod
-tools/delegate/                 run_task.py, config.toml (roles → models), tests
-scripts/                        batch-branch.mjs, state-mirror.mjs, autopilot-check.sh, check-config.sh, tests
-docs/                           milestone and fix pack templates, routines, release path, versioning, learnings
-.github/workflows/foreman-guards.yml
-```
+For one project only, drop the global flag and run the command inside the repo. The list lives in [skills.recommended.json](skills.recommended.json). All four are MIT licensed.
 
 ## License
 
