@@ -35,7 +35,15 @@ A project without staging uses only `main` and `dev`; the installer asks.
 
 `planning` · `slice` · `rework` · `validation` · `batch-pr` · `fixpack` · `awaiting-merge` · `pretest-waiting` · `pretest-running` · `needs-input` · `uat-ready` · `release-ready` · `done`
 
-A unit is a milestone or a fix pack. `STATE.md` is the only source of truth for its status. Trackers (Linear, Notion) are mirrors written by `scripts/state-mirror.mjs`, never by a model.
+A unit is a milestone or a fix pack. `STATE.md` is the only source of truth for its status. Trackers (itsaplan, Linear) are mirrors written by `scripts/state-mirror.mjs`, never by a model.
+
+Task kinds of the dispatcher check (`TASK|<kind>|<unit>|<info>`): `pretest-run` · `pretest-result` · `input-received` · `uat-approved` · `batch` (unit `batch:dev` or `batch:main`) · `release-reminder` · `coding`.
+
+Pretest verdict (last line of `docs/pretest/<unit>-round-N.md`): `Verdict: fix-round | uat-ready | intervention`. The status for an intervention is `needs-input`; its question is the section `## Open question` of `STATE.md`. Answers start with `Answer <unit>:`, approvals read `UAT <unit> approved`.
+
+Modules in `.foreman.json`: `tracker-itsaplan` or `tracker-linear` (exclusive, none = no tracker), `delegate`, `gateway`, `autopilot`, `pretest`. Agent: `claude-code`, `opencode` or `other`. The chat skills read the project data from the `context` block (`stagingUrl`, `devUrl`, `testTenant`, `offLimits`, `language`, `timeZone`, `releaseDay`, `workRun`).
+
+Environment variable names are exact and contain no spaces: `ITSAPLAN_URL`, `ITSAPLAN_API_KEY`, `ITSAPLAN_WEB_URL`, `LINEAR_API_KEY`, `GITHUB_TOKEN`, `OLLAMA_API_KEY`, `FOREMAN_GATEWAY_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `TEST_LOGIN_SECRET_DEV`, `TEST_LOGIN_SECRET_STAGING`. Documents name variables, never print values.
 
 Other `STATE.md` header fields: `Target: dev | main`, `Batch-branch:`, `Lock: free | <ISO time> <run id>`, `Tracker: <id> | -`, `Pretest-round: <N>`. The status line reads `Status: <status> · since <UTC YYYY-MM-DDTHH:MMZ> · <note>`.
 

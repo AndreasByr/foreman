@@ -4,6 +4,14 @@ Why the rules in foreman exist. Skills hold the rule; the story lives here. Proj
 
 ## From the reference project
 
+- A cheap model in an hourly routine as dispatcher cost tokens every hour and still got timestamps and locks wrong. The check is a script and a model-free dispatcher fires the work runs; the routine with a model stays as Plan B for people without a server.
+- A separate pretest routine on the human's computer could not be started by API and stood idle whenever the computer was off. The pretest is a step of the work run in the cloud, with a test login instead of a browser session of the human.
+- Environment variable names must match exactly what the script reads. `ITSAPLAN_API_URL` is not `ITSAPLAN_URL`; a wrong name looks like a missing tracker and silently skips all answers and approvals. A name with a space in it never reaches the process at all.
+- A fresh cloud worktree has no `node_modules`; the pretest runner then fails with `ERR_MODULE_NOT_FOUND`. The run installs its dependencies in the worktree first (`scripts/pretest-prepare.sh`).
+- GitHub's "automatically delete head branches" removed the long-lived batch branches after the first merge. Switch it off for repositories that use batch branches, or recreate the branch from the target before the next run.
+- CI has no local `.env` files. Tests that need a secret must skip or use a fake in CI, and nothing may depend on a variable that only exists on the developer's machine.
+- An intervention without a comment is invisible: the card moved to "Action Required" and nobody knew why. The same run writes the question, the options with consequences, a recommendation, the report link and the way to answer, and the reconcile check fails without that comment.
+- Two dispatcher runs ten minutes apart started the same unit twice, because the first work run had not taken its lock yet. The dispatcher remembers what it fired per unit and waits out a cooldown.
 - `fire_trigger` is missing in Claude Code routines without the remote connector, which cannot be added in the UI. The delegation fires with curl.
 - `validation` on a mid-size model let too much through; it runs on the strongest model, but only after the mechanical checks are green.
 - A "Saved" toast is not proof of persistence: confirm after reload plus a reading API call.

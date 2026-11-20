@@ -1,0 +1,33 @@
+{
+  "note": "Recommended third-party skills. install.sh and foreman-setup install them only after confirmation. Commands for the project scope run inside the target repository.",
+  "skills": [
+    {
+      "name": "no-ai-slop",
+      "repo": "https://github.com/petergyang/no-ai-slop",
+      "purpose": "Sharpen texts and find AI filler in documents, UI copy and landing pages.",
+      "install_global": "npx skills add petergyang/no-ai-slop --skill no-ai-slop -g",
+      "install_project": "npx skills add petergyang/no-ai-slop --skill no-ai-slop"
+    },
+    {
+      "name": "humanizer",
+      "repo": "https://github.com/blader/humanizer",
+      "purpose": "Rewrite AI-sounding text so it reads like the writer, based on Wikipedia's signs of AI writing.",
+      "install_global": "git clone https://github.com/blader/humanizer.git ~/.claude/skills/humanizer",
+      "install_project": "git clone https://github.com/blader/humanizer.git .claude/skills/humanizer"
+    },
+    {
+      "name": "hallmark",
+      "repo": "https://github.com/nutlope/hallmark",
+      "purpose": "Design skill for new pages and landing pages that look designed instead of generated.",
+      "install_global": "npx skills add nutlope/hallmark -g",
+      "install_project": "npx skills add nutlope/hallmark"
+    },
+    {
+      "name": "better-ui",
+      "repo": "https://github.com/jakubkrehel/skills",
+      "purpose": "better-* skills: accessibility, colors, layout, typography, writing and UI polish reviews.",
+      "install_global": "npx skills add jakubkrehel/skills -g",
+      "install_project": "npx skills add jakubkrehel/skills"
+    }
+  ]
+}
