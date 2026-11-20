@@ -19,3 +19,12 @@ jobs:
       - name: State mirror tests
         run: node scripts/test-state-mirror.mjs
         if: hashFiles('scripts/test-state-mirror.mjs') != ''
+      - name: Dispatcher check tests
+        run: node scripts/test-autopilot-check.mjs
+        if: hashFiles('scripts/test-autopilot-check.mjs') != ''
+      - name: Pretest runner tests
+        run: node scripts/test-pretest.mjs
+        if: hashFiles('scripts/test-pretest.mjs') != ''
+      - name: Pre-push hook tests
+        run: bash scripts/test-pre-push.sh
+        if: hashFiles('scripts/test-pre-push.sh') != ''
