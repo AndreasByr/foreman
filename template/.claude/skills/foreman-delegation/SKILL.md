@@ -5,7 +5,7 @@ description: How every coding order in {{PROJECT_NAME}} is done. Load for any co
 
 ## Core
 
-1. The session plans and accepts. Workers research and code via `python3 tools/delegate/run_task.py tools/delegate/tasks/<ID>-name.md`. No `Agent` subagents for research or coding; parallel work = several wrapper calls.
+1. The session plans and accepts. Workers research and code via `python3 tools/delegate/run_task.py tools/delegate/tasks/<ID>-name.md`. No `Agent` subagents for research or coding (only exception: wrapper exit 5, see below); parallel work = several wrapper calls.
 2. Every task file has `role:` in its front matter (`verify:` optional). Models are set only in `tools/delegate/config.toml`. Default start role: `execution_simple`.
 3. Run the `verify` command yourself once before delegating.
 4. Never trust a worker's report. Read the diff and run the checks yourself. Order: scope check, tests/typecheck/lint, red-then-green test, then role `validation`. Stop at the first red.
@@ -70,6 +70,7 @@ Describe what, not how. Put the diff into a `validation` task, because workers h
 | 2 | call or config error (for example no `role`) | fix the task file or config |
 | 3 | prerequisite missing (CLI, key without fallback) | stop and report |
 | 4 | `verify` command not runnable, no worker started | fix the `verify` command, run it once yourself |
+| 5 | Claude workers cannot log in ("Not logged in") | hand the same task file to a subagent of this session (Agent tool, model of the role from `config.toml`, foreground). This is the only allowed use of Claude subagents for coding. Note it in the report; if it repeats, set `claude_login = "inherit"` in `config.toml` |
 
 A `## Findings` section in the result (file changed outside `files:`, or a readonly role changed a file) is red even with exit code 0.
 

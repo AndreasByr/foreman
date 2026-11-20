@@ -17,8 +17,11 @@ active = "claude-only"
 
 [defaults]
 timeout_seconds = 900                      # per attempt
-claude_auth_env = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"]  # names only; the first set ones reach Claude workers
-# claude_login = "inherit"                 # opt-in, weaker isolation: reuse the host login (subscription sessions)
+claude_login = "inherit"                   # Claude workers reuse the session's login (subscription). Required in
+                                           # Claude Code cloud sessions: a clean HOME there means "Not logged in".
+                                           # Keys of other providers, trackers and tokens are stripped either way.
+# claude_login = "isolated"               # clean HOME; then only the variables below reach Claude workers
+claude_auth_env = ["CLAUDE_CODE_OAUTH_TOKEN"]  # names only, for "isolated" (token from `claude setup-token`); never an API key
 # --- ollama module only ---
 # base_url        = "https://ollama.com"   # Anthropic-compatible endpoint
 # api_key_env     = "OLLAMA_API_KEY"       # NAME of the environment variable, never the value

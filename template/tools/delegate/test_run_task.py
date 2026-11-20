@@ -156,6 +156,49 @@ def test_scope_check():
         assert meta["files"] == ["src/**", "a b.txt"], meta
 
 
+def _fake_claude(tmp, script):
+    b = tmp / "bin"; b.mkdir(exist_ok=True)
+    f = b / "claude"; f.write_text("#!/bin/sh\n" + script); f.chmod(0o755)
+    return {**os.environ, "PATH": f"{b}:{os.environ['PATH']}"}
+
+
+def test_claude_worker_not_logged_in_exit_5():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        args = setup(t, "---\nrole: execution\n---\nx\n")
+        env = _fake_claude(t, 'echo "count" >> "$(dirname "$0")/calls"; echo "Not logged in · Please run /login" >&2; exit 1\n')
+        p = subprocess.run([sys.executable, str(HERE / "run_task.py"), *args], capture_output=True, text=True, cwd=t, env=env)
+        assert p.returncode == 5, (p.returncode, p.stdout, p.stderr)
+        assert "subagent" in p.stderr, p.stderr
+        assert (t / "bin" / "calls").read_text().count("count") == 1, "no second Claude attempt after a login failure"
+        assert "not logged in" in (t / "t.result.md").read_text().lower()
+
+
+def test_claude_worker_inherits_login_without_foreign_keys():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        args = setup(t, "---\nrole: research\n---\nx\n")
+        env = _fake_claude(t, 'env > "$(dirname "$0")/env.txt"; echo \'{"result":"ok","is_error":false}\'\n')
+        env.update({"HOME": "/home/session-user", "ANTHROPIC_API_KEY": "sk-should-not-pass-1234567890",
+                    "TEST_OLLAMA_KEY": "ollama-should-not-pass", "ITSAPLAN_API_KEY": "tracker-should-not-pass",
+                    "CLAUDE_SESSION_MARKER": "keep-me"})
+        p = subprocess.run([sys.executable, str(HERE / "run_task.py"), *args], capture_output=True, text=True, cwd=t, env=env)
+        assert p.returncode == 0, (p.stdout, p.stderr)
+        seen = (t / "bin" / "env.txt").read_text()
+        assert "HOME=/home/session-user" in seen and "CLAUDE_SESSION_MARKER=keep-me" in seen, "session login must be inherited"
+        for bad in ("sk-should-not-pass", "ollama-should-not-pass", "tracker-should-not-pass"):
+            assert bad not in seen, bad
+
+
+def test_config_rejects_api_key_and_bad_login_mode():
+    cfg = rt.tomllib.loads(CONFIG)
+    cfg.setdefault("env", {}); cfg.setdefault("mcp", {}); cfg.setdefault("claude", {})
+    cfg["defaults"]["claude_auth_env"] = ["ANTHROPIC_API_KEY"]
+    cfg["defaults"]["claude_login"] = "sometimes"
+    errs = " ".join(rt.validate_config(cfg))
+    assert "ANTHROPIC_API_KEY" in errs and "claude_login" in errs, errs
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in sorted(globals().items()):

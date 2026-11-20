@@ -69,3 +69,11 @@ It starts nothing and rejects model placeholders that setup has not filled in.
 ## Tests
 
 `python3 tools/delegate/test_run_task.py`
+
+## Claude login of workers
+
+Claude workers reuse the login of the running session (`claude_login = "inherit"`, the default). This is required in Claude Code cloud sessions and routines: the login belongs to the session, so a worker with a clean `HOME` and no token fails with "Not logged in". Keys of other providers, trackers and tokens (`ANTHROPIC_API_KEY`, `OLLAMA_API_KEY`, `LLM_GATEWAY_KEY`, `ITSAPLAN_*`, `LINEAR_*`, `GITHUB_TOKEN`, `*_FIRE_TOKEN`, Discord tokens) are stripped either way.
+
+`claude_login = "isolated"` gives workers a clean `HOME`; then only `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) logs them in. `ANTHROPIC_API_KEY` is rejected: subscription only.
+
+If a Claude worker still cannot log in, the wrapper stops all further Claude attempts and exits with code 5. The session then gives the same task file to one of its own subagents (model of the role), which runs on the session's login.

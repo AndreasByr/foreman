@@ -28,7 +28,7 @@ grep -rIl -i 'notion' "$T/a" --exclude-dir=.git >/dev/null 2>&1 && fail "notion 
 grep -rq '{{' "$T/a" --exclude-dir=.git && fail "unrendered placeholder: $(grep -rl '{{' "$T/a" --exclude-dir=.git | head -3)"
 grep -q '"test-model-id"' "$T/a/.claude/settings.json" || fail "session model not set"
 grep -qxF 'tools/delegate/tasks/*' "$T/a/.gitignore" || fail "gitignore entry missing"
-[ "$(jf "$T/a/.foreman.json" foreman)" = "0.2.0" ] || fail "version not 0.2.0"
+[ "$(jf "$T/a/.foreman.json" foreman)" = "$(cat VERSION)" ] || fail "version not $(cat VERSION)"
 [ "$(jf "$T/a/.foreman.json" agent)" = "claude-code" ] || fail "agent not recorded"
 [ "$(jf "$T/a/.foreman.json" modules)" = '["delegate", "tracker-itsaplan", "gateway", "autopilot", "pretest"]' ] || fail "modules: $(jf "$T/a/.foreman.json" modules)"
 [ "$(jf "$T/a/.foreman.json" tracker.type)" = itsaplan ] || fail "tracker type"

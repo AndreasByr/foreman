@@ -30,7 +30,14 @@ VALID_WHO = ("worker", "session")
 VALID_PROVIDERS = ("claude", "ollama", "gateway")
 # Providers that talk to an Anthropic-compatible endpoint with their own key (settings: [defaults] for ollama, [gateway]).
 ENDPOINT_PROVIDERS = ("ollama", "gateway")
-DEFAULT_CLAUDE_AUTH_ENV = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"]
+DEFAULT_CLAUDE_AUTH_ENV = ["CLAUDE_CODE_OAUTH_TOKEN"]  # subscription token (`claude setup-token`); never an API key
+# A Claude worker that cannot log in. In a Claude Code cloud session the login belongs to the session; a worker with a
+# clean HOME and no token gets "Not logged in". Then every further Claude attempt fails the same way (exit 5).
+CLAUDE_LOGIN_ERROR = re.compile(r"not logged in|please run /login|authentication error|invalid (?:x-)?api[ _-]?key|"
+                                r"oauth token (?:has )?expired|credit balance is too low", re.I)
+# Keys that never reach a Claude worker, even with the inherited login.
+NEVER_TO_CLAUDE_WORKER = re.compile(r"^(?:ANTHROPIC_API_KEY|OLLAMA_API_KEY|LLM_GATEWAY_KEY|ITSAPLAN_\w+|LINEAR_\w+|"
+                                    r"GITHUB_TOKEN|GH_TOKEN|DISCORD_\w*TOKEN\w*|\w*_FIRE_TOKEN)$")
 
 # Provider outage patterns (auth, limit, server, network); only checked when an ollama or gateway instance failed.
 INFRA_ERROR = re.compile(
@@ -197,6 +204,10 @@ def validate_config(cfg, name="config"):
             errs.append(f"[defaults] {k} missing")
     if not cfg["roles"]:
         errs.append("no [roles.*] defined")
+    if d.get("claude_login", "inherit") not in ("inherit", "isolated"):
+        errs.append('[defaults] claude_login must be "inherit" or "isolated"')
+    if "ANTHROPIC_API_KEY" in d.get("claude_auth_env", []):
+        errs.append("[defaults] claude_auth_env must not contain ANTHROPIC_API_KEY (subscription only, no API billing)")
     for role, r in cfg["roles"].items():
         who = r.get("who")
         if who not in VALID_WHO:
@@ -433,9 +444,9 @@ def run_attempt(role, cfg, body, meta, workdir, fallback=None, skip_rel=()):
     # Clean environment: own temp HOME, PATH and proxy vars only; no host token.
     state = tempfile.mkdtemp(prefix="delegate-")
     env = {k: os.environ[k] for k in PASS_ENV if k in os.environ}
-    inherit = d.get("claude_login") == "inherit" and provider == "claude"
-    if inherit:  # weaker isolation, opt-in: reuse the host login (subscription sessions)
-        env = dict(os.environ)
+    inherit = d.get("claude_login", "inherit") == "inherit" and provider == "claude"
+    if inherit:  # default: reuse the session's login (subscription); strip keys that do not belong to a worker
+        env = {k: v for k, v in os.environ.items() if not NEVER_TO_CLAUDE_WORKER.match(k) and k not in secret_names(cfg)}
     else:
         env.update({"HOME": state, "CLAUDE_CONFIG_DIR": state})
         trust_workspace(state, workdir)
@@ -488,8 +499,11 @@ def run_attempt(role, cfg, body, meta, workdir, fallback=None, skip_rel=()):
     except (json.JSONDecodeError, TypeError):
         pass
     infra = provider in ENDPOINT_PROVIDERS and is_error and (rc == 124 or bool(INFRA_ERROR.search(f"{result}\n{err}")))
+    login = provider == "claude" and is_error and bool(CLAUDE_LOGIN_ERROR.search(f"{result}\n{err}"))
     ok, verify_log, cause = not is_error, "", ""
-    if rc == 124:
+    if login:
+        cause = "Claude worker not logged in (no session login and no CLAUDE_CODE_OAUTH_TOKEN), see stderr"
+    elif rc == 124:
         cause = f"timeout after {d['timeout_seconds']}s"
     elif infra:
         cause = "provider API unusable (auth/limit/server/network), see stderr"
@@ -503,7 +517,7 @@ def run_attempt(role, cfg, body, meta, workdir, fallback=None, skip_rel=()):
         if not ok:
             cause = f"verify red (exit {v.returncode}), worker instance itself without error"
     m = lambda s: mask_secrets(s, secrets)
-    return {"role": role, "model": f"{provider}/{model}", "ok": ok, "rc": rc, "infra": infra, "cause": cause,
+    return {"role": role, "model": f"{provider}/{model}", "ok": ok, "rc": rc, "infra": infra, "login": login, "cause": cause,
             "denials": [m(x)[:300] for x in denials], "fallback": bool(fallback), "seconds": round(time.time() - t0),
             "result": m(result).strip(), "stderr": m(err).strip()[-1500:], "verify": m(verify_log).strip()}
 
@@ -593,7 +607,7 @@ def main(argv=None):
                 down.add(prov)
             else:
                 die(f"{key} is not set and a role has no fallback. Set the variable or add a fallback_model.", 3)
-    if (any(provider_of(cfg, r) == "claude" for r in chain) and d.get("claude_login") != "inherit"
+    if (any(provider_of(cfg, r) == "claude" for r in chain) and d.get("claude_login", "inherit") != "inherit"
             and not any(os.environ.get(n) for n in claude_auth_names(cfg))):
         print(f"WARNING: none of {', '.join(claude_auth_names(cfg))} is set; Claude workers run with a clean HOME and may "
               "fail to authenticate (set one, or set [defaults] claude_login = \"inherit\").", file=sys.stderr)
@@ -621,21 +635,27 @@ def main(argv=None):
             failed_models.add(res["model"])
         return res
 
+    claude_login_failed = False
     for r in chain:
+        if claude_login_failed and provider_of(cfg, r) == "claude":
+            print(f"-> {r}: Claude workers cannot log in, skipped.")
+            continue
         body_r = body if not prev else (body + "\n\n=== NOTE ===\nAn earlier attempt failed. Check the current repo state "
                                         "and finish the task. Last message of the earlier attempt:\n" + prev)
         fb = fallback_of(cfg, r)
         if fb and provider_of(cfg, r) in down:
-            if fb in failed_models:
-                print(f"-> {r}: fallback {fb} already failed, skipped.")
+            if fb in failed_models or claude_login_failed:
+                print(f"-> {r}: fallback {fb} {'cannot log in' if claude_login_failed else 'already failed'}, skipped.")
                 continue
             res = attempt(r, body_r, fb)
         else:
             res = attempt(r, body_r)
-            if not res["ok"] and res["infra"] and fb:
+            if not res["ok"] and res["infra"] and fb and not claude_login_failed:
                 down.add(provider_of(cfg, r))
                 print(f"   provider API unusable -> fallback {fb}", flush=True)
                 res = attempt(r, body_r, fb)
+        if res.get("login"):
+            claude_login_failed = True
         if res["ok"]:
             break
         prev = (res["verify"] or res["result"] or res["stderr"])[-1500:]
@@ -674,6 +694,10 @@ def main(argv=None):
     print(f"result: {out}\nreport: {report}")
     for f in findings:
         print(f"FINDING: {f}", file=sys.stderr)
+    if not ok and claude_login_failed:
+        print("Claude workers are not logged in -> hand this task file to a subagent of the session "
+              "(model per role), see foreman-delegation, exit code 5.", file=sys.stderr)
+        return 5
     if not ok:
         print("All steps failed -> the session takes over the task.", file=sys.stderr)
     return 0 if ok else 1
