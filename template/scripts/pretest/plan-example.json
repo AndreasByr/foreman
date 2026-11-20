@@ -1,0 +1,15 @@
+{
+  "unit": "2026-01-15-example-fix",
+  "round": 1,
+  "target": "dev",
+  "tenant": "test-a",
+  "pages": [
+    { "name": "members-owner", "path": "/t/test-a/members", "role": "owner" },
+    { "name": "members-member", "path": "/t/test-a/members", "role": "member" },
+    { "name": "login", "path": "/login", "role": "anonymous" }
+  ],
+  "api": [
+    { "name": "members-owner", "path": "/api/t/test-a/members", "role": "owner", "expect": 200 },
+    { "name": "members-anonymous", "path": "/api/t/test-a/members", "role": "anonymous", "expect": 401 }
+  ]
+}
