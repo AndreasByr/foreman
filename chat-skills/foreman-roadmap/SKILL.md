@@ -5,16 +5,18 @@ description: Use when the human needs a roadmap for a project or version: milest
 
 # Roadmap
 
+Answer in the language the human writes in; the roadmap file follows the project's document language.
+
 Build a complete roadmap an agent team can execute: milestones, slices, dependencies, parallel strands, and a human-testing section per milestone. Plan realistically.
 
 ## Reality of this workflow
 
-Agents write the code. Several sessions build several milestones at the same time, one batch branch per milestone (`batch/mNNN`). The bottleneck is human testing and approval (UAT).
+Agents write the code. Several runs build several milestones at the same time, one batch branch per milestone (`batch/mNNN`). The central dispatcher starts the runs. The bottleneck is human testing and approval (UAT).
 
 | Phase | Duration | Who |
 |---|---|---|
 | Agent coding | 2 to 5 days per milestone | Agent, autonomous |
-| Testing | 2 to 5 days per milestone | Agent pretest and role review, then UAT by the human |
+| Testing | 2 to 5 days per milestone | cloud pretest and role review in the work run, then UAT by the human |
 | Total | 4 to 10 days per milestone | |
 
 - A slice is one bounded agent order, not a developer day.
@@ -33,7 +35,7 @@ Agents write the code. Several sessions build several milestones at the same tim
 
 ### 1. Clarify context
 
-With requirements present, ask only: who tests (names or roles), hard deadlines, which release or version this roadmap covers, which Claude Code setup runs it (module notes below), and, if the accessibility line is missing, whether WCAG applies. Max 3 questions per round, until 99 percent sure. If the project may use the Linear module, ask that in the same round (see Module linear).
+With requirements present, ask only: who tests (names or roles), hard deadlines, which release or version this roadmap covers, which agent setup runs it, and, if the accessibility line is missing, whether WCAG applies. Max 3 questions per round, until 99 percent sure. If the tracker is not recorded yet, ask that in the same round (see step 4).
 
 ### 2. Derive milestones and strands
 
@@ -53,9 +55,9 @@ Start with the header, then the section "The schedule" (strand table and calcula
 
 Each milestone block has: type, strand, goal, coding and testing days, dependencies, slices, and a Human Testing section with test goal, testers and roles, acceptance criteria, a marked go/no-go criterion, flow checklists (main flow, error cases, accessibility flow when WCAG applies), the feedback-loop protocol and known risks.
 
-### 4. Tracker (optional)
+### 4. Tracker
 
-**Module linear:** if `.foreman.json` lists `linear`, or the human wants it, read `references/tracker-linear.md` and set up one tracker project for this version. Without the module, skip this step and write `**Tracker:** none` in the header.
+Read `references/tracker.md`. The tracker is `itsaplan`, `linear` or `none`, taken from `.foreman.json` modules or the roadmap header of an earlier version. If it is recorded, set up the version in the tracker as that file says, without asking. If not, ask the one question there. Write `**Tracker:** itsaplan | linear | none` (with link) into the header.
 
 ### 5. Deliver
 

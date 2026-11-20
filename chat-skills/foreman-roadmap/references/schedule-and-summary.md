@@ -2,7 +2,7 @@
 
 ## Header and schedule (top of the roadmap)
 
-The header names the version, target branch and `**Tracker:** <project name and link> | none`. Directly after it comes "The schedule", so readers see at once what runs in parallel.
+The header names the version, target branch and `**Tracker:** itsaplan (<link>) | linear (<link>) | none`. Directly after it comes "The schedule", so readers see at once what runs in parallel.
 
 ```markdown
 ## The schedule

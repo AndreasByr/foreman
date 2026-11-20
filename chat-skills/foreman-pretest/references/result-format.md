@@ -1,6 +1,6 @@
 # Pretest result format
 
-Read this in phase 4 and for a re-test. One file per unit and round.
+Read this in phase 4 and for a re-test. One file per unit and round. Manual results are named `<unit>-manual-<date>.md` and have no `Verdict:` line; cloud results are `<unit>-round-N.md` and end with `Verdict: fix-round | uat-ready | intervention`.
 
 ```markdown
 # Pretest result: <unit>, round <N>
@@ -36,9 +36,9 @@ Per flow: what was checked, what passed, findings with repro.
 
 **Fix round.** Fix pack id, session id, number of items (fix / analysis), and the complete pack text below it. Rough wait: 10 to 15 minutes per item.
 
-**uat-ready.** Nothing left to fix. Contains a UAT checklist with **only** what needs a human, each item with the reason (second real account, real hardware, product decision) and the steps. Everything an agent can test itself must already be tested and listed under Function results. Never put a browser-testable item on the checklist.
+**uat-ready.** Nothing left to fix. Contains a UAT checklist (in the tracker ticket, or `docs/uat/<unit>.md` with tracker `none`) with **only** what needs a human, each item with the reason (second real account, real hardware, product decision) and the steps. Everything an agent can test itself must already be tested and listed under Function results. Never put a browser-testable item on the checklist.
 
-**needs-input.** Exactly one question, with a recommendation and what depends on the answer. Use it when a decision blocks both the pack and UAT, or when the environment is unusable.
+**intervention** (unit status `needs-input`, tracker status Action Required). Exactly one question, with a recommendation and what depends on the answer. Use it when a decision blocks both the pack and UAT, or when the environment is unusable. The explanation comment (question in one sentence, options A/B/C with consequences, recommendation, report link, `Answer <unit>: ...` route) is part of the outcome; without it the step is open.
 
 Nothing found: still write the result, short, with a clear go and outcome uat-ready.
 

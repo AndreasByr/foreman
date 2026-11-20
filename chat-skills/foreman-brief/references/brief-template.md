@@ -53,7 +53,7 @@ File: `docs/milestones/Mnnn/Mnnn-CONTEXT.md`. Write the sections in this order. 
 
 ## Verification
 Commands that must be green: <the project's test, typecheck, lint, build commands, one per line, no pipes>
-Human only (UAT): <browser steps; if accessibility is required, one pass with keyboard only and one with a screen reader>
+Human only (UAT): <only what needs a second real account, real hardware or a product decision; everything the Agent can test is proven in the cloud pretest. If accessibility is required: one pass with keyboard only and one with a screen reader>
 
 ## Risks
 <Known pitfalls, fragile spots.>

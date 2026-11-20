@@ -8,7 +8,7 @@ Read this in phase 3, when all flows are done.
 - **Analysis** ("Change nothing, investigate only. Prove the cause. Propose a fix with acceptance."): the finding occurred once, the symptom has several possible causes, or permissions/security are involved. The fix follows in the next pack.
 - **Design deviations** of one page or modal: one item.
 - **Same suspected cause:** one item, or cross-reference the items.
-- **Product decisions** (no clear expected behavior, e.g. "omit the row or show the total?", conflict between requirement and intended behavior): not in the pack. Ask the human **one** bundled question after the flows, with a recommendation. The pack goes out after the answer and includes the decided items. Unattended run with no answer: send the pack without these items and put the questions in the result (outcome needs-input only if nothing else is left to fix).
+- **Product decisions** (no clear expected behavior, e.g. "omit the row or show the total?", conflict between requirement and intended behavior): not in the pack. Ask the human **one** bundled question after the flows, with a recommendation. The pack goes out after the answer and includes the decided items. Unattended run with no answer: send the pack without these items and put the questions in the result (outcome intervention only if nothing else is left to fix).
 - **Security findings:** never confirmed live; still an item, usually analysis.
 
 ## Item format

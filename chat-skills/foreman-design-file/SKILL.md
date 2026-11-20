@@ -5,6 +5,8 @@ description: Use when a project needs a token-based docs/design.md as single sou
 
 # Design file
 
+Answer in the language the human writes in. The file follows the project's document language.
+
 Write a complete `docs/design.md`: the project's design system as a machine-readable, commented Markdown file. It is the single source of truth for every agent that builds UI, so colors, spacing and components stay consistent and nothing is guessed.
 
 An agent reads this file as context and derives all visual decisions from it without questions. Every token has a name, a value and a usage rule.
@@ -62,6 +64,10 @@ A project may add **house rules** to a section "House rules" at the end of `desi
 1. Write `docs/design.md` (in a repo session) or `design-<short-name>.md` to the output folder and present it as a download.
 2. Show a quick token overview in chat: the 5 to 8 most important color tokens as a table (hex, role, usage) with their contrast ratios.
 3. Ask: "Is the palette right? Are components missing? Should I add the light/dark split?"
+
+## Next
+
+Boards (screens and flows) are made in chat from this file and approved there; see `foreman-project` step 3 and `foreman-brief` (`references/design-first.md`). Boards are exported as HTML to `docs/design-reference/`. If the repo has a machine-readable token file with a CI check, update it in the same commit as every later change to `design.md`.
 
 ## Quality rules
 

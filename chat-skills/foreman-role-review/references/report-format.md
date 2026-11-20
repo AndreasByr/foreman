@@ -49,11 +49,6 @@ Nothing found: still the full report; each role gets a verdict and what was chec
 
 Inside the pretest, this report is the part "Role review" of the pretest result, between the function results and the outcome block, with no separate approval row.
 
-## Module notion
-If the project mirrors pretest handoffs to Notion, each standalone report gets its own row there (also in briefing mode):
-- **Name:** `Role review <unit or scope> · <date>`; **Kind:** `Role review`; **Target:** `Dev` or `Staging` (briefing mode: empty).
-- **Unit/milestone field stays empty.** The delegation and work runs match rows to units through that field; a review row would be read as the latest pretest row. The name carries the unit.
-- **Phase:** `Awaiting approval` while the pack waits; `Taken over` once the pack is sent, all items were rejected, or (briefing mode) the findings are in the brief. Never set other phases; they belong to the autopilot.
-- **Content:** a note on the pack status at the top, then a complete copy of the report without the H1. Escape angle brackets outside code with `\<`; put file names in backticks.
-- Missing the column `Kind` or the phase `Awaiting approval`: add them once, keep all existing options.
-Without the notion module, the report file is the record.
+## Where the report lives
+
+The report file is the record (`docs/role-reviews/<unit-or-date>.md`, or the part "Role review" of a pretest result). A tracker is a mirror of `STATE.md` and does not hold reports; link the file in a ticket comment only when the human asks. A standalone report waits for approval before any pack goes out; the pack status line at the top says `NOT SENT` until then.

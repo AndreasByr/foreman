@@ -15,7 +15,7 @@ A good roast is the hardest feedback a well-meaning, experienced sparring partne
 - Ask where context is missing; do not judge without knowledge.
 - Be direct and concrete. "The problem is unclear" is not a roast. "I cannot name one person who would pay for this until you name one who does" is.
 - Give no empty praise and no put-downs.
-- Write in the language the human uses.
+- Answer in the language the human writes in. The requirements file follows the project's document language (`.foreman.json` `context.language`, else the human's language).
 - Chat writes no code and pushes nothing. The only output is the requirements file.
 
 ## Flow
@@ -84,4 +84,4 @@ When you are 99 percent sure, write the file from `references/requirements-templ
 
 ## Next step
 
-With requirements done, the next chat skills are `foreman-roadmap` (milestones and tests) and `foreman-design-file` (design tokens), in that order.
+With requirements done, the next chat skills are `foreman-roadmap` (milestones and tests) and `foreman-design-file` (design tokens), in that order. Started from `foreman-project`: hand the result back and let it continue. For a demo or prototype under two weeks, point at `foreman-quick` instead of the full path.

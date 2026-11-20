@@ -1,13 +1,17 @@
 ---
 name: foreman-brief
-description: Write a milestone brief (and the design boards it needs) so Claude Code can build it unattended, then hand it off. With no milestone number, build a situation report and start what is ready. Use for a new milestone, slice or "write me an order".
+description: Write a milestone brief (and the design boards it needs) so the coding agent can build it unattended, then hand it off. With no milestone number, build a situation report and start what is ready. Use for a new milestone, slice or "write me an order".
 ---
 
 # foreman-brief: milestone briefs and handoff
 
 You write briefs that an Agent can execute without questions. The Agent has no chat history, so every brief stands alone. Describe what, not how. Say "the Agent". Never name models.
 
-Check `.foreman.json` in the repo (if you can read it) for enabled modules: `ollama`, `linear`, `notion`, `autopilot`. Module parts below are marked **Module x**; ignore them when the module is off.
+Answer in the language the human writes in. Brief files follow the project's document language.
+
+## Project data
+
+Read `.foreman.json` in the repo (if you can): `modules` (`tracker-itsaplan` or `tracker-linear`, or neither = tracker `none`; `delegate`, `gateway`, `autopilot`, `pretest`), `agent`, and `context` (`stagingUrl`, `devUrl`, `testTenant`, `offLimits`, `language`, `releaseDay`, `workRun`). If the file is not readable, use the chat project's files. Ask once for what is still missing and offer to record it under `context`. Never ask for tokens. Module parts below are marked **Module x**; ignore them when the module is off.
 
 ## Calls
 
@@ -80,16 +84,21 @@ Show the brief as a file with a short summary: goal, number of capabilities, mos
 
 Then:
 
-- **Module autopilot:** commit the brief to `docs/milestones/Mnnn/` on `batch/mNNN` (create the branch with `node scripts/batch-branch.mjs mNNN` if missing). Create `STATE.md` from the template with `Status: planning`, `Target: dev`, `Batch-branch: batch/mNNN`, `Lock: free`, `Tracker: -`. The delegation run picks it up. Or fire the dispatcher routine, one fire per milestone, never two milestones in one payload.
-- **Without autopilot:** give the human one line to paste into a Claude Code session: `Run milestone M004`. Also tell them the brief file must be on the batch branch first.
-- **Module linear:** tickets are created only by `scripts/state-mirror.mjs` from `STATE.md`. You never create or change tracker tickets or statuses.
-- **Module autopilot:** before starting, check that the scheduled routines (delegation, work run, pretest) are on. If not, remind the human before the start and again in the start message. Without active routines a milestone plans and then stops.
+- **Module autopilot:** commit the brief to `docs/milestones/Mnnn/` on `batch/mNNN` (create the branch with `node scripts/batch-branch.mjs mNNN` if missing). Create `STATE.md` from the template with `Status: planning`, `Target: dev`, `Batch-branch: batch/mNNN`, `Lock: free`, `Tracker: -`. The central dispatcher (LLM-free, runs on the human's machine, every 10 minutes) sees the unit and starts a work run. To start at once from chat, fire the work-run routine with the full order as payload, one fire per milestone, never two milestones in one payload. Fire from chat only for first starts, answers and approvals; the human holds the fire URL and token, never ask for them.
+- **Without autopilot:** give the human one line to paste into a coding agent session: `Run milestone M004`. The brief file must be on the batch branch first.
+- **Tracker (itsaplan or linear):** tickets are created only by the mirror script from `STATE.md`. You never create or change tickets or statuses. With tracker `none`, `STATE.md` is the whole record.
+- **Module autopilot:** before starting, check that the dispatcher timer and the work-run routine are on (ask the human, or read the last dispatcher log line if you can). If not, remind the human before the start and again in the start message. Without them a milestone is queued and nothing runs.
+- **Module pretest:** the cloud pretest runs inside the work run after the dev deploy. Do not send a second pretest from chat.
 
-After the start, report: what runs (per track), whether the schedules are on, what arrives by itself ("UAT ready", "needs input", "autopilot idle"), what could still start in parallel, what the human's next approval unlocks. After a UAT approval, the human can repeat the bare call and you start whatever became free.
+After the start, report: what runs (per track), whether the dispatcher is on, what arrives by itself ("UAT ready", "Action Required", "autopilot idle"), what could still start in parallel, what the human's next approval unlocks. After a UAT approval, the human can repeat the bare call and you start whatever became free.
 
 ## When the human is asked
 
-Only for `needs-input`: a missing or contradicting requirement, an open decision, a missing infrastructure or permission, a merge conflict that needs a product decision, or limits exceeded (more than 2 rework or 3 retest rounds, red CI after 3 own fix attempts). Otherwise the human sees only "UAT ready" with the checklist.
+Only for an intervention (`needs-input`, shown in the tracker as Action Required): a missing or contradicting requirement, an open decision, a missing infrastructure or permission, a merge conflict that needs a product decision, a UI result that deviates strongly from the board, or limits exceeded (more than 2 rework or 3 retest rounds, red CI after 3 own fix attempts). Otherwise the human sees only "UAT ready" with the checklist.
+
+**Intervention comment rule.** A unit with an intervention is not handed over until the same run has put a comment in the tracker: the question in one sentence, options A/B/C with their consequences, a recommendation, a link to the report, and the way to answer (`Answer <unit>: ...`). A status without that comment is invisible to the human. When you relay a question from the report, give the same five parts.
+
+**Answers.** The human answers in chat or in the tracker. In the tracker the comment starts with `Answer <unit>:` and must come from the human's own account, because bot comments never count. With tracker `none` the answer is a file `docs/answers/<unit>.md` with the line `Answer <unit>: ...` on the unit's batch branch, or a payload to the work run. Chat writes that file or fires the payload when the human answers here.
 
 ## Special cases
 
