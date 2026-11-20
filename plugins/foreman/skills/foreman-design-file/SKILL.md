@@ -1,6 +1,6 @@
 ---
 name: foreman-design-file
-description: Use when a project needs a token-based docs/design.md as single source for agents: from a palette, reference design, URL or description. Covers colors, type, spacing, radius, shadows, breakpoints, component states, naming, CSS properties, Tailwind excerpt.
+description: "Use when a project needs a token-based docs/design.md as single source for agents: from a palette, reference design, URL or description. Covers colors, type, spacing, radius, shadows, breakpoints, component states, naming, CSS properties, Tailwind excerpt."
 ---
 
 # Design file

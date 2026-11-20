@@ -1,6 +1,6 @@
 ---
 name: foreman-orchestrator
-description: Always on in chat and Cowork: sort each task and hand large mechanical parts to cheaper subagents to save tokens. Use when a task has big input, many tool calls or parallel parts.
+description: "Always on in chat and Cowork: sort each task and hand large mechanical parts to cheaper subagents to save tokens. Use when a task has big input, many tool calls or parallel parts."
 ---
 
 # Orchestrator

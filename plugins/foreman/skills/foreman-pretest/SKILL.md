@@ -1,6 +1,6 @@
 ---
 name: foreman-pretest
-description: Manual browser pretest from chat: test a deployed unit's flows, verify permissions via API, compare pages with the design board, send findings as one fix pack. Use when no cloud pretest runs, for a second look, or when the human asks for a browser test.
+description: "Manual browser pretest from chat: test a deployed unit's flows, verify permissions via API, compare pages with the design board, send findings as one fix pack. Use when no cloud pretest runs, for a second look, or when the human asks for a browser test."
 ---
 
 # foreman-pretest

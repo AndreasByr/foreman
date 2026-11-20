@@ -21,6 +21,8 @@ for e in m["plugins"]:
         fm = re.match(r"^---\n(.*?)\n---\n", t, re.S); assert fm, f"{n}: no frontmatter"
         assert re.search(rf"^name: {re.escape(n)}$", fm.group(1), re.M), f"{n}: name mismatch"
         d = re.search(r"^description: (.+)$", fm.group(1), re.M); assert d and len(d.group(1)) <= 1024, f"{n}: description"
+        v = d.group(1)
+        assert v.startswith('"') or ": " not in v, f"{n}: description contains ': ' and must be quoted (invalid YAML otherwise)"
 print(f"plugin tests: ok ({len(names)} skills)")
 PY
 if command -v claude >/dev/null 2>&1; then claude plugin validate . >/dev/null && claude plugin validate ./plugins/foreman >/dev/null && echo "claude plugin validate: ok"; fi

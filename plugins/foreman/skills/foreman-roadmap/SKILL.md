@@ -1,6 +1,6 @@
 ---
 name: foreman-roadmap
-description: Use when the human needs a roadmap for a project or version: milestones, slices, dependencies, parallel strands and a human-testing section per milestone. Reads docs/requirements.md; writes docs/roadmap-0.N.0.md.
+description: "Use when the human needs a roadmap for a project or version: milestones, slices, dependencies, parallel strands and a human-testing section per milestone. Reads docs/requirements.md; writes docs/roadmap-0.N.0.md."
 ---
 
 # Roadmap
