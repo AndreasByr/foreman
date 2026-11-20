@@ -1,0 +1,13 @@
+[Unit]
+Description=foreman dispatcher (model-free check and fire)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Adjust the path to where you cloned foreman. Install as a user unit: ~/.config/systemd/user/
+WorkingDirectory=%h/foreman/dispatcher
+EnvironmentFile=-%h/foreman/dispatcher/dispatcher.env
+ExecStart=%h/foreman/dispatcher/dispatch.sh
+TimeoutStartSec=15min
+Nice=10

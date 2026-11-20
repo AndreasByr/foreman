@@ -75,7 +75,7 @@ Rules in `docs/versioning.md`; read it before the first release.
 5. Watch the run of the merge commit until the production verify job is done (`gh run list --branch prod --limit 3`; `gh run watch`). Same checks as staging against the production URL.
 6. Red: fix and re-trigger as in staging step 6, at most 3 rounds; cause outside the repo: stop and report.
 7. Green: set the tag per the rules above.
-8. Update units: each released unit `STATE.md` to `done · release vX.Y.Z` (commit to its batch branch), then run `node scripts/state-mirror.mjs` when module linear or notion is on. The tracker follows `STATE.md`; do not set tracker statuses by hand.
+8. Update units: each released unit `STATE.md` to `done · release vX.Y.Z` (commit to its batch branch), then run `node scripts/state-mirror.mjs` when a tracker module is on. The tracker follows `STATE.md`; do not set tracker statuses by hand.
 9. After a collected release the last step is `main` to `dev`. The sync workflow does it; check that `git rev-list --count origin/dev..origin/main` is `0` and no "main to dev (conflict)" PR is open, and say so in the report.
 
 Monitoring is mandatory for each phase. Report: CI, merge, deploy and verify results (green or red), number of fix rounds with cause and fix per round, the commits actually merged, version, tag state, changelog path. On abort after the last round: state, raw fields and a proposal.

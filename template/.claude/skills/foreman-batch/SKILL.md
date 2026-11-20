@@ -69,7 +69,7 @@ Deploy watching and fix rounds follow `foreman-deploy`.
    4. Delete the rest: `git push origin --delete <branch>` and `git branch -d <branch>`. An order "batch PR ..." covers this deletion.
    5. Never delete `main`, `dev`, `prod`, `batch/*` or branches of other work. If something is not in the target: do not delete, report.
 10. **Pull the batch branch forward:** `node scripts/batch-branch.mjs <target>` (fast-forward). `batch/main` and `batch/dev` stay. `batch/mnnn` stays until the human says "UAT Mnnn approved"; then delete it after `git merge-base --is-ancestor origin/batch/mnnn origin/dev` holds.
-11. **Report** at `docs/agent-reports/<YYYY-MM-DD>-batch-<target>.md`: PR number, merge commit, list of fixes, CI and deploy evidence (run, result, SHA), deleted and kept branches with reason, open points. Then set the units in this batch to `pretest-waiting` (pure docs units: `done`, or `release-ready` for target `main`) in their `STATE.md`.
+11. **Report** at `docs/agent-reports/<YYYY-MM-DD>-batch-<target>.md`: PR number, merge commit, list of fixes, CI and deploy evidence (run, result, SHA), deleted and kept branches with reason, open points. Then set the units in this batch to `pretest-waiting` (`uat-ready` with a UAT list when module `pretest` is off; pure docs units: `done`, or `release-ready` for target `main`) in their `STATE.md`.
 
 Close each unit right after its merge: status, round in `STATE.md`, lock free, before the next PR opens. The run ends only when no unit of this run is still `batch-pr`; the closing message lists each unit.
 

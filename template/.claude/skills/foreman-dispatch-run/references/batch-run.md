@@ -16,7 +16,7 @@ The human's order "Batch PR dev/main/Mnnn" starts a run at once and is the merge
 
 1. Take the lock of each unit in the batch.
 2. Run the batch PR flow of `foreman-batch` for all `awaiting-merge` units together.
-3. **Close each unit right after the merge commit,** before the next PR opens: set the status, write the round into `STATE.md`, free the lock, mirror. Status after the merge: target `dev` or `main`: `pretest-waiting` (write the pretest handoff per `payload.md`, "Request a pretest"); pure docs units: `done` (target `dev`) or `release-ready` (target `main`). Do not close only the last unit.
+3. **Close each unit right after the merge commit,** before the next PR opens: set the status, write the round into `STATE.md`, free the lock, mirror. Status after the merge: target `dev` or `main`: `pretest-waiting` with module `pretest` (write the order per `payload.md`, "Request a pretest"), otherwise `uat-ready` with a UAT list; pure docs units: `done` (target `dev`) or `release-ready` (target `main`). Do not close only the last unit.
 4. CI still running when the session ends: leave the PR open, note "batch PR #n open, CI running" in the report and ticket, free the locks. The next run continues (green: merge commit, verify, set status; red: fix, at most 3 rounds; already merged: only verify and set status). An open batch PR is not a new batch.
 5. The run ends when no unit of this run is `batch-pr` any more. The closing message lists each unit and its new status.
 
