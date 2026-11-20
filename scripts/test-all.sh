@@ -11,3 +11,4 @@ node template/scripts/test-pretest.mjs
 node dispatcher/tests/test-dispatch.mjs
 bash scripts/test-install.sh
 bash scripts/privacy-scan.sh
+bash scripts/test-plugin.sh

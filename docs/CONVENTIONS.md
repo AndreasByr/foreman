@@ -13,7 +13,7 @@ Every file in foreman follows these. Skills, templates and prompts use the same 
 | Thing | Name |
 |---|---|
 | Repo skills (installed into a project) | `.claude/skills/foreman-<name>/SKILL.md` |
-| Chat skills (uploaded to claude.ai) | `chat-skills/foreman-<name>/SKILL.md` |
+| Chat skills (plugin `foreman`) | `plugins/foreman/skills/foreman-<name>/SKILL.md` |
 | Placeholders in templates | `{{PROJECT}}` (slug, lowercase), `{{PROJECT_NAME}}` (display name) |
 | Milestone | `M001`, folder `docs/milestones/M001/` |
 | Fix pack | `<YYYY-MM-DD>-<slug>`, folder `docs/fixpacks/<id>/` |

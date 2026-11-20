@@ -26,14 +26,13 @@ None of the extras is required. Without a tracker, questions, answers and UAT ch
 
 The setup skill asks what you know, what you need, what you have and how you work, then gives you the exact install command and a checklist with time estimates. Plan 10 minutes for the chat part and 15 to 60 minutes for the rest, depending on what you already run.
 
-1. **Get the skills (2 min).**
-   ```bash
-   git clone https://github.com/AndreasByr/foreman && cd foreman
-   ./scripts/package-chat-skills.sh        # writes dist/foreman-<name>.zip
-   ```
-   Upload the zips in claude.ai under Settings → Capabilities → Skills.
+1. **Install the plugin (1 min).**
+   - claude.ai or the desktop app: open the Plugins page, select **Add marketplace**, enter `AndreasByr/foreman`, then install **foreman**. The plugin is saved to your account, so its skills also work in Claude Code.
+   - Claude Code: `/plugin marketplace add AndreasByr/foreman`, then `/plugin install foreman@foreman`.
+   - Team or Enterprise: an owner can add the repository under Organization settings → Plugins & skills → Sync from GitHub.
+   Updates arrive through the marketplace; there is nothing to upload.
 2. **Run the setup (10 min).** In a new chat, say "set up foreman". `foreman-setup` interviews you and recommends a profile: Quick, Repo or Autopilot.
-3. **Install into your repo (2 min).** Run the command the setup gave you, for example:
+3. **Install into your repo (2 min).** Clone this repository once (`git clone https://github.com/AndreasByr/foreman`), then run the command the setup gave you, for example:
    ```bash
    ./install.sh ../my-app --project my-app --name "My App" --agent claude-code \
      --modules tracker-itsaplan,delegate,autopilot,pretest \

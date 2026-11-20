@@ -251,7 +251,7 @@ Next steps:
   2. Run the checks:  bash scripts/check-config.sh && python3 scripts/test-guard.py && bash scripts/test-pre-push.sh
   3. Put project setup (dependencies, database) into scripts/session-setup.local.sh.
   4. Fill the "context" block of .foreman.json (staging and dev URLs, test tenant, time zone, release day); the chat skills read it.
-  5. Upload chat-skills/foreman-* to claude.ai (see README) and start with foreman-setup.
+  5. Install the foreman plugin (claude.ai: Plugins → Add marketplace → AndreasByr/foreman; Claude Code: /plugin marketplace add AndreasByr/foreman) and start with foreman-setup.
 EOF
 if [ "$agent" != claude-code ]; then echo "  AGENTS.md was written. $agent has no Claude hooks: .githooks/pre-push is the push guard (core.hooksPath is set when the target is a git repo). Skills are read from .claude/skills/."; fi
 if has tracker-itsaplan; then echo "  Tracker itsaplan: create the columns and labels (docs/trackers.md), set ITSAPLAN_URL and ITSAPLAN_API_KEY, fill mirror.itsaplan.projectKey, then: node scripts/state-mirror.mjs --dry-run"; fi

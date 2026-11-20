@@ -10,6 +10,7 @@
 - **Gateway module**: LiteLLM example for Ollama plus a ChatGPT plan, Claude subscription as fallback.
 - **Agent-neutral**: `--agent opencode|other` writes `AGENTS.md`; a git pre-push guard works without Claude hooks.
 - **Recommended skills** (`skills.recommended.json`): installed only after confirmation, globally or per project.
+- **Claude plugin and marketplace**: install with `/plugin marketplace add AndreasByr/foreman` or "Add marketplace" in claude.ai; no zip uploads.
 - **New chat skills**: `foreman-setup` (guided interview with time estimates), `foreman-project` (full or quick), `foreman-quick` (one-shot prompt for demos).
 - **Removed**: Notion module.
 

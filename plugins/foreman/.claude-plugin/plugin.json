@@ -1,0 +1,10 @@
+{
+  "name": "foreman",
+  "version": "0.2.0",
+  "description": "Plan with Claude, build with cheap workers, check mechanically, test before release. Guided setup, new projects (full or quick one-shot), briefs, fix packs, pretest, role review and releases.",
+  "author": { "name": "foreman contributors" },
+  "homepage": "https://github.com/AndreasByr/foreman",
+  "repository": "https://github.com/AndreasByr/foreman",
+  "license": "MIT",
+  "keywords": ["workflow", "autopilot", "delegation", "pretest", "release"]
+}
