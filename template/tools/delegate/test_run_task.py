@@ -83,6 +83,47 @@ def test_dry_run():
         assert p.returncode == 2 and "placeholder" in p.stderr, p
 
 
+GATEWAY_CONFIG = """
+[defaults]
+timeout_seconds = 60
+[gateway]
+base_url = "https://gw.example"
+api_key_env = "TEST_GATEWAY_KEY"
+fallback_model = "claude/small-x"
+[roles.execution_simple]
+who = "worker"
+provider = "gateway"
+model = "gateway/task-simple"
+[roles.execution]
+who = "worker"
+model = "claude/mid-z"
+[escalation]
+execution_simple = ["execution"]
+"""
+
+
+def test_gateway_provider():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        (t / "config.toml").write_text(GATEWAY_CONFIG)
+        (t / "t.md").write_text("---\nrole: execution_simple\n---\nx\n")
+        p = run(["t.md", "--config", "config.toml", "--dry-run"], t)
+        assert p.returncode == 0, p
+        assert "provider: gateway" in p.stdout and "model: task-simple" in p.stdout, p.stdout
+        assert "fallback=claude/small-x" in p.stdout and "api key TEST_GATEWAY_KEY (gateway): missing" in p.stdout, p.stdout
+        # missing base_url is a config error
+        (t / "config.toml").write_text(GATEWAY_CONFIG.replace('base_url = "https://gw.example"\n', ""))
+        p = run(["t.md", "--config", "config.toml", "--dry-run"], t)
+        assert p.returncode == 2 and "[gateway] base_url is missing" in p.stderr, p
+    cfg = rt.tomllib.loads(GATEWAY_CONFIG)
+    cfg.setdefault("env", {}); cfg.setdefault("mcp", {}); cfg.setdefault("claude", {})
+    assert rt.fallback_of(cfg, "execution_simple") == "claude/small-x"
+    assert rt.fallback_of(cfg, "execution") is None
+    os.environ["TEST_GATEWAY_KEY"] = "gw-virtual-key-1234567890"
+    assert "gw-virtual-key-1234567890" in rt.secret_values(cfg)
+    del os.environ["TEST_GATEWAY_KEY"]
+
+
 def test_masking():
     s = "key=abc123SECRETxyz and again abc123SECRETxyz; Authorization: Bearer tok_ABCDEFGH12345678 sk-abcdefghijklmnop1234"
     out = rt.mask_secrets(s, ["abc123SECRETxyz"])

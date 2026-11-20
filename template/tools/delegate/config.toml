@@ -4,11 +4,14 @@
 # who = "worker"  -> the wrapper starts the model as a separate `claude -p` instance (model chosen per role).
 # who = "session" -> the Claude Code session does it itself (model = "session").
 #
-# Model spec: "claude/<id>" (Anthropic model, id passed to --model) or "ollama/<id>" (Ollama Cloud, needs the
-# Ollama module and the key named in api_key_env). Never use `opusplan`: autonomous runs never enter plan mode and
-# would quietly run on the smaller model.
+# Model spec: "claude/<id>" (Anthropic model through your Claude subscription, id passed to --model),
+# "ollama/<id>" (Ollama Cloud directly, key named in api_key_env) or "gateway/<alias>" (your LiteLLM gateway, module
+# `gateway`: alias is one of task-simple, task-research, task-normal, task-complex, task-testing). Never use `opusplan`:
+# autonomous runs never enter plan mode and would quietly run on the smaller model. No Anthropic API key is used anywhere;
+# Claude workers authenticate with the subscription token (CLAUDE_CODE_OAUTH_TOKEN).
 #
-# Active preset: claude-only. To switch, comment out the "claude-only" role blocks below and uncomment the "ollama" block.
+# Active preset: claude-only. To switch, comment out the "claude-only" role blocks below and uncomment the "ollama" or
+# the "gateway" block.
 [meta]
 active = "claude-only"
 
@@ -76,6 +79,41 @@ model = "claude/<small-model-id>"
 # who = "worker"
 # provider = "ollama"
 # model = "ollama/<agent-model-id>"
+
+# ===== Preset "gateway" (module gateway; comment out the same claude-only blocks first) =====
+# One LiteLLM proxy in front of Ollama Cloud and your ChatGPT subscription (see gateway/README.md in the foreman repo).
+# Workers get a virtual key that only reaches the task-* aliases. When the gateway is down or a limit is exhausted,
+# the wrapper repeats the role through `claude -p` with your Claude subscription (fallback_model).
+# [gateway]
+# base_url       = "https://gateway.example.com"       # Anthropic-compatible /v1/messages endpoint of the proxy
+# api_key_env    = "FOREMAN_GATEWAY_KEY"               # NAME of the variable; value is a virtual key limited to task-*
+# fallback_model = "claude/<small-model-id>"
+#
+# [roles.research]
+# who = "worker"
+# provider = "gateway"
+# model = "gateway/task-research"
+# readonly = true
+#
+# [roles.execution_simple]
+# who = "worker"
+# provider = "gateway"
+# model = "gateway/task-simple"
+#
+# [roles.execution]                                    # optional: normal coding on the gateway instead of Claude
+# who = "worker"
+# provider = "gateway"
+# model = "gateway/task-normal"
+#
+# [roles.completion]
+# who = "worker"
+# provider = "gateway"
+# model = "gateway/task-simple"
+#
+# [roles.subagent]
+# who = "worker"
+# provider = "gateway"
+# model = "gateway/task-simple"
 
 # ===== Roles the session plays itself =====
 [roles.discuss]

@@ -27,10 +27,12 @@ UNSAFE_ENV = re.compile(r"^(?:ANTHROPIC_|CLAUDE_|OLLAMA_|LD_|DYLD_)|^(?:HOME|PAT
 MANDATORY_DISALLOWED = ["Bash(git *)", "Bash(rm *)", "Bash(curl *)", "Bash(wget *)"]
 READONLY_TOOLS = ["Read", "Glob", "Grep"]
 VALID_WHO = ("worker", "session")
-VALID_PROVIDERS = ("claude", "ollama")
+VALID_PROVIDERS = ("claude", "ollama", "gateway")
+# Providers that talk to an Anthropic-compatible endpoint with their own key (settings: [defaults] for ollama, [gateway]).
+ENDPOINT_PROVIDERS = ("ollama", "gateway")
 DEFAULT_CLAUDE_AUTH_ENV = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"]
 
-# Provider outage patterns (auth, limit, server, network); only checked when an ollama instance failed.
+# Provider outage patterns (auth, limit, server, network); only checked when an ollama or gateway instance failed.
 INFRA_ERROR = re.compile(
     r"\b(?:401|402|403|404|408|429|500|502|503|504|529)\b|rate[ _-]?limit|quota|usage limit|too many requests|"
     r"overloaded|unauthori[sz]ed|forbidden|insufficient|billing|credit|time[d ]?-?out|econn\w*|enotfound|etimedout|"
@@ -143,6 +145,7 @@ def load_config(path):
     cfg.setdefault("claude", {})
     cfg.setdefault("mcp", {})
     cfg.setdefault("env", {})
+    cfg.setdefault("gateway", {})
     return cfg
 
 
@@ -165,11 +168,24 @@ def is_worker(cfg, role):
     return cfg["roles"][role].get("who") == "worker"
 
 
+def endpoint_cfg(cfg, provider):
+    """Settings of an endpoint provider: [defaults] for ollama, [gateway] for gateway (falls back to [defaults])."""
+    d = cfg["defaults"]
+    if provider == "gateway":
+        g = cfg.get("gateway", {})
+        return {"base_url": g.get("base_url") or d.get("gateway_base_url", ""),
+                "api_key_env": g.get("api_key_env") or d.get("gateway_api_key_env", ""),
+                "fallback_model": g.get("fallback_model", "")}
+    return {"base_url": d.get("base_url", ""), "api_key_env": d.get("api_key_env", ""),
+            "fallback_model": d.get("fallback_model", "")}
+
+
 def fallback_of(cfg, role):
-    """Fallback model of an ollama role (role setting, then [defaults]) or None."""
-    if provider_of(cfg, role) != "ollama":
+    """Fallback model of an ollama or gateway role (role setting, then provider settings) or None."""
+    p = provider_of(cfg, role)
+    if p not in ENDPOINT_PROVIDERS:
         return None
-    return cfg["roles"][role].get("fallback_model") or cfg["defaults"].get("fallback_model")
+    return cfg["roles"][role].get("fallback_model") or endpoint_cfg(cfg, p)["fallback_model"] or None
 
 
 def validate_config(cfg, name="config"):
@@ -197,8 +213,9 @@ def validate_config(cfg, name="config"):
         p = provider_of(cfg, role)
         if p not in VALID_PROVIDERS:
             errs.append(f"roles.{role}: provider must be one of {VALID_PROVIDERS}, got '{p}'")
-        elif p == "ollama" and not d.get("base_url"):
-            errs.append(f"roles.{role} uses ollama but [defaults] base_url is missing")
+        elif p in ENDPOINT_PROVIDERS and not endpoint_cfg(cfg, p)["base_url"]:
+            where = "[gateway] base_url" if p == "gateway" else "[defaults] base_url"
+            errs.append(f"roles.{role} uses {p} but {where} is missing")
         fb = fallback_of(cfg, role)
         if fb and re.search(r"<[^>]*>", fb):
             errs.append(f"fallback_model for {role} is still a placeholder ({fb})")
@@ -253,7 +270,7 @@ def extra_env(cfg):
 
 
 def secret_names(cfg):
-    names = {cfg["defaults"].get("api_key_env", "")} | set(claude_auth_names(cfg))
+    names = {cfg["defaults"].get("api_key_env", ""), endpoint_cfg(cfg, "gateway")["api_key_env"]} | set(claude_auth_names(cfg))
     names |= {m.get("api_key_env", "") for m in cfg["mcp"].values()}
     return {n for n in names if n}
 
@@ -422,9 +439,10 @@ def run_attempt(role, cfg, body, meta, workdir, fallback=None, skip_rel=()):
     else:
         env.update({"HOME": state, "CLAUDE_CONFIG_DIR": state})
         trust_workspace(state, workdir)
-    if provider == "ollama":
+    if provider in ENDPOINT_PROVIDERS:
+        ep = endpoint_cfg(cfg, provider)
         env.update({
-            "ANTHROPIC_BASE_URL": d["base_url"], "ANTHROPIC_AUTH_TOKEN": os.environ.get(d.get("api_key_env", ""), ""),
+            "ANTHROPIC_BASE_URL": ep["base_url"], "ANTHROPIC_AUTH_TOKEN": os.environ.get(ep["api_key_env"], ""),
             "ANTHROPIC_MODEL": model, "ANTHROPIC_SMALL_FAST_MODEL": model,
             "ANTHROPIC_DEFAULT_OPUS_MODEL": model, "ANTHROPIC_DEFAULT_SONNET_MODEL": model,
             "ANTHROPIC_DEFAULT_HAIKU_MODEL": model,
@@ -469,7 +487,7 @@ def run_attempt(role, cfg, body, meta, workdir, fallback=None, skip_rel=()):
                    for x in j.get("permission_denials") or [] if isinstance(x, dict)]
     except (json.JSONDecodeError, TypeError):
         pass
-    infra = provider == "ollama" and is_error and (rc == 124 or bool(INFRA_ERROR.search(f"{result}\n{err}")))
+    infra = provider in ENDPOINT_PROVIDERS and is_error and (rc == 124 or bool(INFRA_ERROR.search(f"{result}\n{err}")))
     ok, verify_log, cause = not is_error, "", ""
     if rc == 124:
         cause = f"timeout after {d['timeout_seconds']}s"
@@ -547,9 +565,10 @@ def main(argv=None):
             print(l)
         print(f"verify: {meta.get('verify') or '-'}")
         print(f"scope: {', '.join(globs) if globs else '- (no scope check)'}")
-        key = cfg["defaults"].get("api_key_env", "")
-        if any(provider_of(cfg, r) == "ollama" for r in chain):
-            print(f"api key {key}: {'set' if os.environ.get(key) else 'missing'}")
+        for prov in ENDPOINT_PROVIDERS:
+            if any(provider_of(cfg, r) == prov for r in chain):
+                key = endpoint_cfg(cfg, prov)["api_key_env"]
+                print(f"api key {key} ({prov}): {'set' if os.environ.get(key) else 'missing'}")
         print("dry run: nothing started")
         return 0
 
@@ -564,13 +583,16 @@ def main(argv=None):
     if not shutil.which("claude"):
         die("`claude` CLI not in PATH. Install it or add it to PATH.", 3)
     d = cfg["defaults"]
-    ollama_down = False
-    if any(provider_of(cfg, r) == "ollama" for r in chain) and not os.environ.get(d.get("api_key_env", ""), ""):
-        if all(fallback_of(cfg, r) for r in chain if provider_of(cfg, r) == "ollama"):
-            print(f"WARNING: {d.get('api_key_env')} is not set -> fallback models are used.", file=sys.stderr)
-            ollama_down = True
-        else:
-            die(f"{d.get('api_key_env')} is not set and a role has no fallback. Set the variable or add a fallback_model.", 3)
+    down = set()  # endpoint providers that are unusable in this run
+    for prov in ENDPOINT_PROVIDERS:
+        roles = [r for r in chain if provider_of(cfg, r) == prov]
+        key = endpoint_cfg(cfg, prov)["api_key_env"]
+        if roles and not os.environ.get(key, ""):
+            if all(fallback_of(cfg, r) for r in roles):
+                print(f"WARNING: {key} is not set -> fallback models are used.", file=sys.stderr)
+                down.add(prov)
+            else:
+                die(f"{key} is not set and a role has no fallback. Set the variable or add a fallback_model.", 3)
     if (any(provider_of(cfg, r) == "claude" for r in chain) and d.get("claude_login") != "inherit"
             and not any(os.environ.get(n) for n in claude_auth_names(cfg))):
         print(f"WARNING: none of {', '.join(claude_auth_names(cfg))} is set; Claude workers run with a clean HOME and may "
@@ -603,7 +625,7 @@ def main(argv=None):
         body_r = body if not prev else (body + "\n\n=== NOTE ===\nAn earlier attempt failed. Check the current repo state "
                                         "and finish the task. Last message of the earlier attempt:\n" + prev)
         fb = fallback_of(cfg, r)
-        if fb and ollama_down:
+        if fb and provider_of(cfg, r) in down:
             if fb in failed_models:
                 print(f"-> {r}: fallback {fb} already failed, skipped.")
                 continue
@@ -611,7 +633,7 @@ def main(argv=None):
         else:
             res = attempt(r, body_r)
             if not res["ok"] and res["infra"] and fb:
-                ollama_down = True
+                down.add(provider_of(cfg, r))
                 print(f"   provider API unusable -> fallback {fb}", flush=True)
                 res = attempt(r, body_r, fb)
         if res["ok"]:
