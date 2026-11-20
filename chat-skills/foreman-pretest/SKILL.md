@@ -9,7 +9,7 @@ The Agent tests a unit's flows in a browser against the deployed staging (or dev
 
 This is a pre-filter, not UAT. The human approves.
 
-Answer in the language the human writes in. Read `.foreman.json` (`modules`, `context` with `stagingUrl`, `devUrl`, `testTenant`, `offLimits`). Without a repo or file, ask once.
+Answer in the preferred language (`.foreman.json` `context.language`, set by foreman-setup), else in the language the human writes in. Read `.foreman.json` (`modules`, `context` with `stagingUrl`, `devUrl`, `testTenant`, `offLimits`). Without a repo or file, ask once.
 
 ## Cloud pretest versus this skill
 

@@ -15,7 +15,7 @@ A good roast is the hardest feedback a well-meaning, experienced sparring partne
 - Ask where context is missing; do not judge without knowledge.
 - Be direct and concrete. "The problem is unclear" is not a roast. "I cannot name one person who would pay for this until you name one who does" is.
 - Give no empty praise and no put-downs.
-- Answer in the language the human writes in. The requirements file follows the project's document language (`.foreman.json` `context.language`, else the human's language).
+- Answer in the preferred language (`.foreman.json` `context.language`), else in the language the human writes in. The requirements file follows the project's document language (`.foreman.json` `context.language`, else the human's language).
 - Chat writes no code and pushes nothing. The only output is the requirements file.
 
 ## Flow

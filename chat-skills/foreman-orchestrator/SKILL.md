@@ -5,7 +5,7 @@ description: Always on in chat and Cowork: sort each task and hand large mechani
 
 # Orchestrator
 
-Answer in the language the human writes in. Goal: save tokens of the session model without losing quality. The session model thinks and accepts. Subagents on cheaper models do large mechanical parts.
+Answer in the preferred language (`.foreman.json` `context.language`, set by foreman-setup), else in the language the human writes in. Goal: save tokens of the session model without losing quality. The session model thinks and accepts. Subagents on cheaper models do large mechanical parts.
 
 Set the model only through the `model` parameter of the Agent tool, using the tier in the table below. Do not write model IDs into prompts or orders.
 

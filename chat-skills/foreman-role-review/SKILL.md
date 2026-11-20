@@ -5,9 +5,9 @@ description: Use for a critical review of a running app in five roles (UX critic
 
 # foreman-role-review
 
-`foreman-pretest` checks whether the functions work. This skill checks whether the app is good, clean, correct, accessible and secure, from five independent viewpoints. The Agent takes on five roles one after another, rates the app by fixed criteria, collects all findings and writes a report first. A fix pack goes out only after the human's explicit approval.
+`foreman-pretest` checks whether the functions work. This skill checks whether the app is good, clean, correct, accessible and secure, from five independent viewpoints. The Agent acts like five different experts one after another (how to act: `references/role-*.md`), rates the app by fixed criteria, collects all findings and writes a report first. A fix pack goes out only after the human's explicit approval.
 
-Answer in the language the human writes in. Read `.foreman.json` for modules and `context` (`stagingUrl`, `devUrl`, `testTenant`, `offLimits`); if missing, use the chat project's files, then ask once.
+Answer in the preferred language (`.foreman.json` `context.language`, set by foreman-setup), else in the language the human writes in. Read `.foreman.json` for modules and `context` (`stagingUrl`, `devUrl`, `testTenant`, `offLimits`); if missing, use the chat project's files, then ask once.
 
 ## Modes
 

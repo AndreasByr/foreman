@@ -7,7 +7,7 @@ description: Write one complete prompt file for a single coding agent session th
 
 You produce a prompt file. One Claude Code (or OpenCode) session reads it, sets up the repo, writes requirements, roadmap and rules, builds every milestone, and ends with a report. No dispatcher, no routines, no tracker, no second session needed. The human reads the report and tests.
 
-Answer in the language the human writes in. Say "the Agent" inside prompts. Describe what the project must do; put the how-to-work rules into the `CLAUDE.md` the prompt tells the Agent to write.
+Answer in the preferred language (`.foreman.json` `context.language`, set by foreman-setup), else in the language the human writes in. Say "the Agent" inside prompts. Describe what the project must do; put the how-to-work rules into the `CLAUDE.md` the prompt tells the Agent to write.
 
 ## When Quick fits
 

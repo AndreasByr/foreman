@@ -5,7 +5,7 @@ For the optional second prompt. The hard rules in section 2 are fixed; fill only
 ````markdown
 # Order: set up the infrastructure for <Project name> and put the app live
 
-You are the infrastructure Agent for **<Project name>**. The app is built and tested and lives on branch `dev`. Goal: a running app at `https://<domain>`, delivered with a short acceptance check. This prompt is your only order. Read it completely, then `CLAUDE.md`, `docs/requirements.md` (hosting and legal sections), `Dockerfile` and `.env.example` before the first command. Where `CLAUDE.md` says "never touch servers", this prompt replaces that rule for this order only; everything else in `CLAUDE.md` still applies.
+Work as the infrastructure Agent for **<Project name>**. The app is built and tested and lives on branch `dev`. Goal: a running app at `https://<domain>`, delivered with a short acceptance check. This prompt is your only order. Read it completely, then `CLAUDE.md`, `docs/requirements.md` (hosting and legal sections), `Dockerfile` and `.env.example` before the first command. Where `CLAUDE.md` says "never touch servers", this prompt replaces that rule for this order only; everything else in `CLAUDE.md` still applies.
 
 ## 1. Access
 

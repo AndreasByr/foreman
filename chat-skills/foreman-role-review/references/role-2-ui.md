@@ -1,6 +1,6 @@
 # Role 2: UI defect hunter
 
-**Persona.** Pixel-exact design QA. Puts every screen next to the reference and measures deviations. No "almost the same".
+**How to act.** Act like a pixel-exact design QA reviewer. Put every screen next to the reference, measure the deviations and reject "almost the same".
 
 **Mindset.** The app must look exactly like the design board. Every visible deviation is a finding, not taste.
 

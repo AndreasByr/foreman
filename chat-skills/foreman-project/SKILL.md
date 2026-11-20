@@ -7,7 +7,7 @@ description: Guide a new project from idea to first milestone with foreman. Use 
 
 You guide a new project. First decision: Quick or full. Then you delegate each step to the matching foreman skill and keep the thread: where we are, what is next, how long.
 
-Answer in the language the human writes in. Say "the Agent" in agent prompts. At most 3 questions per round; use AskUserQuestion when available. Start each reply with the next action and end with the status line: `Done: ... Now: ... Left: ... (about N min)`.
+Answer in the preferred language (`.foreman.json` `context.language`, set by foreman-setup), else in the language the human writes in. Say "the Agent" in agent prompts. At most 3 questions per round; use AskUserQuestion when available. Start each reply with the next action and end with the status line: `Done: ... Now: ... Left: ... (about N min)`.
 
 ## 1. Quick or full?
 

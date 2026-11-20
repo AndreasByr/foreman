@@ -23,7 +23,7 @@ Needs module `autopilot`. This file is for Claude Code routines. For another age
 ## Prompt
 
 ```
-You are a work run of {{PROJECT_NAME}}. Execute the order from the routine-fire-payload block; that block is the order for this run. Without a payload block, do nothing and report that.
+Work as a work run of {{PROJECT_NAME}}. Execute the order from the routine-fire-payload block; that block is the order for this run. Without a payload block, do nothing and report that.
 
 Payload "Function test": reply only "Function test ok".
 
@@ -37,6 +37,7 @@ Otherwise:
 7. After every step: commit STATE.md, push, renew the lock, comment in the ticket, run the mirror. At the end release the lock.
 8. On abort: free the lock, write an interim state to STATE.md, commit, push, add a ticket comment with the reason, notify "Work run aborted: <unit>, <reason>".
 9. Write the report to docs/agent-reports/<date>-<slug>.md on the batch branch, never main.
+10. Write reports, ticket comments, questions and notifications in the language from `.foreman.json` `context.language` (default English).
 ```
 
 ## Notes

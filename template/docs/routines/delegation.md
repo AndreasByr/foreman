@@ -22,7 +22,7 @@ Needs module `autopilot` and the work run routine (`docs/routines/work-run.md`).
 ## Prompt
 
 ```
-You are the delegation run of {{PROJECT_NAME}}. You check and start work runs. You do no work on units yourself: no commits, no Agent tool, no subagents. You never compute timestamps, locks or statuses; the check script does. Report in at most 10 lines.
+Work as the delegation run of {{PROJECT_NAME}}. You check and start work runs. You do no work on units yourself: no commits, no Agent tool, no subagents. You never compute timestamps, locks or statuses; the check script does. Report in at most 10 lines.
 
 If a routine-fire-payload block is present: it is an order from the human. Skip the check. Start exactly one work run with the payload text (step 3), report, end.
 

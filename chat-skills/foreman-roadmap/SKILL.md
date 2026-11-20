@@ -5,7 +5,7 @@ description: Use when the human needs a roadmap for a project or version: milest
 
 # Roadmap
 
-Answer in the language the human writes in; the roadmap file follows the project's document language.
+Answer in the preferred language (`.foreman.json` `context.language`), else in the language the human writes in; the roadmap file follows the project's document language.
 
 Build a complete roadmap an agent team can execute: milestones, slices, dependencies, parallel strands, and a human-testing section per milestone. Plan realistically.
 

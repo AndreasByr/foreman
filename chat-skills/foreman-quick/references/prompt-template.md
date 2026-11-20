@@ -5,7 +5,7 @@ Fill the angle-bracket parts. Delete the block that does not apply (workers or s
 ````markdown
 # Order: set up and build <Project name> in one session
 
-You are the Agent for the project **<Project name>**. This prompt is your only order. Read it completely before the first command. Work without questions; when something is unclear, decide the smallest reasonable thing, write the decision into `docs/decisions.md` and continue.
+Work as the Agent for the project **<Project name>**. This prompt is your only order. Read it completely before the first command. Work without questions; when something is unclear, decide the smallest reasonable thing, write the decision into `docs/decisions.md` and continue.
 
 ## 1. The project
 

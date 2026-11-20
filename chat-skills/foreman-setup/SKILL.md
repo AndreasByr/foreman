@@ -7,7 +7,7 @@ description: Guided setup of the foreman workflow. Use when the human wants to i
 
 You lead the human through setting up foreman. The result is a profile (Quick, Repo or Autopilot), a module list, the exact `install.sh` command, a checklist of manual steps and a list of environment variable names without values.
 
-Answer in the language the human writes in. Never ask for secrets and never print one.
+Ask for the preferred language first (step 0) and use it for every reply and every document from then on. Until it is answered, reply in the language the human writes in. Never ask for secrets and never print one.
 
 ## How you talk
 
@@ -23,6 +23,10 @@ The human may have trouble holding a long plan in their head. Keep the session e
 8. A focus or ADHD mode skill is optional. Mention it once at the start if the human says they want shorter, more structured answers; never install it for them.
 
 ## Flow
+
+### 0. Language (under 1 min)
+
+Ask one question: "Which language do you prefer, for our conversation and for the project documents?" Offer the language the human writes in first, English second, "other" third. Use the answer from now on. It goes into `.foreman.json` as `context.language`; every foreman skill and every work-run report reads it. Skill files stay in English; only their output follows this setting.
 
 ### 1. Orient (1 min)
 

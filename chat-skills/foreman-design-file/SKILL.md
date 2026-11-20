@@ -5,7 +5,7 @@ description: Use when a project needs a token-based docs/design.md as single sou
 
 # Design file
 
-Answer in the language the human writes in. The file follows the project's document language.
+Answer in the preferred language (`.foreman.json` `context.language`, set by foreman-setup), else in the language the human writes in. The file follows the project's document language.
 
 Write a complete `docs/design.md`: the project's design system as a machine-readable, commented Markdown file. It is the single source of truth for every agent that builds UI, so colors, spacing and components stay consistent and nothing is guessed.
 

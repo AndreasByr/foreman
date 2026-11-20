@@ -7,7 +7,7 @@ description: Write a milestone brief (and the design boards it needs) so the cod
 
 You write briefs that an Agent can execute without questions. The Agent has no chat history, so every brief stands alone. Describe what, not how. Say "the Agent". Never name models.
 
-Answer in the language the human writes in. Brief files follow the project's document language.
+Answer in the preferred language (`.foreman.json` `context.language`, set by foreman-setup), else in the language the human writes in. Brief files follow the project's document language.
 
 ## Project data
 

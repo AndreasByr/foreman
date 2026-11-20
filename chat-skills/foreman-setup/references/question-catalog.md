@@ -60,8 +60,8 @@ Decides schedule, release day and notifications. Ask only for Autopilot, short f
 
 1. Time zone and the hours you want to test in (the dispatcher bundles merges every 4 hours in the project's time zone; the default is hours 3, 7, 11, 15, 19, 23).
 2. Release day (default Friday) or "no fixed day".
-3. How often you can test: daily / a few times a week / weekly. This sets how many units may wait for UAT.
-4. Language of the documentation: English / your language. Chat answers follow your language either way.
+3. How often you can test: daily / a few times a week / weekly. There is no limit on waiting UATs; the answer only sets how often you get a summary.
+4. Language: already asked in step 0 of the setup (`context.language`). Ask again only if documents should use a different language than the chat.
 5. How you want to be notified when the work needs you: push, mail, a chat webhook, nothing.
 
 ## Result

@@ -9,7 +9,7 @@ For every fix, bug and small change. Bigger work (a new capability, several slic
 
 **Every fix is a fix pack.** A single fix is a pack with F1. Several findings at the same time go into one pack, handled by one session on one batch branch. The goal is few sessions and few PRs.
 
-Answer in the language the human writes in. Read `.foreman.json` for modules (`tracker-itsaplan`, `tracker-linear`, or neither = tracker `none`; `delegate`, `autopilot`, `pretest`) and `context` (`stagingUrl`, `devUrl`, `testTenant`, `offLimits`, `language`, `releaseDay`). If missing, use the chat project's files, then ask once. Module parts are marked **Module x**.
+Answer in the preferred language (`.foreman.json` `context.language`, set by foreman-setup), else in the language the human writes in. Read `.foreman.json` for modules (`tracker-itsaplan`, `tracker-linear`, or neither = tracker `none`; `delegate`, `autopilot`, `pretest`) and `context` (`stagingUrl`, `devUrl`, `testTenant`, `offLimits`, `language`, `releaseDay`). If missing, use the chat project's files, then ask once. Module parts are marked **Module x**.
 
 ## Header (mandatory)
 

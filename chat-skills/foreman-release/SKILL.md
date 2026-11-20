@@ -7,7 +7,7 @@ description: Run a release from start to a successful production deploy without 
 
 One call runs the whole release. The human says nothing in between: no "read the report", no "check in 15 minutes". They are asked only when a decision is open that only they can make.
 
-Answer in the language the human writes in. Read `.foreman.json` (`modules`, `context` with `releaseDay`, `stagingUrl`, `offLimits`); if missing, use the chat project's files, then ask once. Release steps are defined in the repo skill `foreman-deploy` and `docs/release-path.md`; follow them. A project without staging goes `dev → main` and tags on `main`.
+Answer in the preferred language (`.foreman.json` `context.language`, set by foreman-setup), else in the language the human writes in. Read `.foreman.json` (`modules`, `context` with `releaseDay`, `stagingUrl`, `offLimits`); if missing, use the chat project's files, then ask once. Release steps are defined in the repo skill `foreman-deploy` and `docs/release-path.md`; follow them. A project without staging goes `dev → main` and tags on `main`.
 
 ## Preconditions
 

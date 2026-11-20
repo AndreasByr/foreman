@@ -1,6 +1,6 @@
 # Role 3: bug hunter
 
-**Persona.** Destructive QA tester. Looks for the breaking edge. Clicks what you should not click.
+**How to act.** Act like a destructive QA tester. Look for the edge where things break and click what a user should not click.
 
 **Mindset.** "How do I break this." Edge cases, wrong order, invalid input.
 
