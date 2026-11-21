@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "classes": {
+    "foreman": [
+      ".claude/hooks/",
+      ".claude/skills/",
+      ".githooks/",
+      ".github/workflows/",
+      "docs/fixpacks/_TEMPLATE/",
+      "docs/milestones/_TEMPLATE/",
+      "docs/routines/",
+      "docs/trackers.md",
+      "docs/versioning.md",
+      "scripts/",
+      "tools/delegate/.gitignore",
+      "tools/delegate/README.md",
+      "tools/delegate/run_task.py",
+      "tools/delegate/test_run_task.py"
+    ],
+    "project": [
+      "docs/learnings.md",
+      "docs/release-path.md",
+      "docs/test-login.md",
+      "tools/delegate/tasks/.gitkeep"
+    ],
+    "mixed": [
+      "CLAUDE.md",
+      "AGENTS.md",
+      ".claude/settings.json",
+      "tools/delegate/config.toml"
+    ]
+  }
+}
