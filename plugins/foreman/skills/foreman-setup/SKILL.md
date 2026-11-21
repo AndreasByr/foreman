@@ -43,9 +43,18 @@ Read `references/question-catalog.md`. Four blocks, adaptive:
 
 Ask block A first. Its answers set your explanation depth for the rest of the session. Ask one block per round, at most 3 questions; block C takes three rounds. After each block, say what you now know in one line. Every "I don't know" or "weiß nicht" is recorded as `unbekannt`, never guessed, and named later as a gap.
 
+### 2b. Summary and confirmation (about 2 min)
+
+1. Collect all answers in the workspace.json format (`references/workspace-format.md`) as `<answers.json>`.
+2. Show the summary in exactly the layout of `scripts/setup-summary.py`. With a shell, run `python3 scripts/setup-summary.py <answers.json>`; in plain chat, print the same layout yourself.
+3. Every line comes from an answer. Nothing is inferred. `unbekannt` stays `unbekannt`. Below the summary, name each gap in one line with what it blocks.
+4. Ask the human to confirm or correct. Give no recommendation, no profile and no install command before the human confirms. Corrections go back into the answers, and the summary is shown again.
+5. After confirmation, write `workspace.json`. With a shell: `python3 scripts/setup-summary.py <answers.json> --write workspace.json --confirmed`. Otherwise output the JSON for the human to save. Never write secrets into it.
+6. Put the same content into the `infra` block of `.foreman.json` through `install.sh --workspace <file>`.
+
 ### 3. Recommend a profile
 
-Read `references/profiles-and-modules.md`. State one recommendation and the reason in two sentences, then the two alternatives in one line each:
+Only after the human confirmed the summary of step 2b. Read `references/profiles-and-modules.md`. State one recommendation and the reason in two sentences, then the two alternatives in one line each:
 
 | Profile | For | Needs |
 |---|---|---|
@@ -62,7 +71,7 @@ From `references/profiles-and-modules.md`: pick modules and the `--agent`.
 - `tracker-itsaplan`: strongly recommended for Autopilot. Self-hosted, REST. No tracker (`none`) is fully supported: questions, answers and UAT approvals then run through files in the repo.
 - `tracker-linear`: optional alternative. Only one tracker module at a time.
 - `delegate`: cheap workers via Ollama Cloud or a gateway. Optional.
-- `gateway`: LiteLLM proxy for workers. Optional, documented only.
+- `gateway`: LiteLLM proxy for workers. Optional. If a gateway is running (the summary says `Gateway: running`), the installer writes the preset (`--gateway-url`, `--fallback-model`; see `docs/MODULES.md`). If none runs and the human has a ChatGPT plan, offer the optional block in `references/gateway-block.md` (about 45 minutes, with its risk notice) and store the decision as `chatgptViaGateway` (`accepted-risk` or `declined`). Do not ask again once it is stored.
 - `autopilot`: dispatcher side in the project. Needs GitHub and a machine for the dispatcher.
 - `pretest`: browser pretest in the cloud work run.
 - Claude Code is the recommended agent (routines and API trigger are the dispatcher's target). OpenCode and others work through `AGENTS.md`; resuming and parallel runs are then the human's job.
@@ -81,7 +90,7 @@ Read `references/recommended-skills.md`. Ask per skill or "all recommended", and
 
 Produce, in this order, as one message (a file when you can write files):
 
-1. **Install command**, complete, copy-ready. Flags in `references/profiles-and-modules.md`.
+1. **Install command**, complete, copy-ready. Flags in `references/profiles-and-modules.md`. The command includes `--workspace workspace.json` and, with a running gateway, `--gateway-url` and `--fallback-model`.
 2. **Checklist** of manual steps, numbered, each with minutes.
 3. **Environment variables**, names only, grouped by where they are set (dispatcher host, cloud environment, CI).
 4. **First action**: the single next thing to do, usually "run the command", then "start `foreman-project`".
@@ -99,3 +108,4 @@ When the human reports the install ran: check `.foreman.json` (version `0.2.0`, 
 - Without GitHub or a server a working path exists: Quick, or Repo with local git and no remote.
 - Never `opusplan` as session model for autonomous runs; use an exact model ID.
 - Do not set up what the chosen profile does not include.
+- Never infer an answer. A fact in the summary, the profile or the command that no answer gave is a defect.

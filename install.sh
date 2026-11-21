@@ -344,7 +344,7 @@ if has tracker-itsaplan; then echo "  Tracker itsaplan: create the columns and l
 if has tracker-linear; then echo "  Tracker linear: set LINEAR_API_KEY, fill mirror.linear.teamKey, then: node scripts/state-mirror.mjs --dry-run"; fi
 if [ "$tracker" = none ]; then echo "  Tracker none: answers go to docs/answers/<unit>.md, UAT approval to docs/uat/<unit>.md (docs/trackers.md)."; fi
 if has pretest; then echo "  Pretest: fill pretest.* in .foreman.json and build the test login (docs/test-login.md)."; fi
-if has gateway; then echo "  Gateway: read tools/gateway/README.md, then enable the gateway preset in tools/delegate/config.toml."; fi
+if has gateway; then if [ -n "$gateway_url" ]; then echo "  Gateway preset written to tools/delegate/config.toml; fill the exact model IDs and read tools/gateway/README.md."; else echo "  Gateway: read tools/gateway/README.md, then enable the gateway preset in tools/delegate/config.toml."; fi; fi
 if has autopilot; then
   echo "  Autopilot needs GitHub (or similar), a Claude Code routine for the work run (docs/routines/work-run.md, about 20 min) and a machine that is on for the dispatcher"
   echo "  (dispatcher/ of the foreman repo, about 15 min; Plan B without a server: docs/routines/delegation.md). Create routines from a Claude Code cloud session or the routines UI, never from a chat."

@@ -11,6 +11,7 @@ node template/scripts/test-pretest.mjs
 node dispatcher/tests/test-dispatch.mjs
 python3 scripts/test-setup-catalog.py
 python3 scripts/test-workspace.py
+python3 scripts/test-setup-summary.py
 bash scripts/test-install.sh
 bash scripts/privacy-scan.sh
 bash scripts/test-plugin.sh
