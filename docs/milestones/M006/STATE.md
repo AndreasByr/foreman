@@ -1,4 +1,4 @@
-Status: batch-pr · since 2026-11-21T18:25Z · Slices S1-S6, R1, R2 done, Validierung pass (Runde 3), dev eingemergt, UAT-Liste liegt vor
+Status: uat-ready · since 2026-11-21T18:50Z · Batch-PR #11 in dev gemergt (e9fb74e), UAT-Liste docs/uat/M006.md
 Target: dev
 Batch-branch: batch/m006
 Lock: free
