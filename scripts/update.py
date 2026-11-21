@@ -25,7 +25,7 @@ AUTOPILOT_OFF = ("docs/routines/", "scripts/autopilot-check.", "scripts/test-aut
 PRETEST_OFF = (".claude/skills/foreman-pretest/", "scripts/pretest-run.mjs", "scripts/pretest-prepare.sh",
                "scripts/pretest/", "scripts/test-pretest.mjs", "scripts/lib/pretest-run.mjs", "docs/test-login.md")
 DOCS_NOTION_OFF = ("scripts/docs-notion.mjs", "scripts/lib/docs-notion.mjs", "scripts/lib/docs-notion-md.mjs", "scripts/test-docs-notion.mjs",
-                   "scripts/post-merge.d/docs-notion.sh", "scripts/lib/docs-wiki.mjs", "scripts/test-docs-wiki.mjs",
+                   "scripts/post-merge.d/docs-notion.sh", "scripts/lib/docs-wiki.mjs", "scripts/lib/docs-wiki-scan.mjs", "scripts/lib/docs-wiki-publish.mjs", "scripts/test-docs-wiki.mjs",
                    ".claude/skills/foreman-wiki/")
 
 

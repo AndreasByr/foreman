@@ -5,16 +5,19 @@
 //   --dry-run: write nothing. Without token and rootPageId: no network, lists `sync <path>`.
 //              With both: reads Notion (GET only) and lists new / update / archive / unchanged.
 //   --wiki:    the wiki under docs/wiki instead of the docs mirror. Needs "wiki.enabled" true in .foreman.json.
-//              Dry run lists `sync <path> (audience: <name or none>)`. Publishing is not implemented yet.
+//              Pages are validated and scanned first (exit 4, no request). Dry run lists `sync <path> (audience: <name>)`.
 //              Reads only below docs/wiki; symlinks are skipped and named on stderr.
 //
 // Config: "docsNotion" {rootPageId, include, exclude} in <root>/.foreman.json; "wiki" for --wiki (see lib/docs-wiki.mjs).
 // Env: NOTION_API_KEY (token), NOTION_API_BASE (default https://api.notion.com/v1),
 //      NOTION_MAX_RUN_S (run time budget in seconds, default 600).
-// Exit codes: 0 ok, 1 sync error, 2 usage or config error (also "wiki is off"), 3 missing NOTION_API_KEY or rootPageId.
+// Exit codes: 0 ok, 1 sync error, 2 usage or config error (also "wiki is off"), 3 missing NOTION_API_KEY or rootPageId,
+//   4 wiki validation or scan problem (nothing is sent).
 import { resolve } from "node:path";
 import { buildPlan, buildTree, CliError, collectFiles, createClient, HttpError, loadConfig, readExisting, runSync } from "./lib/docs-notion.mjs";
 import { collectWikiPages, loadWikiConfig } from "./lib/docs-wiki.mjs";
+import { publishWiki } from "./lib/docs-wiki-publish.mjs";
+import { scanText, validatePages } from "./lib/docs-wiki-scan.mjs";
 
 const USAGE = "usage: node scripts/docs-notion.mjs [--dry-run] [--wiki] [--root <dir>] [--help]";
 const out = (s) => process.stdout.write(`${s}\n`);
@@ -35,7 +38,7 @@ function parseArgs(argv) {
   return opts;
 }
 
-// --wiki: checks the wiki config and lists the pages. Publishing comes in the next slice.
+// --wiki: validates and scans the pages, then lists them (dry run) or publishes them.
 async function runWiki(root, dryRun, token) {
   const wiki = loadWikiConfig(root);
   if (!wiki.enabled) throw new CliError("docs-notion: wiki is off (wiki.enabled is not true in .foreman.json)", 2);
@@ -51,12 +54,24 @@ async function runWiki(root, dryRun, token) {
     out("nothing to publish");
     return 0;
   }
+  // A dry run reports head problems on stderr but only scan findings fail it (it is a preview of what would go out).
+  const headProblems = validatePages(wiki, pages);
+  const problems = dryRun ? [] : headProblems;
+  if (dryRun) for (const p of headProblems) err(`docs-notion: ${p.path}: ${p.problem} (not publishable)`);
+  const scans = pages.map((p) => ({ path: p.path, text: p.body }));
+  for (const a of wiki.audiences.filter((x) => pages.some((p) => p.head?.audience === x.name))) {
+    scans.push({ path: `audience ${a.name}`, text: `${a.name}\n${a.description}` });
+  }
+  for (const sc of scans) for (const f of scanText(sc.text, wiki.forbidden)) problems.push({ path: sc.path, problem: f.rule, line: f.line });
+  if (problems.length) {
+    for (const p of problems) err(`docs-notion: ${p.path}: ${p.problem}${p.line ? ` (line ${p.line})` : ""}`);
+    return 4;
+  }
   if (dryRun) {
     for (const p of pages) out(`sync ${p.path} (audience: ${p.head?.audience || "none"})`);
     return 0;
   }
-  err("docs-notion: wiki publishing is not implemented yet");
-  return 1;
+  return publishWiki({ wiki, pages, token, base: process.env.NOTION_API_BASE, out, err });
 }
 
 async function main() {
@@ -69,6 +84,7 @@ async function main() {
   const token = (process.env.NOTION_API_KEY ?? "").trim();
   if (opts.wiki) return runWiki(root, opts.dryRun, token);
   const cfg = loadConfig(root);
+  cfg.exclude = [...cfg.exclude, "docs/wiki/**"]; // wiki pages go out only with --wiki
   if (!opts.dryRun) {
     const missing = [];
     if (!token) missing.push("NOTION_API_KEY");

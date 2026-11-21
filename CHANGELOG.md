@@ -8,6 +8,8 @@
 - **`wiki` block in `.foreman.json`** (with module `docs-notion`, default off): `enabled`, `language`, `audiences`, `rootPageId`, `forbidden`. `scripts/check-config.sh` checks it; the installer adds it without overwriting an existing block.
 - **Skill `foreman-wiki`**: how to write and maintain wiki pages in `docs/wiki/` (sources only from internal docs, one folder per audience, checked text, publish by hand at release time with `--wiki`). Milestones note `Wiki: <pages>` or `Wiki: no change` in STATE.md when the wiki is on.
 
+- **Wiki publishing** (`docs-notion.mjs --wiki`): pages from `docs/wiki/` go to Notion under their audience page, head removed. A scan for internal terms, hosts, secrets and forbidden terms plus a head check run first; any problem exits with code 4 and sends nothing. The docs mirror never includes `docs/wiki/**`.
+
 - **Gateway preset in the installer**: `--gateway-url`, `--fallback-model` and `--chatgpt-via-gateway accepted-risk` write the active gateway preset (`scripts/gateway-preset.py`), with a reachability check and a dry run; ChatGPT routing only after explicit acceptance.
 
 - **Project mode for Claude Code projects.** New chat skill `foreman-project-mode` writes the foreman rules into the project instructions (project chat triages, the thread executes, same header, gates and branch rules, push and merge only on the human's go). Applied by the coordinator's settings tool or pasted by the human; the block is versioned, so a refresh after an update compares it. `foreman-fix`, `foreman-brief`, `foreman-setup` and `foreman-project` point to it; a thread runs a fix pack itself instead of handing it to a second session.
