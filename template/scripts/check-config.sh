@@ -87,18 +87,26 @@ if isinstance(ap, dict):
         bad = True
 
 # itsaplan names: the tracker project's columns and labels must match the names foreman uses.
-def name_problems(kind, names, expected, alias_map, hint):
+def name_problems(kind, names, expected, alias_map, hint, prefix=None):
+    # prefix None (columns): unknown names are never reported; a string prefix (labels): only names starting with it
     msgs = []
     have = set(names)
     known = set(expected)
     for canon in expected:
+        known.update(alias_map.get(canon, []))
+    # columns: the project's names foreman does not use, listed only inside a missing-column message
+    unnamed = [n for n in dict.fromkeys(names) if n not in known] if prefix is None else []
+    for canon in expected:
         alts = alias_map.get(canon, [])
-        known.update(alts)
         if canon not in have and not any(a in have for a in alts):
-            msgs.append('FAIL: itsaplan %s "%s" is missing (%s)' % (kind, canon, hint))
-    for name in dict.fromkeys(names):
-        if name not in known:
-            msgs.append('FAIL: itsaplan %s "%s" is not a name foreman uses' % (kind, name))
+            detail = hint
+            if unnamed:
+                detail = "project columns without a foreman name: %s; %s" % (", ".join('"%s"' % n for n in unnamed), hint)
+            msgs.append('FAIL: itsaplan %s "%s" is missing (%s)' % (kind, canon, detail))
+    if prefix is not None:
+        for name in dict.fromkeys(names):
+            if name.startswith(prefix) and name not in known:
+                msgs.append('FAIL: itsaplan %s "%s" is not a name foreman uses' % (kind, name))
     return msgs
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -121,7 +129,10 @@ def itsaplan_base(raw):
     return parts.scheme + "://" + netloc + parts.path.rstrip("/")
 
 tracker = cfg.get("tracker")
-if isinstance(tracker, dict) and tracker.get("type") == "itsaplan":
+modules = cfg.get("modules")
+if (isinstance(tracker, dict) and tracker.get("type") == "itsaplan") or (isinstance(modules, list) and "tracker-itsaplan" in modules):
+    if not isinstance(tracker, dict):
+        tracker = {}
     mirror = cfg.get("mirror")
     its = mirror.get("itsaplan") if isinstance(mirror, dict) else None
     if not isinstance(its, dict):
@@ -134,8 +145,6 @@ if isinstance(tracker, dict) and tracker.get("type") == "itsaplan":
     extra = tracker.get("columnAliases")
     if isinstance(extra, dict):
         for canon, names in extra.items():
-            if isinstance(names, str):
-                names = [names]
             if isinstance(names, list):
                 alias_map.setdefault(canon, []).extend(n for n in names if isinstance(n, str))
     expect_cols = ["Backlog", "Todo", "In Progress", "Action Required", "Wait for Merge", "Testing", "In Review", "Done"]
@@ -151,14 +160,14 @@ if isinstance(tracker, dict) and tracker.get("type") == "itsaplan":
     else:
         try:
             base = itsaplan_base(url)
-        except ValueError:
+            req = urllib.request.Request(
+                base + "/projects/" + urllib.parse.quote(project_key, safe=""),
+                headers={"x-api-key": api_key, "Accept": "application/json"})
+        except Exception:
             base = None
         if base is None:
             print("WARN: itsaplan names not checked (ITSAPLAN_URL is not an http or https URL)")
         else:
-            req = urllib.request.Request(
-                base + "/projects/" + urllib.parse.quote(project_key, safe=""),
-                headers={"x-api-key": api_key, "Accept": "application/json"})
             doc, loaded = None, False
             try:
                 with _OPENER.open(req, timeout=5) as resp:
@@ -171,6 +180,8 @@ if isinstance(tracker, dict) and tracker.get("type") == "itsaplan":
                 print("WARN: itsaplan names not checked (%s)" % ("timeout" if isinstance(reason, socket.timeout) else "unreachable"))
             except (ValueError, http.client.HTTPException):
                 print("WARN: itsaplan names not checked (invalid response)")
+            except Exception:
+                print("WARN: itsaplan names not checked (request failed)")
             if loaded:
                 if not (isinstance(doc, dict) and isinstance(doc.get("columns"), list) and isinstance(doc.get("labels"), list)):
                     print("WARN: itsaplan names not checked (invalid response)")
@@ -180,7 +191,7 @@ if isinstance(tracker, dict) and tracker.get("type") == "itsaplan":
                     problems = name_problems("column", cols, expect_cols, alias_map,
                                              "rename it or add an alias in tracker.columnAliases")
                     problems += name_problems("label", labs, expect_labels, {},
-                                              "create it with exactly this name")
+                                              "create it with exactly this name", prefix)
                     for msg in problems:
                         print(msg)
                         bad = True

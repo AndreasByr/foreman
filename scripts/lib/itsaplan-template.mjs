@@ -26,6 +26,48 @@ const STATE_TYPES = ["backlog", "unstarted", "started", "completed", "canceled"]
 const WIP_MODES = ["soft", "hard"];
 const SETTING_KEYS = ["auto_archive", "subtask_automation"];
 
+// German words that must not appear as a whole word in names or text fields (the template is English).
+// Lowercase only; matched case-insensitively. Words that are also English are left out.
+export const GERMAN_WORDS = new Set([
+  "der", "die", "das", "den", "dem", "des", "ein", "eine", "einen", "einem", "einer",
+  "und", "oder", "nicht", "ist", "sind", "wird", "werden", "mit", "auf", "aus", "bei", "nach", "vor",
+  "ohne", "zum", "zur", "auch", "noch", "schon", "dann", "wenn", "aber", "weil", "bitte", "ja", "nein",
+  "ich", "wir", "ihr", "sie", "fuer", "ueber", "hallo", "fehler", "frage", "fragen", "antwort", "antworten",
+  "aufgabe", "aufgaben", "projekt", "projekte", "benutzer", "mensch", "bereit", "freigabe", "empfehlung",
+  "bericht", "hinweis", "schritt", "schritte", "bearbeitung", "abschluss", "ergebnis", "vorlage",
+  "beschreibung", "bezeichnung", "titel", "liste", "datei", "meilenstein", "ansicht", "eintrag",
+  "ausgabe", "hilfe", "pruefung", "prüfung",
+]);
+
+// Returns why a text field is not acceptable (German word or äöüß), or null.
+function germanProblem(text) {
+  if (/[äöüßÄÖÜ]/.test(text)) return "contains an umlaut or ß";
+  for (const word of text.toLowerCase().split(/[^\p{L}]+/u)) {
+    if (GERMAN_WORDS.has(word)) return `contains the German word "${word}"`;
+  }
+  return null;
+}
+
+const TEXT_FIELDS = new Set(["name", "description", "titleTemplate", "descriptionTemplate"]);
+
+// Walks the whole template and checks every name or text field at any depth.
+function checkTextFields(node, path, errors, seen = new Set()) {
+  if (node === null || typeof node !== "object" || seen.has(node)) return;
+  seen.add(node);
+  if (Array.isArray(node)) {
+    node.forEach((n, i) => checkTextFields(n, `${path}[${i}]`, errors, seen));
+    return;
+  }
+  for (const [k, v] of Object.entries(node)) {
+    const where = `${path}.${k}`;
+    if (TEXT_FIELDS.has(k) && typeof v === "string") {
+      const problem = germanProblem(v);
+      if (problem) errors.push(`${where} ${problem}: ${show(v)}`);
+    }
+    checkTextFields(v, where, errors, seen);
+  }
+}
+
 // Names the foreman workflow depends on (see plan() in itsaplan-mirror.mjs).
 const FOREMAN_COLUMNS = [
   "Backlog", "Todo", "In Progress", "Action Required", "Wait for Merge", "Testing", "In Review", "Done",
@@ -85,6 +127,12 @@ function rowsOf(snapshot, kind, errors, rowFn) {
 
 function checkIdsUnique(rows, kind, errors) {
   for (const id of duplicates(rows.map((r) => r.id).filter(isId))) errors.push(`duplicate ${kind} id ${id}`);
+}
+
+function checkPositionsUnique(rows, kind, errors) {
+  for (const p of duplicates(rows.map((r) => r.position).filter(Number.isInteger))) {
+    errors.push(`duplicate ${kind} position ${p}`);
+  }
 }
 
 function checkNamesUnique(rows, kind, errors) {
@@ -148,7 +196,9 @@ function checkSnapshot(s, errors) {
   });
   checkIdsUnique(issueTypes, "issue type", errors);
   checkNamesUnique(issueTypes, "issue type", errors);
+  checkPositionsUnique(issueTypes, "issue type", errors);
   const defaults = issueTypes.filter((t) => t.isDefault === true);
+  if (defaults.length === 0) errors.push("no default issue type: exactly one issue type must have isDefault true");
   if (defaults.length > 1) {
     errors.push(`more than one default issue type: ${defaults.map((t) => `"${t.name}"`).join(", ")}`);
   }
@@ -239,7 +289,7 @@ function checkSnapshot(s, errors) {
   checkNamesUnique(issueTemplates, "issue template", errors);
 
   const refs = { labels: labelIds, status: columnIds };
-  rowsOf(s, "views", errors, (v, w) => {
+  const views = rowsOf(s, "views", errors, (v, w) => {
     if (!isText(v.name)) errors.push(`${w}: name must be a non-empty text, got ${show(v.name)}`);
     if (!isIcon(v.icon)) errors.push(`${w}: icon must be text or null, got ${show(v.icon)}`);
     if (!isObj(v.filters)) errors.push(`${w}: filters must be an object`);
@@ -247,6 +297,7 @@ function checkSnapshot(s, errors) {
     if (!isObj(v.display)) errors.push(`${w}: display must be an object`);
     if (!Number.isInteger(v.position)) errors.push(`${w}: position must be a whole number, got ${show(v.position)}`);
   });
+  checkPositionsUnique(views, "view", errors);
 
   rowsOf(s, "dashboards", errors, (d, w) => {
     if (!isText(d.name)) errors.push(`${w}: name must be a non-empty text, got ${show(d.name)}`);
@@ -279,6 +330,7 @@ export function validateTemplate(template) {
   const errors = [];
   try {
     if (!isObj(template)) return ["template must be a JSON object"];
+    checkTextFields(template, "template", errors);
     closed(template, TOP_KEYS, "template", errors);
     if (template.format !== FORMAT) errors.push(`format must be "${FORMAT}", got ${show(template.format)}`);
     if (template.version !== VERSION) errors.push(`version must be ${VERSION}, got ${show(template.version)}`);

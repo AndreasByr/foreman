@@ -1,4 +1,4 @@
-Status: validation · since 2026-11-21T20:05Z · alle Slices fertig, Validierung läuft
+Status: rework · since 2026-11-21T20:30Z · R1 fertig, zweite Validierung folgt
 Target: dev
 Batch-branch: batch/m005
 Lock: free
@@ -19,6 +19,8 @@ Start commit: 302496a
 | S3 | Projekt aus Vorlage (`foreman-project`), Doku, CHANGELOG | done | 1090506 | plugins/foreman/skills/foreman-project/SKILL.md, references/tracker-and-dispatcher.md, install.sh, docs/trackers.md, template/docs/trackers.md, docs/MODULES.md, README.md, CHANGELOG.md, scripts/test-all.sh | |
 
 Reihenfolge: S1, S4, S2, S3.
+
+| R1 | Rework Runde 1: Fund 1 bis 9 aus VALIDATION.md | done | R1COMMIT | scripts/check-config.sh, template/scripts/check-config.sh, scripts/lib/itsaplan-template.mjs, Tests, docs/trackers.md, template/docs/trackers.md | Funde 10 bis 12 offen (low) |
 
 ## Check plan per slice
 
@@ -53,3 +55,5 @@ Keine: `bash scripts/test-all.sh` auf dem Startstand 302496a (dev) lief mit Exit
 - 2026-11-21T19:45Z · S4 rot vor der Änderung: `bash scripts/test-check-config.sh` Exit 1 (k-label-typo) auf 8dda099; grün danach: Exit 0, `bash scripts/test-all.sh` Exit 0 · 7914f15
 - 2026-11-21T19:45Z · Repo ist öffentlich: keine echten Projekt- oder Personennamen in neuen Dateien (Brief und STATE bereinigt)
 - 2026-11-21T20:05Z · S2/S3 rot vor der Änderung: `python3 scripts/test-itsaplan-skills.py` Exit 1 (17 FAIL) auf 7914f15 + Test; grün danach: Exit 0, `bash scripts/test-all.sh` Exit 0 · 1090506
+- 2026-11-21T20:30Z · Validierung Runde 1: A/B/C needs-remediation (1 high); R1 rot vor der Änderung 449a3ee (test-check-config.sh Exit 1, test-itsaplan-template.mjs Exit 1); grün danach: beide Exit 0, `bash scripts/test-all.sh` Exit 0 · R1COMMIT
+- 2026-11-21T20:30Z · Koordinator: kein Merge nach dev, bis die Historie umgeschrieben ist; danach batch/m005 auf neues dev aufsetzen
