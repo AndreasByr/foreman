@@ -3,6 +3,9 @@
   "cooldown_minutes": 45,
   "webhook_url_env": "DISPATCHER_ERROR_WEBHOOK_URL",
   "webhook_format": "auto",
+  "foreman_version_source": "release",
+  "foreman_repo": "AndreasByr/foreman",
+  "update_notice": true,
   "projects": [
     {
       "name": "my-project",
