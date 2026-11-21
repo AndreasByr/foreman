@@ -69,7 +69,7 @@ Claude Code is the recommended agent: routines with API trigger are the dispatch
 node scripts/measure.mjs [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--root <dir>] [--results <dir>] [--strict]
 ```
 
-The default period is the last 7 days, the root is the current directory. The output is `docs/metrics.md`: the whole file is regenerated on every run, and it covers one project only. Two runs differ only in the `Erzeugt:` line. The file holds numbers, unit ids, cause categories, role and model names, and gap texts; never titles, questions or cause sentences. `--strict` exits 1 when gaps exist (the file is still written). An invalid date or option exits 2 and writes nothing.
+The default period is the last 7 days, the root is the current directory. The output is `docs/metrics.md`: the whole file is regenerated on every run, and it covers one project only. For a fixed period (`--since` and `--until` both given) two runs differ only in the `Erzeugt:` line. A unit belongs to the period by its newest log time; worker result files belong to it by file modification time (copying them without keeping the time shifts them). The file holds numbers, unit ids, cause categories, role and model names, and gap texts; never titles, questions or cause sentences. `--strict` exits 1 when gaps exist (the file is still written). An invalid date or option exits 2 and writes nothing.
 
 Every "Open question" section of a STATE.md carries one cause line, `**Cause:** <category> · <one sentence>`. Categories: `missing-requirement`, `open-decision`, `missing-infra`, `merge-conflict`, `ui-deviation`, `limit-exceeded`, `security`, `other`. An intervention without a valid category counts as "without valid cause" and is listed as a gap.
 

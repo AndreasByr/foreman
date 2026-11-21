@@ -9,7 +9,7 @@
 // Exit 0 normally; 1 with --strict when gaps exist (the file is still written); 2 for an invalid date, since after until,
 // an unknown option or a missing option value (stderr starts with "measure:", nothing is written).
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { collect, render } from "./lib/measure.mjs";
@@ -61,9 +61,16 @@ export function main(argv, { cwd = process.cwd(), now = new Date(), stdout = pro
   }
 
   const markdown = render(data, { generatedAt: now });
+  const out = join(root, "docs", "metrics.md");
+  let isLink = false;
+  try { isLink = lstatSync(out).isSymbolicLink(); } catch { /* does not exist yet */ }
+  if (isLink) {
+    stderr.write("measure: docs/metrics.md is a symlink, not writing\n");
+    return 2;
+  }
   try {
     mkdirSync(join(root, "docs"), { recursive: true });
-    writeFileSync(join(root, "docs", "metrics.md"), markdown);
+    writeFileSync(out, markdown);
   } catch (e) {
     stderr.write(`measure: cannot write docs/metrics.md: ${e.message}\n`);
     return 2;

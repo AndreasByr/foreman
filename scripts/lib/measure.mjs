@@ -9,6 +9,9 @@ export const FALLBACK_TAG = "fallback after provider outage";
 
 const DAY = 86400000;
 const ATTEMPT = /^## Attempt \d+: (\S+) \((.+?)\) - (ok|failed)/;
+// A worker answer inside a result file could contain a fake heading, so only these forms count.
+const ROLE_FORM = /^[a-z_]+$/;
+const MODEL_FORM = /^[A-Za-z0-9._:-]+\/[A-Za-z0-9._:/-]+$/;
 
 /** Folder for output: relative to root when inside it, otherwise only its base name. Never an absolute path. */
 function shownDir(root, dir) {
@@ -123,6 +126,7 @@ export function collect(opts = {}) {
     const last = Math.max(...entries.map((e) => e.t));
     if (!inPeriod(last)) continue;
     if (invalid) gaps.push(`${u.id}: log line without valid time`);
+    if (entries.some((e, i) => i > 0 && e.t < entries[i - 1].t)) gaps.push(`${u.id}: log times not ascending`);
     const { totalMinutes, waitedMinutes, open } = durations(entries);
     if (open) gaps.push(`${u.id}: open needs-input wait not subtracted`);
     const ints = interventions(text).map((i) => ({ category: i.cause?.category ?? null, problem: i.problem }));
@@ -155,16 +159,20 @@ export function collect(opts = {}) {
       if (!inPeriod(mtime)) continue;
       const text = readText(file);
       let count = 0;
+      let ignored = 0;
       for (const line of text === null ? [] : text.split(/\r?\n/)) {
         const m = line.match(ATTEMPT);
         if (!m) continue;
+        const fallback = m[2].endsWith(tag);
+        const model = fallback ? m[2].slice(0, -tag.length) : m[2];
+        if (!ROLE_FORM.test(m[1]) || !MODEL_FORM.test(model)) { ignored++; continue; }
         count++;
         attempts++;
-        let model = m[2];
-        if (model.endsWith(tag)) { fallbacks++; model = model.slice(0, -tag.length); }
+        if (fallback) fallbacks++;
         const role = (models[m[1]] ??= {});
         role[model] = (role[model] ?? 0) + 1;
       }
+      if (ignored) gaps.push(`${name}: attempt heading with unexpected form ignored`);
       if (!count) gaps.push(`${name}: no attempt found`);
     }
   }

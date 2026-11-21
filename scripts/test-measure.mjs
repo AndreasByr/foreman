@@ -2,7 +2,7 @@
 // Tests for measure.mjs and the intervention cause. Run: node scripts/test-measure.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,9 +10,23 @@ import { interventions, openQuestion } from "./lib/intervention.mjs";
 import { collect, FALLBACK_TAG, render } from "./lib/measure.mjs";
 
 // The repo root holds template/ (from scripts/) or is the parent of template/ (from template/scripts/).
+// In an installed project there is no template/ at all: REPO is the project root and template/... paths fall back to the project's own files.
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = existsSync(join(HERE, "..", "template")) ? join(HERE, "..") : join(HERE, "..", "..");
-const read = (rel) => readFileSync(join(REPO, rel), "utf8");
+const REPO = existsSync(join(HERE, "..", "template")) ? join(HERE, "..")
+  : existsSync(join(HERE, "..", "..", "template")) ? join(HERE, "..", "..")
+  : join(HERE, "..");
+/** Text of a file relative to REPO; "template/x" falls back to "x" when template/ is missing. Null when missing in both. */
+function tryRead(rel) {
+  const paths = [rel];
+  if (rel.startsWith("template/")) paths.push(rel.slice("template/".length));
+  for (const p of paths) if (existsSync(join(REPO, p))) return readFileSync(join(REPO, p), "utf8");
+  return null;
+}
+const read = (rel) => {
+  const text = tryRead(rel);
+  if (text === null) throw new Error(`file not found: ${rel}`);
+  return text;
+};
 
 const STATE_TEMPLATES = [
   "docs/milestones/_TEMPLATE/STATE.md",
@@ -24,6 +38,7 @@ const STATE_TEMPLATES = [
 const CAUSE_SKILLS = [
   "template/.claude/skills/foreman-dispatch-run/references/intervention.md",
   ".claude/skills/foreman-milestone/SKILL.md",
+  "template/.claude/skills/foreman-milestone/SKILL.md",
   ".claude/skills/foreman-fixpack/SKILL.md",
   "template/.claude/skills/foreman-fixpack/SKILL.md",
 ];
@@ -105,7 +120,8 @@ t("template placeholder section is not an intervention", () => {
 
 t("the four STATE templates have no interventions and no open question", () => {
   for (const rel of STATE_TEMPLATES) {
-    const text = read(rel);
+    const text = tryRead(rel);
+    if (text === null) { console.log(`skip: ${rel} not found`); continue; }
     assert.deepEqual(interventions(text), [], rel);
     assert.equal(openQuestion(text), null, rel);
   }
@@ -120,7 +136,9 @@ t("open question with a real question and a real cause line: short is the questi
 
 t("skills named in the cause task contain the Cause line", () => {
   for (const rel of CAUSE_SKILLS) {
-    assert.ok(read(rel).includes("**Cause:**"), rel);
+    const text = tryRead(rel);
+    if (text === null) { console.log(`skip: ${rel} not found`); continue; }
+    assert.ok(text.includes("**Cause:**"), rel);
   }
 });
 
@@ -280,6 +298,15 @@ t("collect: descending stamps never give negative minutes", () => {
   for (const x of collect({ root, ...PERIOD }).units) assert.ok(x.minutes >= 0);
 });
 
+t("collect: log times not ascending in file order give one gap per unit", () => {
+  const root = tmp();
+  put(root, "docs/fixpacks/FP3/STATE.md", stateText("FP3", ["- 2026-11-10T10:00Z · a", "- 2026-11-10T09:00Z · b", "- 2026-11-10T08:00Z · c"]));
+  put(root, "docs/fixpacks/FP6/STATE.md", stateText("FP6", ["- 2026-11-10T08:00Z · a", "- 2026-11-10T09:00Z · b"]));
+  const r = collect({ root, ...PERIOD });
+  assert.deepEqual(r.gaps.filter((g) => g.includes("ascending")), ["FP3: log times not ascending"]);
+  for (const u of r.units) assert.ok(u.minutes >= 0);
+});
+
 t("collect: wait longer than the span never drives minutes below zero", () => {
   const root = tmp();
   put(root, "docs/fixpacks/FP5/STATE.md", stateText("FP5", ["- 2026-11-10T08:00Z · needs-input", "- 2026-11-10T09:00Z · b"]));
@@ -311,6 +338,19 @@ t("collect: empty result file and file without attempt give a gap", () => {
   const r = collect({ root, ...PERIOD });
   assert.deepEqual(r.gaps, ["empty.result.md: no attempt found", "other.result.md: no attempt found"]);
   assert.equal(r.attempts, 0);
+});
+
+t("collect: attempt headings with an unexpected form are ignored and give one gap per file", () => {
+  const root = tmp();
+  const mtime = new Date("2026-11-15T12:00:00Z");
+  const text = result("execution (claude/claude-sonnet-5-5) - ok, 90s")
+    + "\n## Attempt 9: execution (free text SECRET) - ok\n\n## Attempt 10: Exec_Role (claude/x) - ok\n\n## Attempt 11: research (ollama/glm x) - failed\n";
+  utimesSync(put(root, "tools/delegate/tasks/f.result.md", text), mtime, mtime);
+  const r = collect({ root, ...PERIOD });
+  assert.equal(r.attempts, 1);
+  assert.deepEqual(r.modelsByRole, { execution: { "claude/claude-sonnet-5-5": 1 } });
+  assert.deepEqual(r.gaps, ["f.result.md: attempt heading with unexpected form ignored"]);
+  assert.ok(!JSON.stringify(r).includes("SECRET"));
 });
 
 t("collect: result files outside the period are ignored", () => {
@@ -353,7 +393,7 @@ t("collect: the result is deterministic", () => {
 t("collect: FALLBACK_TAG equals the text the delegate wrapper writes", () => {
   const rels = ["tools/delegate/run_task.py", "template/tools/delegate/run_task.py"];
   const rel = rels.find((p) => existsSync(join(REPO, p)));
-  if (!rel) { console.log("note: run_task.py not found, fallback tag check skipped"); return; }
+  if (!rel) { console.log("skip: run_task.py not found, fallback tag check"); return; }
   assert.ok(read(rel).includes(`, ${FALLBACK_TAG}"`), "run_task.py must write the tag the parser counts");
 });
 
@@ -586,9 +626,35 @@ t("cli: metrics.md shows no absolute path when --results is outside the project"
   assert.ok(!md.includes(outside) && !md.includes(root) && !md.includes(tmpdir()));
 });
 
+t("cli: docs/metrics.md as a symlink exits 2 and writes nothing", () => {
+  const root = tmp();
+  const target = join(tmp(), "target.md");
+  writeFileSync(target, "keep");
+  mkdirSync(join(root, "docs"), { recursive: true });
+  symlinkSync(target, join(root, "docs", "metrics.md"));
+  const r = cli(["--root", root, ...PERIOD_ARGS]);
+  assert.equal(r.status, 2);
+  assert.ok(r.stderr.includes("measure: docs/metrics.md is a symlink, not writing"), r.stderr);
+  assert.equal(readFileSync(target, "utf8"), "keep");
+});
+
+t("test file runs in a project without template/ and skips missing files", () => {
+  if (process.env.MEASURE_TEST_NESTED) return;
+  const proj = tmp();
+  mkdirSync(join(proj, "scripts"), { recursive: true });
+  cpSync(join(HERE, "lib"), join(proj, "scripts", "lib"), { recursive: true });
+  for (const f of ["measure.mjs", "test-measure.mjs"]) cpSync(join(HERE, f), join(proj, "scripts", f));
+  const r = spawnSync(process.execPath, [join(proj, "scripts", "test-measure.mjs")], { encoding: "utf8", env: { ...process.env, MEASURE_TEST_NESTED: "1" } });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.ok(r.stdout.includes("skip:"), r.stdout);
+});
+
 t("docs: MODULES.md and learnings.md mention measure.mjs", () => {
-  assert.ok(read("docs/MODULES.md").includes("measure.mjs"));
-  assert.ok(read("docs/learnings.md").includes("measure.mjs"));
+  for (const rel of ["docs/MODULES.md", "docs/learnings.md"]) {
+    const text = tryRead(rel);
+    if (text === null) { console.log(`skip: ${rel} not found`); continue; }
+    assert.ok(text.includes("measure.mjs"), rel);
+  }
 });
 
 let failed = 0;
