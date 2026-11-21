@@ -50,6 +50,7 @@ Ask block A first. Its answers set your explanation depth for the rest of the se
 3. Every line comes from an answer. Nothing is inferred. `unbekannt` stays `unbekannt`. Below the summary, name each gap in one line with what it blocks.
 4. Ask the human to confirm or correct. Give no recommendation, no profile and no install command before the human confirms. Corrections go back into the answers, and the summary is shown again.
 5. After confirmation, write `workspace.json`. With a shell: `python3 scripts/setup-summary.py <answers.json> --write workspace.json --confirmed`. Otherwise output the JSON for the human to save. Never write secrets into it.
+5b. Tell the human to store the confirmed `workspace.json` in the project documents (project files) of the foreman project; the chat reads it there. Stored once, refreshed after every change of the environment.
 6. Put the same content into the `infra` block of `.foreman.json` through `install.sh --workspace <file>`.
 
 Quick: for a quick prototype no workspace.json is written and the summary step is skipped; the block B and A answers go straight to step 3 (recommendation). Everything else about the summary stays as described above.

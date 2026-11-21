@@ -8,6 +8,7 @@
 #                [--session-model <exact model id>] [--workspace <file>] [--no-staging] [--force] [--dry-run]
 #                [--gateway-url <url> --fallback-model <claude/id>] [--chatgpt-via-gateway accepted-risk|declined]
 #                [--tz <IANA name>] [--batch-hours <h,h,...>] [--wait-hours <number>] [--main-auto-merge yes|no]
+#   ./install.sh <target-repo> --update [--dry-run]   (update an installed project; only --dry-run allowed with it)
 #
 # Existing files are never overwritten without --force. An existing CLAUDE.md is kept and the
 # foreman rules are written to CLAUDE.foreman.md for you to merge. An existing .claude/settings.json
@@ -44,12 +45,16 @@ target="" project="" name="" modules="" scope="" model="" agent=claude-code rec=
 gateway_url="" fallback_model="" chatgpt_via_gateway="" chatgpt_given=no chatgpt="" gw_key_env="" gw_on=no preset_written=no
 tz="" tz_given=no batch_hours="" batch_given=no wait_hours="" wait_given=no main_auto_merge="" main_given=no
 need_value() { echo "option $1 needs a value" >&2; exit 2; }
+update=no given=()
+for a in "$@"; do [ "$a" = --update ] && update=yes; done
 while [ $# -gt 0 ]; do
+  case "$1" in --update|--dry-run|-h|--help) ;; -*) given+=("$1") ;; esac
   case "$1" in
     --project|--name|--modules|--scope|--session-model|--agent|--recommended-skills|--skills-scope|--workspace|--gateway-url|--fallback-model|--chatgpt-via-gateway|--tz|--batch-hours|--wait-hours|--main-auto-merge)
       [ $# -ge 2 ] || need_value "$1" ;;
   esac
   case "$1" in
+    --update) update=yes; shift ;;
     --project) project="$2"; shift 2 ;;
     --name) name="$2"; shift 2 ;;
     --modules) modules="$2"; shift 2 ;;
@@ -70,10 +75,17 @@ while [ $# -gt 0 ]; do
     --wait-hours) wait_hours="$2"; wait_given=yes; shift 2 ;;
     --main-auto-merge) main_auto_merge="$2"; main_given=yes; shift 2 ;;
     -h|--help) awk 'NR>1 { if ($0 !~ /^#/) exit; sub(/^# ?/, ""); print }' "$0"; exit 0 ;;
-    -*) echo "unknown option: $1" >&2; exit 2 ;;
+    -*) if [ "$update" = yes ]; then echo "foreman update: unknown option: $1" >&2; else echo "unknown option: $1" >&2; fi; exit 2 ;;
     *) target="$1"; shift ;;
   esac
 done
+
+if [ "$update" = yes ]; then
+  [ ${#given[@]} -eq 0 ] || { echo "foreman update: only --dry-run is allowed with --update (got: ${given[*]})" >&2; exit 2; }
+  [ -n "$target" ] || { echo "foreman update: no target given" >&2; exit 2; }
+  if [ "$dry" = yes ]; then exec python3 "$HERE/scripts/update.py" "$target" --dry-run; fi
+  exec python3 "$HERE/scripts/update.py" "$target"
+fi
 
 [ -n "$target" ] || { echo "usage: ./install.sh <target-repo> --project <slug> [options]  (see --help)" >&2; exit 2; }
 [ -d "$target" ] || { echo "target not found: $target" >&2; exit 2; }

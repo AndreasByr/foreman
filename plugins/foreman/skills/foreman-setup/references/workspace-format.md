@@ -10,6 +10,7 @@ It holds **names and roles only, never a value**. No API keys, tokens, passwords
 
 - Format and rules: `docs/workspace.schema.json` (JSON Schema, draft 2020-12 style).
 - Example: `docs/workspace.example.json`.
+- The copy the chat reads lives in the project documents (project files) of the foreman project. It holds no keys, so the chat reads it there directly. The server copy (next to the dispatcher configuration) stays the original; after a change in the environment, foreman-setup writes both again. Decided by the human on 2026-11-21.
 - The human's own file: wherever they keep it, passed to the installer with `--workspace <file>`. It is not committed by foreman.
 
 ## Fields

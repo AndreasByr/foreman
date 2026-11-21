@@ -30,7 +30,7 @@ The setup skill asks what you know, what you need, what you have and how you wor
    - claude.ai or the desktop app: open the Plugins page, select **Add marketplace**, enter `AndreasByr/foreman`, then install **foreman**. The plugin is saved to your account, so its skills also work in Claude Code.
    - Claude Code: `/plugin marketplace add AndreasByr/foreman`, then `/plugin install foreman@foreman`.
    - Team or Enterprise: an owner can add the repository under Organization settings → Plugins & skills → Sync from GitHub.
-   Updates arrive through the marketplace; there is nothing to upload.
+   Updates arrive through the marketplace; there is nothing to upload. Projects are updated with `./install.sh --update <project>` (dry run with `--dry-run`), guided by `foreman-update`.
 2. **Run the setup (10 min).** In a new chat, say "set up foreman". `foreman-setup` interviews you and recommends a profile: Quick, Repo or Autopilot.
 3. **Install into your repo (2 min).** Clone this repository once (`git clone https://github.com/AndreasByr/foreman`), then run the command the setup gave you, for example:
    ```bash
@@ -67,6 +67,7 @@ Principles: [docs/PRINCIPLES.md](docs/PRINCIPLES.md). Lifecycle: [docs/WORKFLOW.
 | `foreman-setup` | set up foreman for your situation, step by step |
 | `foreman-project` | start a new project, full or quick |
 | `foreman-project-mode` | write the foreman rules into a Claude Code project's instructions; also the refresh after an update |
+| `foreman-update` | bring an installed project to the current version; writes the order and the checklist |
 | `foreman-quick` | write the one-shot prompt for a demo or prototype |
 | `foreman-roast` | challenge an idea and end with `docs/requirements.md` |
 | `foreman-roadmap` | versions, milestones, slices, human test flows |

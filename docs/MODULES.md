@@ -75,8 +75,24 @@ Claude Code is the recommended agent: routines with API trigger are the dispatch
 node scripts/measure.mjs [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--root <dir>] [--results <dir>] [--strict]
 ```
 
-The default period is the last 7 days, the root is the current directory. The output is `docs/metrics.md`: the whole file is regenerated on every run, and it covers one project only. For a fixed period (`--since` and `--until` both given) two runs differ only in the `Erzeugt:` line. A unit belongs to the period by its newest log time; worker result files belong to it by file modification time (copying them without keeping the time shifts them). The file holds numbers, unit ids, cause categories, role and model names, and gap texts; never titles, questions or cause sentences. `--strict` exits 1 when gaps exist (the file is still written). An invalid date or option exits 2 and writes nothing.
+The default period is the last 7 days, the root is the current directory. The output is `docs/metrics.md`: the whole file is regenerated on every run, and it covers one project only. For a fixed period (`--since` and `--until` both given) two runs differ only in the `Erzeugt:` line. A unit belongs to the period by its newest log time; worker result files belong to it by file modification time (copying them without keeping the time shifts them). The file holds numbers, unit ids, cause categories, role and model names, and gap texts; never titles, questions or cause sentences. `--strict` exits 1 when gaps exist (the file is still written). An invalid date or option exits 2 and writes nothing. A worker answer that quotes a well-formed `## Attempt N: role (provider/model) - ok` line is counted as an attempt, so the attempt numbers are a guide, not proof; a wait is only subtracted when the log line's event field starts with `needs-input`.
 
 Every "Open question" section of a STATE.md carries one cause line, `**Cause:** <category> · <one sentence>`. Categories: `missing-requirement`, `open-decision`, `missing-infra`, `merge-conflict`, `ui-deviation`, `limit-exceeded`, `security`, `other`. An intervention without a valid category counts as "without valid cause" and is listed as a gap.
 
 The result files (`tools/delegate/tasks/*.result.md`) exist only on the machine where the workers ran. On any other machine the report shows them as a gap, not as zero.
+
+## Updating a project
+
+Run `./install.sh <target> --update --dry-run` first. It lists what would change. Then run `./install.sh <target> --update` to apply it. The `foreman-update` chat skill guides both steps.
+
+Every file in `template/` has one class in `update-classes.json`:
+
+- `foreman`: replaced by the current version.
+- `project`: kept as it is.
+- `mixed`: `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`, `tools/delegate/config.toml`. Never overwritten, because a project's own edits must survive. A missing one is created. For the ones that differ, the update prints a diff against the rendered template.
+
+`version` in `.foreman.json` is written last. A failed update leaves it unchanged, so a rerun finishes the work. `--update` never adds modules. It stops when foreman-owned files have uncommitted changes. Foreman-owned files that a project patched and committed are replaced too, so read the `update` lines before you run it for real.
+
+The steps for each version are in the `### Upgrade` part of its section in `CHANGELOG.md`.
+
+Whoever adds a file to `template/` also adds it to `update-classes.json`. A test enforces this.

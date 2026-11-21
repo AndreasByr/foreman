@@ -29,6 +29,7 @@ Agents write the code. Several runs build several milestones at the same time, o
 
 - One roadmap file per version: `docs/roadmap-0.N.0.md` (`0.1.0`, `0.2.0`, ...). Milestone numbers (`M001`, `M002`, ...) keep counting across roadmaps.
 - Without versioning: `docs/roadmap.md`.
+- The roadmap follows `docs/docs-rules.md` (without the repo: `template/docs/docs-rules.md` of the foreman repo).
 - Input: `docs/requirements.md` from `foreman-roast`. Without it, ask up to 5 questions: what the project does, what v1 must do, stack, who tests and how much time per milestone, deadlines.
 
 ## Flow
