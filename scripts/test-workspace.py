@@ -163,14 +163,14 @@ def check_example():
     )
     by_name = {m.get("name"): m for m in machines if isinstance(m, dict)} if isinstance(machines, list) else {}
     check(
-        "example: myweby carries purposes dispatcher-host, app-hosting, tracker-host, gateway-host",
-        sorted(dig(by_name, "myweby", "purposes") or []) == sorted(
+        "example: server-1 carries purposes dispatcher-host, app-hosting, tracker-host, gateway-host",
+        sorted(dig(by_name, "server-1", "purposes") or []) == sorted(
             ["dispatcher-host", "app-hosting", "tracker-host", "gateway-host"]
         ),
     )
     check(
-        "example: alice carries purpose local-runs",
-        dig(by_name, "alice", "purposes") == ["local-runs"],
+        "example: server-2 carries purpose local-runs",
+        dig(by_name, "server-2", "purposes") == ["local-runs"],
     )
     check(
         "example gateway is running with a url",
@@ -307,7 +307,7 @@ def check_rejected(tmp, counter):
         data["machines"][0]["purposes"] = ["boss"]
 
     def plain_http_single_label_gateway(data):
-        data["gateway"]["url"] = "http://alice:4000"
+        data["gateway"]["url"] = "http://server-2:4000"
 
     def plain_http_public_gateway(data):
         data["gateway"]["url"] = "http://gateway.example.com"

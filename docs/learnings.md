@@ -69,3 +69,5 @@ Why the rules in foreman exist. Skills hold the rule; the story lives here. Proj
 
 - **Workers lost their Claude login in the cloud.** A wrapper that started `claude -p` with a clean `HOME` and expected `CLAUDE_CODE_OAUTH_TOKEN` or an API key got "Not logged in" in every Claude Code cloud session: the login belongs to the session. `execution` failed, the session coded every slice itself. Rule: Claude workers inherit the session's login by default, foreign keys are stripped, a login failure stops further Claude attempts and exits 5 so the session hands the task to its own subagent.
 
+
+- **Planning documents leaked real project, host and person names into a public repo.** Requirements, roadmap, milestone briefs and reports named real projects and servers. `scripts/privacy-scan.sh` now also checks a hashed denylist (`scripts/privacy-denylist.sha256`; add words with `python3 scripts/privacy-scan.py --hash <word>`), and the roadmap and brief skills require placeholders in public repos. Git history keeps the old text until it is rewritten.

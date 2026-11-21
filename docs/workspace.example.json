@@ -2,7 +2,7 @@
   "schema": 1,
   "machines": [
     {
-      "name": "myweby",
+      "name": "server-1",
       "role": "server",
       "services": ["docker", "coolify", "itsaplan", "litellm", "dispatcher"],
       "purposes": ["dispatcher-host", "app-hosting", "tracker-host", "gateway-host"],
@@ -10,7 +10,7 @@
       "https": "yes"
     },
     {
-      "name": "alice",
+      "name": "server-2",
       "role": "home-server",
       "services": ["docker"],
       "purposes": ["local-runs"],
