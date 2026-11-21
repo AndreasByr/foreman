@@ -23,7 +23,8 @@
 # the preset needs --scope repo or autopilot. Without flags, gateway.url, gateway.keyEnv and
 # chatgptViaGateway come from --workspace when gateway.running is yes and --fallback-model is given; flags win.
 # --chatgpt-via-gateway accepted-risk routes normal coding to the ChatGPT plan, declined keeps it off (the flag beats
-# the workspace value); any other value exits 2. accepted-risk needs a gateway URL.
+# the workspace value); any other value exits 2.
+# accepted-risk needs module gateway or a gateway URL; without a URL only tools/gateway/litellm.chatgpt.example.yaml is installed and no preset is written.
 # An existing .foreman.json is kept, except its infra block, which --workspace replaces.
 # The key value is never read or printed: the preset stores only the variable name (default FOREMAN_GATEWAY_KEY).
 set -euo pipefail
@@ -34,7 +35,12 @@ VERSION="$(cat "$HERE/VERSION" 2>/dev/null || echo 0.2.0)"
 
 target="" project="" name="" modules="" scope="" model="" agent=claude-code rec="" skills_scope="" workspace="" staging=yes force=no dry=no
 gateway_url="" fallback_model="" chatgpt_via_gateway="" chatgpt_given=no chatgpt="" gw_key_env="" gw_on=no preset_written=no
+need_value() { echo "option $1 needs a value" >&2; exit 2; }
 while [ $# -gt 0 ]; do
+  case "$1" in
+    --project|--name|--modules|--scope|--session-model|--agent|--recommended-skills|--skills-scope|--workspace|--gateway-url|--fallback-model|--chatgpt-via-gateway)
+      [ $# -ge 2 ] || need_value "$1" ;;
+  esac
   case "$1" in
     --project) project="$2"; shift 2 ;;
     --name) name="$2"; shift 2 ;;

@@ -532,6 +532,17 @@ for s in '45 minutes' 'terms of use' 'Codex CLI' 'API key' 'Ollama and Claude on
   grep -qF "$s" "$REF" || fail "gateway-block.md does not mention '$s'"
 done
 
+# ChatGPT consent with a reachable stub gateway: the example file follows the consent flag
+mkdir "$T/cg6" && git -C "$T/cg6" init -q
+inst "$T/cg6" --project g --modules delegate --session-model m --gateway-url "$GW_URL" --fallback-model claude/test-model --chatgpt-via-gateway accepted-risk >/dev/null 2>&1 || fail "stub gateway with accepted-risk: install failed"
+[ -f "$T/cg6/tools/gateway/litellm.chatgpt.example.yaml" ] || fail "accepted-risk with stub gateway: litellm.chatgpt.example.yaml not installed"
+mkdir "$T/cg7" && git -C "$T/cg7" init -q
+inst "$T/cg7" --project g --modules delegate --session-model m --gateway-url "$GW_URL" --fallback-model claude/test-model --chatgpt-via-gateway declined >/dev/null 2>&1 || fail "stub gateway with declined: install failed"
+[ -e "$T/cg7/tools/gateway/litellm.chatgpt.example.yaml" ] && fail "declined with stub gateway: litellm.chatgpt.example.yaml installed" || true
+# --help stops before the script body
+help_plain=$(bash "$HERE/install.sh" --help) || fail "bash install.sh --help failed"
+printf '%s\n' "$help_plain" | grep -q 'set -euo pipefail' && fail "--help output contains 'set -euo pipefail'" || true
+
 kill "$GW_PID" ${EXTRA_PIDS:-} 2>/dev/null || true; wait "$GW_PID" 2>/dev/null || true; GW_PID=""
 # 10. ChatGPT via gateway needs the explicit consent option
 mkdir "$T/cg1" && git -C "$T/cg1" init -q
@@ -554,5 +565,20 @@ rc=0; inst "$T/cg4" --project g --modules delegate,gateway --chatgpt-via-gateway
 mkdir "$T/cg5" && git -C "$T/cg5" init -q
 rc=0; inst "$T/cg5" --project g --modules delegate --chatgpt-via-gateway accepted-risk >/dev/null 2>&1 || rc=$?
 [ "$rc" = 2 ] || fail "chatgpt option without module gateway: expected exit 2, got $rc"
+# the refusals above write nothing: no tools/ and no .foreman.json in the target
+for d in cg3 cg4 cg5; do
+  [ -e "$T/$d/tools" ] && fail "refused install $d wrote tools/" || true
+  [ -e "$T/$d/.foreman.json" ] && fail "refused install $d wrote .foreman.json" || true
+done
+
+# a value-taking option as the last argument exits 2 with a message, not 1
+mkdir "$T/tv1" && git -C "$T/tv1" init -q
+rc=0; err=$(inst "$T/tv1" --project g --chatgpt-via-gateway 2>&1) || rc=$?
+[ "$rc" = 2 ] || fail "trailing --chatgpt-via-gateway: exit $rc, expected 2"
+echo "$err" | grep -q 'option --chatgpt-via-gateway needs a value' || fail "trailing --chatgpt-via-gateway: no message: $err"
+mkdir "$T/tv2" && git -C "$T/tv2" init -q
+rc=0; err=$(inst "$T/tv2" --project g --modules delegate --gateway-url 2>&1) || rc=$?
+[ "$rc" = 2 ] || fail "trailing --gateway-url: exit $rc, expected 2"
+echo "$err" | grep -q 'option --gateway-url needs a value' || fail "trailing --gateway-url: no message: $err"
 
 echo "install tests: ok"
