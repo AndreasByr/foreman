@@ -1,4 +1,4 @@
-Status: slice · since 2026-11-21T19:30Z · S1 fertig, S4 als nächstes
+Status: slice · since 2026-11-21T19:45Z · S1, S4 fertig, S2 als nächstes
 Target: dev
 Batch-branch: batch/m005
 Lock: free
@@ -14,7 +14,7 @@ Start commit: 302496a
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
 | S1 | Vorlage im Repo (acht Spalten, zehn Labels, Ansicht „UAT ready“, drei Issue-Vorlagen) plus Validierungsskript und Test | done | f80b2a4 | plugins/foreman/skills/foreman-setup/references/itsaplan-project-template.json, scripts/lib/itsaplan-template.mjs, scripts/check-itsaplan-template.mjs, scripts/test-itsaplan-template.mjs, scripts/test-all.sh | |
-| S4 | Namensprüfung in `check-config.sh` (beide Kopien), Stub-API-Tests | open | | | |
+| S4 | Namensprüfung in `check-config.sh` (beide Kopien), Stub-API-Tests | done | S4COMMIT | scripts/check-config.sh, template/scripts/check-config.sh, scripts/test-check-config.sh | |
 | S2 | Import im Setup (`foreman-setup`) | open | | | |
 | S3 | Projekt aus Vorlage (`foreman-project`), Doku, CHANGELOG | open | | | |
 
@@ -35,7 +35,7 @@ Reihenfolge: S1, S4, S2, S3.
 
 | Slice | 1 Permissions and tenant isolation | 2 Negative tests | 3 Failure cases | 4 Operations |
 |---|---|---|---|---|
-| S1 | Vorlage ohne Personen, Zugangsdaten, URLs; kein Zugriff auf Guildora, Kasev, Office | deutsches Label, fehlende Spalte, doppelter Name, unbekannter Schlüssel, falsche Version | not applicable, because Datei und Skript ohne externen Aufruf | neue Datei im Plugin; Hinweis im Upgrade-Abschnitt |
+| S1 | Vorlage ohne Personen, Zugangsdaten, URLs; kein Zugriff auf Projekte des Menschen im Tracker | deutsches Label, fehlende Spalte, doppelter Name, unbekannter Schlüssel, falsche Version | not applicable, because Datei und Skript ohne externen Aufruf | neue Datei im Plugin; Hinweis im Upgrade-Abschnitt |
 | S4 | nur lesende Aufrufe; Schlüssel nie in der Ausgabe | übersetztes `AP:`-Label, fehlende Spalte, Alias gültig | 401, nicht erreichbar, leeres Projekt, falscher `projectKey` | läuft nur mit Variablen; CI überspringt |
 | S2 | nur Import in den Workspace des Menschen; keine fremden Projekte | Vorlage schon vorhanden: kein zweiter Import | Import-Tool fehlt oder Rechte fehlen: Hinweis statt Raten | Skill-Text; keine Migration |
 | S3 | Bot wird nie vom Agenten hinzugefügt | Vorlage nicht importiert: zuerst `foreman-setup`-Schritt nennen | Projektanlage schlägt fehl: Fehler zeigen, nichts raten | Doku in trackers, MODULES, README, CHANGELOG |
@@ -48,5 +48,7 @@ Keine: `bash scripts/test-all.sh` auf dem Startstand 302496a (dev) lief mit Exit
 
 ## Log
 
-- 2026-11-21T19:20Z · Brief und STATE geschrieben; Vorlage aus Format und trackers.md statt Guildora-Export (Entscheidung im Brief, Andreas im UAT)
+- 2026-11-21T19:20Z · Brief und STATE geschrieben; Vorlage aus Format und trackers.md statt Export aus einem Bestandsprojekt (Entscheidung im Brief, der Mensch im UAT)
 - 2026-11-21T19:30Z · S1 rot vor der Änderung: `node scripts/test-itsaplan-template.mjs` Exit 1 (Vorlage fehlt) auf d782beb; grün danach: Exit 0 (12 Tests), `bash scripts/test-all.sh` Exit 0 · f80b2a4
+- 2026-11-21T19:45Z · S4 rot vor der Änderung: `bash scripts/test-check-config.sh` Exit 1 (k-label-typo) auf 8dda099; grün danach: Exit 0, `bash scripts/test-all.sh` Exit 0 · S4COMMIT
+- 2026-11-21T19:45Z · Repo ist öffentlich: keine echten Projekt- oder Personennamen in neuen Dateien (Brief und STATE bereinigt)

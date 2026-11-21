@@ -36,8 +36,8 @@ Briefing-Modus ohne UI, nur Risikovorschau. Daraus Erfolgskriterien 4, 6 und 8: 
 `docs/requirements.md` (Abschnitt itsaplan-Projektvorlage), `docs/roadmap-0.2.x.md` (M005), `docs/trackers.md`, `docs/PRINCIPLES.md`, `docs/CONVENTIONS.md`, `docs/MODULES.md`, `CLAUDE.md`. Konflikt: requirements, design, roadmap, dieser Brief.
 
 ## Fixed decisions
-- **Quelle der Vorlage:** Sie wird aus dem Exportformat und den Namen in `docs/trackers.md` von Hand geschrieben, nicht aus Guildora exportiert. Grund: Guildora, Kasev und Office sind für foreman tabu, und die Umbenennung der Guildora-Labels (Fix-Paket in Guildora) ist nicht nötig. Das weicht von der Roadmap ab; Andreas entscheidet im UAT, ob später ein Export aus einem Projekt nachgezogen wird.
-- Kein Live-Zugriff auf itsaplan im Lauf. Weder Import noch Projektanlage noch Namensprüfung laufen gegen die echte Instanz; Tests nutzen Dateien und eine Stub-Antwort der API. Der echte Lauf ist die Abnahme von Andreas gegen ein Wegwerf-Projekt.
+- **Quelle der Vorlage:** Sie wird aus dem Exportformat und den Namen in `docs/trackers.md` von Hand geschrieben, nicht aus einem Bestandsprojekt exportiert. Grund: Bestandsprojekte des Menschen sind für foreman tabu, und eine Umbenennung ihrer Labels ist nicht nötig. Das weicht von der Roadmap ab; der Mensch entscheidet im UAT, ob später ein Export aus einem Projekt nachgezogen wird.
+- Kein Live-Zugriff auf itsaplan im Lauf. Weder Import noch Projektanlage noch Namensprüfung laufen gegen die echte Instanz; Tests nutzen Dateien und eine Stub-Antwort der API. Der echte Lauf ist die Abnahme durch den Menschen gegen ein Wegwerf-Projekt.
 - Die Vorlage enthält keine Personen, keine Zugangsdaten, keine URLs. `foreman-project` fügt den Bot nie hinzu.
 - Die Spalten haben die `stateType` `backlog` (Backlog), `unstarted` (Todo), `completed` (Done), alle anderen `started`.
 - Vorlagenname in itsaplan: `foreman`. Ist eine Vorlage dieses Namens schon importiert, wird sie nicht doppelt importiert.
@@ -49,7 +49,7 @@ Briefing-Modus ohne UI, nur Risikovorschau. Daraus Erfolgskriterien 4, 6 und 8: 
 Vorlagen-Datei (Ablage im Plugin, so dass die Chat-Skills sie lesen; nicht in `template/`, damit sie nicht in jedes Projekt kopiert wird), Validierungsskript, Skills `foreman-setup` und `foreman-project`, `check-config.sh`, itsaplan-REST (`GET` Projekt, Spalten, Labels), Variablen `ITSAPLAN_URL`, `ITSAPLAN_API_KEY`, `mirror.itsaplan.projectKey` in `.foreman.json`. Nur Namen von Variablen.
 
 ## Out of scope
-- Export aus Guildora, Kasev oder Office; jede Änderung dort.
+- Export aus einem Bestandsprojekt; jede Änderung an Bestandsprojekten.
 - Echter Import oder echtes Projekt in itsaplan durch den Agenten.
 - Nachträgliches Umbauen schon angelegter Projekte (nur Hinweis im Upgrade-Abschnitt).
 - Linear-Vorlage; Dashboard-Vorlagen.
@@ -77,4 +77,4 @@ bash scripts/test-update-classes.sh
 - Filter-Format der Ansicht ist ein Blob der itsaplan-Oberfläche; Schlüssel (`conditions`, `field: labels`, `values`) folgen der Quelle, die Abnahme zeigt, ob die Ansicht filtert.
 - Die Namensprüfung braucht Netz und Schlüssel; in CI läuft sie nicht, nur lokal oder im Dispatcher-Lauf.
 - `install.sh` und `check-config.sh` sind geteilt mit M007 und M009: Konfliktgefahr.
-- Kasev hat ein älteres Phasen-Modell; die Vorlage folgt dem Modell von foreman 0.2.
+- Ältere Projekte können ein anderes Phasen-Modell haben; die Vorlage folgt dem Modell von foreman 0.2.

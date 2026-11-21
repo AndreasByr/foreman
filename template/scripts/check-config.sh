@@ -38,7 +38,7 @@ fi
 # .foreman.json settings: python3 stdlib only; a missing file or missing python3 is fine.
 if [ -f .foreman.json ] && command -v python3 >/dev/null 2>&1; then
   python3 - <<'PY' || fail=1
-import json, re, sys
+import http.client, json, os, re, socket, sys, urllib.error, urllib.parse, urllib.request
 try:
     import zoneinfo
 except ImportError:  # Python without zoneinfo: the name lookup is skipped, the pattern check stays
@@ -85,6 +85,105 @@ if isinstance(ap, dict):
     if "mainAutoMerge" in ap and not isinstance(ap["mainAutoMerge"], bool):
         print("FAIL: autopilot.mainAutoMerge must be true or false")
         bad = True
+
+# itsaplan names: the tracker project's columns and labels must match the names foreman uses.
+def name_problems(kind, names, expected, alias_map, hint):
+    msgs = []
+    have = set(names)
+    known = set(expected)
+    for canon in expected:
+        alts = alias_map.get(canon, [])
+        known.update(alts)
+        if canon not in have and not any(a in have for a in alts):
+            msgs.append('FAIL: itsaplan %s "%s" is missing (%s)' % (kind, canon, hint))
+    for name in dict.fromkeys(names):
+        if name not in known:
+            msgs.append('FAIL: itsaplan %s "%s" is not a name foreman uses' % (kind, name))
+    return msgs
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    # a redirect could send the API key to another host: report the status instead of following it
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+def itsaplan_base(raw):
+    # scheme://host[:port]/path only: credentials, query and fragment are dropped
+    parts = urllib.parse.urlsplit(raw)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return None
+    host = parts.hostname
+    if ":" in host:
+        host = "[" + host + "]"
+    port = parts.port
+    netloc = host + (":%d" % port if port else "")
+    return parts.scheme + "://" + netloc + parts.path.rstrip("/")
+
+tracker = cfg.get("tracker")
+if isinstance(tracker, dict) and tracker.get("type") == "itsaplan":
+    mirror = cfg.get("mirror")
+    its = mirror.get("itsaplan") if isinstance(mirror, dict) else None
+    if not isinstance(its, dict):
+        its = {}
+    project_key = its.get("projectKey")
+    prefix = its.get("labelPrefix", "AP: ")
+    if not isinstance(prefix, str):
+        prefix = "AP: "
+    alias_map = {"Action Required": ["Intervention needed"]}
+    extra = tracker.get("columnAliases")
+    if isinstance(extra, dict):
+        for canon, names in extra.items():
+            if isinstance(names, str):
+                names = [names]
+            if isinstance(names, list):
+                alias_map.setdefault(canon, []).extend(n for n in names if isinstance(n, str))
+    expect_cols = ["Backlog", "Todo", "In Progress", "Action Required", "Wait for Merge", "Testing", "In Review", "Done"]
+    expect_labels = ["Milestone", "Fix pack"] + [prefix + s for s in (
+        "Coding", "Fix round", "Action Required", "Waiting for merge",
+        "Pretest waiting", "Pretest running", "UAT ready", "Release ready")]
+    url = os.environ.get("ITSAPLAN_URL", "").strip()
+    api_key = os.environ.get("ITSAPLAN_API_KEY", "")
+    if not url or not api_key:
+        print("note: itsaplan names not checked (ITSAPLAN_URL or ITSAPLAN_API_KEY is not set)")
+    elif not isinstance(project_key, str) or not project_key:
+        print("note: itsaplan names not checked (mirror.itsaplan.projectKey is not set)")
+    else:
+        try:
+            base = itsaplan_base(url)
+        except ValueError:
+            base = None
+        if base is None:
+            print("WARN: itsaplan names not checked (ITSAPLAN_URL is not an http or https URL)")
+        else:
+            req = urllib.request.Request(
+                base + "/projects/" + urllib.parse.quote(project_key, safe=""),
+                headers={"x-api-key": api_key, "Accept": "application/json"})
+            doc, loaded = None, False
+            try:
+                with _OPENER.open(req, timeout=5) as resp:
+                    doc = json.loads(resp.read(1 << 22).decode("utf-8"))
+                loaded = True
+            except urllib.error.HTTPError as e:
+                print("WARN: itsaplan names not checked (HTTP %d)" % e.code)
+            except (urllib.error.URLError, OSError) as e:
+                reason = getattr(e, "reason", e)
+                print("WARN: itsaplan names not checked (%s)" % ("timeout" if isinstance(reason, socket.timeout) else "unreachable"))
+            except (ValueError, http.client.HTTPException):
+                print("WARN: itsaplan names not checked (invalid response)")
+            if loaded:
+                if not (isinstance(doc, dict) and isinstance(doc.get("columns"), list) and isinstance(doc.get("labels"), list)):
+                    print("WARN: itsaplan names not checked (invalid response)")
+                else:
+                    cols = [c.get("name") for c in doc["columns"] if isinstance(c, dict) and isinstance(c.get("name"), str)]
+                    labs = [c.get("name") for c in doc["labels"] if isinstance(c, dict) and isinstance(c.get("name"), str)]
+                    problems = name_problems("column", cols, expect_cols, alias_map,
+                                             "rename it or add an alias in tracker.columnAliases")
+                    problems += name_problems("label", labs, expect_labels, {},
+                                              "create it with exactly this name")
+                    for msg in problems:
+                        print(msg)
+                        bad = True
 
 sys.exit(1 if bad else 0)
 PY
