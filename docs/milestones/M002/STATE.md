@@ -1,4 +1,4 @@
-Status: slice · since 2026-11-21T16:35Z · S1 fertig, S2 offen
+Status: slice · since 2026-11-21T16:35Z · S2 fertig, S3 offen
 Target: dev
 Batch-branch: batch/m002
 Lock: free
@@ -13,8 +13,8 @@ Start commit: e0d84d2
 
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
-| S1 | Ein Gateway-Name (`FOREMAN_GATEWAY_KEY`, `FOREMAN_GATEWAY_URL`) | done | | docs/CONVENTIONS.md, plugins/foreman/skills/foreman-setup/references/{prerequisites,profiles-and-modules}.md, template/tools/delegate/{run_task.py,test_run_task.py,config.toml}, tools/delegate (Kopie), docs/learnings.md | |
-| S2 | Limits: pro Minute/Stunde, Pause bei 429, Sperre nach 3, Obergrenze, Bericht | open | | template/tools/delegate/{run_task.py,test_run_task.py,config.toml,README.md}, tools/delegate (Kopie) | |
+| S1 | Ein Gateway-Name (`FOREMAN_GATEWAY_KEY`, `FOREMAN_GATEWAY_URL`) | done | 35c3810 | docs/CONVENTIONS.md, plugins/foreman/skills/foreman-setup/references/{prerequisites,profiles-and-modules}.md, template/tools/delegate/{run_task.py,test_run_task.py,config.toml}, tools/delegate (Kopie), docs/learnings.md | |
+| S2 | Limits: pro Minute/Stunde, Pause bei 429, Sperre nach 3, Obergrenze, Bericht | done | | template/tools/delegate/{run_task.py,test_run_task.py,config.toml,README.md}, tools/delegate (Kopie) | |
 | S3 | Zeitlimit je Rolle (`timeout`) | open | | template/tools/delegate/{run_task.py,test_run_task.py,config.toml,README.md}, tools/delegate (Kopie) | |
 | S4 | Drei Regeln je an einer Stelle (Lint-Test) | open | | template/.claude/skills/foreman-delegation/SKILL.md, .claude/skills (Kopie), plugins/foreman/skills/{foreman-setup,foreman-orchestrator}, scripts/test-rules.py, scripts/test-all.sh, docs/learnings.md | |
 | S5 | ChatGPT-Hinweis und Installer ohne `chatgpt/` ohne Zustimmung | open | | gateway/README.md, gateway/litellm.config.example.yaml, gateway/litellm.chatgpt.example.yaml (neu), install.sh, scripts/test-install.sh, template/tools/delegate/{run_task.py,test_run_task.py} | |
@@ -54,4 +54,5 @@ One question, options, recommendation.
 ## Log
 
 - 2026-11-21T16:10Z · Split in S1 bis S5 (Reihenfolge wie Roadmap), Basislauf test-all grün · e0d84d2
-- 2026-11-21T16:35Z · S1 fertig: Tests rot→grün, test-all Exit 0 · Commit siehe Log von S2
+- 2026-11-21T16:35Z · S1 fertig: Tests rot→grün, test-all Exit 0 · Commit 35c3810
+- 2026-11-21T17:05Z · S2 fertig: 13 Tests rot→grün (25 gesamt), test-all Exit 0 · Commit im Log von S3

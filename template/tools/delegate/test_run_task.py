@@ -249,6 +249,263 @@ def test_config_rejects_api_key_and_bad_login_mode():
     assert "ANTHROPIC_API_KEY" in errs and "claude_login" in errs, errs
 
 
+# ---------------------------------------------------------------- limits
+
+def _limits_cfg(limits_toml="", base=CONFIG):
+    cfg = rt.tomllib.loads(base + "\n" + limits_toml)
+    cfg.setdefault("env", {}); cfg.setdefault("mcp", {}); cfg.setdefault("claude", {})
+    return cfg
+
+
+class _Clock:
+    def __init__(self, t=1_000_000.0):
+        self.t = t
+        self.slept = []
+
+    def now(self):
+        return self.t
+
+    def sleep(self, s):
+        self.slept.append(s)
+        self.t += s
+
+
+def _limits_obj(limits_toml, ledger, clock):
+    return rt.RunLimits(_limits_cfg(limits_toml), Path(ledger), now=clock.now, sleep=clock.sleep)
+
+
+def _limits_errs(limits_toml):
+    return rt.validate_config(_limits_cfg(limits_toml))
+
+
+def test_limits_config_validation():
+    assert _limits_errs("") == [], _limits_errs("")
+    ok = ("[limits]\nmax_calls_per_run = 5\nledger_file = \"x/.limits.json\"\n[limits.gateway]\nrequests_per_minute = 20\n"
+          "requests_per_hour = 300\npause_seconds = 5\nmax_pause_seconds = 60\n")
+    assert _limits_errs(ok) == [], _limits_errs(ok)
+    bad = {
+        "non-table limits": None,
+        "unknown provider": "[limits]\n[limits.foo]\nrequests_per_minute = 1\n",
+        "unknown key": "[limits]\nmax_calls = 3\n",
+        "unknown provider key": "[limits.gateway]\nrequests_per_day = 3\n",
+        "string value": "[limits.gateway]\nrequests_per_minute = \"20\"\n",
+        "bool value": "[limits]\nmax_calls_per_run = true\n",
+        "zero": "[limits]\nmax_calls_per_run = 0\n",
+        "negative": "[limits.gateway]\nrequests_per_hour = -3\n",
+        "zero pause": "[limits.gateway]\npause_seconds = 0\n",
+        "pause > max": "[limits.gateway]\npause_seconds = 10\nmax_pause_seconds = 5\n",
+    }
+    for label, toml in bad.items():
+        if toml is None:
+            cfg = _limits_cfg(); cfg["limits"] = 5
+            errs = rt.validate_config(cfg)
+        else:
+            errs = _limits_errs(toml)
+        assert errs and "limits" in " ".join(errs), (label, errs)
+
+
+def test_limits_pause_grows_and_is_capped():
+    with tempfile.TemporaryDirectory() as t:
+        c = _Clock()
+        lim = _limits_obj("[limits.gateway]\npause_seconds = 2\nmax_pause_seconds = 5\n", Path(t) / "l.json", c)
+        got = [lim.failure("gateway", "429"), lim.failure("gateway", "429"), lim.failure("gateway", "429")]
+        assert got == [2.0, 4.0, None], got
+        assert lim.pauses == [("gateway", 2.0), ("gateway", 4.0)], lim.pauses
+        assert c.slept == [], "failure() must not sleep itself"
+        c = _Clock()
+        lim = _limits_obj("[limits.gateway]\npause_seconds = 3\nmax_pause_seconds = 5\n", Path(t) / "l2.json", c)
+        got = [lim.failure("gateway", "x"), lim.failure("gateway", "x"), lim.failure("gateway", "x")]
+        assert got == [3.0, 5.0, None], got
+        assert [s for _, s in lim.pauses] == [3.0, 5.0], lim.pauses
+
+
+def test_limits_lock_after_three_and_success_resets():
+    with tempfile.TemporaryDirectory() as t:
+        ledger = Path(t) / "l.json"
+        lim = _limits_obj("", ledger, _Clock())
+        lim.failure("gateway", "a"); lim.failure("gateway", "b")
+        lim.success("gateway")
+        lim.failure("gateway", "c"); lim.failure("gateway", "d")
+        assert not lim.is_locked("gateway") and not lim.locks, lim.locks
+        assert lim.failure("gateway", "boom-cause") is None
+        assert lim.is_locked("gateway") and list(lim.locks) == ["gateway"], lim.locks
+        reason = lim.locks["gateway"]
+        assert "3 failures in a row" in reason and "boom-cause" in reason, reason
+        assert not lim.is_locked("ollama")
+        assert lim.failure("ollama", "x") is not None and not lim.is_locked("ollama")
+        assert not ledger.exists() or "boom-cause" not in ledger.read_text(), "locks never live in the ledger"
+
+
+def test_limits_minute_window():
+    import json
+    with tempfile.TemporaryDirectory() as t:
+        ledger = Path(t) / "l.json"
+        c = _Clock()
+        ledger.write_text(json.dumps({"gateway": [c.t - 10, c.t - 10], "ollama": [c.t - 1] * 5}))
+        lim = _limits_obj("[limits.gateway]\nrequests_per_minute = 2\nmax_pause_seconds = 60\n"
+                          "[limits.ollama]\nrequests_per_minute = 100\n", ledger, c)
+        assert lim.wait_for_slot("gateway") is True
+        assert len(c.slept) == 1 and 49 <= c.slept[0] <= 51, c.slept
+        assert lim.pauses and lim.pauses[0][0] == "gateway", lim.pauses
+        assert lim.wait_for_slot("ollama") is True, "a provider's ledger must not count against another"
+        c = _Clock()
+        ledger.write_text(json.dumps({"gateway": [c.t - 10, c.t - 10]}))
+        lim = _limits_obj("[limits.gateway]\nrequests_per_minute = 2\nmax_pause_seconds = 5\n", ledger, c)
+        assert lim.wait_for_slot("gateway") is False
+        assert c.slept == [] and lim.is_locked("gateway")
+        assert "per-minute limit" in lim.locks["gateway"], lim.locks
+        assert lim.wait_for_slot("gateway") is False and c.slept == [], "locked provider: no sleep"
+
+
+def test_limits_hour_window():
+    import json
+    with tempfile.TemporaryDirectory() as t:
+        ledger = Path(t) / "l.json"
+        c = _Clock()
+        ledger.write_text(json.dumps({"gateway": [c.t - 1800] * 3}))
+        lim = _limits_obj("[limits.gateway]\nrequests_per_hour = 3\nmax_pause_seconds = 60\n", ledger, c)
+        assert lim.wait_for_slot("gateway") is False
+        assert c.slept == [] and "per-hour limit" in lim.locks["gateway"], (c.slept, lim.locks)
+        # calls older than an hour are ignored
+        ledger.write_text(json.dumps({"gateway": [c.t - 4000, c.t - 3700, c.t - 3601]}))
+        lim = _limits_obj("[limits.gateway]\nrequests_per_hour = 3\n", ledger, c)
+        assert lim.wait_for_slot("gateway") is True and not lim.locks and c.slept == []
+        lim.note_call("gateway")
+        data = json.loads(ledger.read_text())
+        assert data["gateway"] == [c.t], data
+
+
+def test_limits_call_cap():
+    import json
+    with tempfile.TemporaryDirectory() as t:
+        ledger = Path(t) / "l.json"
+        c = _Clock()
+        lim = _limits_obj("[limits]\nmax_calls_per_run = 2\n", ledger, c)
+        lim.note_call("claude"); c.t += 1
+        lim.note_call("claude"); c.t += 1
+        assert lim.calls == 2
+        try:
+            lim.note_call("claude")
+        except rt.CallLimitReached:
+            pass
+        else:
+            raise AssertionError("third call must raise CallLimitReached")
+        stamps = json.loads(ledger.read_text())["claude"]
+        assert stamps == [1_000_000.0, 1_000_001.0], stamps
+
+
+def _gw_script(claude_fails=False):
+    claude_path = ('echo x >> "$d/claude_calls"; echo "boom: plain error" >&2; exit 1\n' if claude_fails else
+                   'echo x >> "$d/claude_calls"; echo \'{"result":"ok","is_error":false}\'\n')
+    return ('d="$(dirname "$0")"\n'
+            'if [ -n "$ANTHROPIC_BASE_URL" ]; then echo x >> "$d/gw_calls"; echo "429 Too Many Requests" >&2; exit 1; fi\n'
+            + claude_path)
+
+
+def _lines(path):
+    return len(path.read_text().splitlines()) if path.exists() else 0
+
+
+def _gw_run(t, cfg_text, script, task="---\nrole: execution_simple\n---\nx\n", extra=None):
+    (t / "config.toml").write_text(cfg_text)
+    (t / "t.md").write_text(task)
+    env = _fake_claude(t, script)
+    env.pop("ANTHROPIC_BASE_URL", None)  # the wrapper sets it for gateway attempts only
+    env["TEST_GATEWAY_KEY"] = "gw-virtual-key-1234567890"
+    return subprocess.run([sys.executable, str(HERE / "run_task.py"), "t.md", "--config", "config.toml", *(extra or [])],
+                          capture_output=True, text=True, cwd=t, env=env)
+
+
+def _gw_limits(t, extra=""):
+    return (f'\n[limits]\nledger_file = "{t}/ledger.json"\n{extra}'
+            '[limits.gateway]\npause_seconds = 0.01\nmax_pause_seconds = 0.05\n')
+
+
+def test_limits_gateway_429_retries_then_fallback():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        p = _gw_run(t, GATEWAY_CONFIG + _gw_limits(t), _gw_script())
+        assert p.returncode == 0, (p.returncode, p.stdout, p.stderr)
+        assert _lines(t / "bin" / "gw_calls") == 3, _lines(t / "bin" / "gw_calls")
+        assert _lines(t / "bin" / "claude_calls") == 1
+        res = (t / "t.result.md").read_text()
+        assert "## Limits and locks" in res, res
+        assert any("gateway: locked for this run" in l and "3 failures in a row" in l for l in res.splitlines()), res
+
+
+def test_limits_lock_skips_gateway_for_later_roles():
+    cfg = GATEWAY_CONFIG.replace('[roles.execution]\nwho = "worker"\nmodel = "claude/mid-z"\n',
+                                 '[roles.execution]\nwho = "worker"\nprovider = "gateway"\nmodel = "gateway/task-normal"\n')
+    assert "task-normal" in cfg
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        p = _gw_run(t, cfg + _gw_limits(t), _gw_script(claude_fails=True))
+        assert _lines(t / "bin" / "gw_calls") == 3, (_lines(t / "bin" / "gw_calls"), p.stdout, p.stderr)
+        assert _lines(t / "bin" / "claude_calls") >= 1, (p.stdout, p.stderr)
+        assert "already failed, skipped" in p.stdout + p.stderr, (p.stdout, p.stderr)
+
+
+def test_limits_no_fallback_skips_to_next_role():
+    cfg = GATEWAY_CONFIG.replace('fallback_model = "claude/small-x"\n', "")
+    assert "fallback_model" not in cfg
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        p = _gw_run(t, cfg + _gw_limits(t), _gw_script())
+        assert p.returncode == 0, (p.returncode, p.stdout, p.stderr)
+        assert _lines(t / "bin" / "gw_calls") == 3
+        assert _lines(t / "bin" / "claude_calls") == 1
+        assert "## Limits and locks" in (t / "t.result.md").read_text()
+
+
+def test_limits_call_cap_stops_run_with_report():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        p = _gw_run(t, GATEWAY_CONFIG + _gw_limits(t, "max_calls_per_run = 2\n"), _gw_script())
+        assert p.returncode == 1, (p.returncode, p.stdout, p.stderr)
+        total = _lines(t / "bin" / "gw_calls") + _lines(t / "bin" / "claude_calls")
+        assert total == 2, total
+        assert "call limit reached" in (t / "t.result.md").read_text()
+        assert "call limit reached" in p.stderr, p.stderr
+
+
+def test_limits_lock_is_per_run():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        cfg = GATEWAY_CONFIG + _gw_limits(t)
+        for _ in range(2):
+            for f in ("gw_calls", "claude_calls"):
+                (t / "bin" / f).unlink(missing_ok=True)
+            p = _gw_run(t, cfg, _gw_script())
+            assert p.returncode == 0, (p.returncode, p.stdout, p.stderr)
+            assert _lines(t / "bin" / "gw_calls") == 3, "every run starts with an unlocked provider"
+            assert _lines(t / "bin" / "claude_calls") == 1
+
+
+def test_limits_ledger_across_runs_minute_limit():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        cfg = CONFIG + f'\n[limits]\nledger_file = "{t}/ledger.json"\n[limits.claude]\nrequests_per_minute = 1\nmax_pause_seconds = 1\n'
+        script = 'echo x >> "$(dirname "$0")/calls"; echo \'{"result":"ok","is_error":false}\'\n'
+        task = "---\nrole: research\n---\nx\n"
+        p = _gw_run(t, cfg, script, task=task)
+        assert p.returncode == 0, (p.returncode, p.stdout, p.stderr)
+        assert _lines(t / "bin" / "calls") == 1
+        p = _gw_run(t, cfg, script, task=task)
+        assert p.returncode == 1, (p.returncode, p.stdout, p.stderr)
+        assert _lines(t / "bin" / "calls") == 1, "second run must not call claude"
+        assert "per-minute limit" in (t / "t.result.md").read_text()
+
+
+def test_limits_ledger_not_a_scope_finding():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        script = 'echo \'{"result":"ok","is_error":false}\'\n'
+        p = _gw_run(t, CONFIG, script, task="---\nrole: research\n---\nx\n", extra=["--workdir", str(t)])
+        assert p.returncode == 0, (p.returncode, p.stdout, p.stderr)
+        assert (t / "tasks" / ".limits.json").exists(), "default ledger lives next to the config file"
+        assert "## Findings" not in (t / "t.result.md").read_text()
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in sorted(globals().items()):

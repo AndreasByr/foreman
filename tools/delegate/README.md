@@ -70,6 +70,13 @@ It starts nothing and rejects model placeholders that setup has not filled in.
 
 `python3 tools/delegate/test_run_task.py`
 
+## Limits
+
+Two limits apply: the number of worker attempts per run (`max_calls_per_run`, default 12; reaching it stops the run with exit 1 and a report) and the requests per provider (`requests_per_minute`, `requests_per_hour` in `[limits.<provider>]`; the wrapper waits for a free slot).
+Endpoint providers (`ollama`, `gateway`) retry up to 3 times with growing pauses (`pause_seconds`, doubled after each failure, capped at `max_pause_seconds`), then fall back to `fallback_model`, or to the next role when there is none.
+A provider is locked after 3 failures in a row. The lock lasts only for the rest of the run. Every lock appears in the section `## Limits and locks` of the result and report files.
+The ledger (`ledger_file`, default `tasks/.limits.json`) records only the call times per provider.
+
 ## Claude login of workers
 
 Claude workers reuse the login of the running session (`claude_login = "inherit"`, the default). This is required in Claude Code cloud sessions and routines: the login belongs to the session, so a worker with a clean `HOME` and no token fails with "Not logged in". Keys of other providers, trackers and tokens (`ANTHROPIC_API_KEY`, `OLLAMA_API_KEY`, `FOREMAN_GATEWAY_KEY`, `FOREMAN_GATEWAY_URL`, `ITSAPLAN_*`, `LINEAR_*`, `GITHUB_TOKEN`, `*_FIRE_TOKEN`, Discord tokens) are stripped either way.
