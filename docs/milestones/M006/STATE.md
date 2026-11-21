@@ -14,7 +14,7 @@ Start commit: c6b3149 (dev, Baseline: bash scripts/test-all.sh exit 0)
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
 | S1 | Dateiklassen | done | 5f0deb7 | update-classes.json, scripts/test-update-classes.sh | |
-| S2 | Upgrade-Abschnitte | open | | CHANGELOG.md, scripts/test-changelog.sh | |
+| S2 | Upgrade-Abschnitte | done | ec101eb | CHANGELOG.md, scripts/test-changelog.sh | |
 | S3 | `install.sh --update` | open | | install.sh, scripts/update.py, scripts/test-update.sh | |
 | S4 | Skill foreman-update | open | | plugins/foreman/skills/foreman-update/, scripts/test-plugin.sh | |
 | S5 | Projektanweisung | open | | plugins/foreman/skills/foreman-project-mode/ (Skript + Doku), foreman-update, scripts/test-project-block.sh | |
@@ -56,3 +56,4 @@ Keine.
 
 - 2026-11-21T17:10Z · Brief, Role Review und STATE.md geschrieben · batch/m006
 - 2026-11-21T16:59Z · S1 done · green · 5f0deb7
+- 2026-11-21T17:01Z · S2 done · green · ec101eb
