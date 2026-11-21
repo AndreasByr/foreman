@@ -1,4 +1,4 @@
-Status: validation · since 2026-11-21T17:55Z · Slices S1-S6, R1, R2 done, Prüfung Runde 3 läuft
+Status: batch-pr · since 2026-11-21T18:25Z · Slices S1-S6, R1, R2 done, Validierung pass (Runde 3), dev eingemergt, UAT-Liste liegt vor
 Target: dev
 Batch-branch: batch/m006
 Lock: free
@@ -65,3 +65,4 @@ Keine.
 - 2026-11-21T17:13Z · S6 done · green · 86eea2b
 - 2026-11-21T17:21Z · R1 done · green · b0c4d16
 - 2026-11-21T17:29Z · R2 done · green · 98c0435
+- 2026-11-21T18:25Z · Validierung Runde 3 pass, dev (M002/M003/M011) eingemergt, Abschlusslauf test-all Exit 0 · a2ef578
