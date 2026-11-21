@@ -1,4 +1,4 @@
-Status: batch-pr · since 2026-11-21T18:25Z · Slices S1-S6, R1, R2 done, Validierung pass (Runde 3), dev eingemergt, UAT-Liste liegt vor
+Status: done · since 2026-11-21T18:56Z · UAT von Andreas abgenommen, PR #11 in dev
 Target: dev
 Batch-branch: batch/m006
 Lock: free
@@ -66,3 +66,4 @@ Keine.
 - 2026-11-21T17:21Z · R1 done · green · b0c4d16
 - 2026-11-21T17:29Z · R2 done · green · 98c0435
 - 2026-11-21T18:25Z · Validierung Runde 3 pass, dev (M002/M003/M011) eingemergt, Abschlusslauf test-all Exit 0 · a2ef578
+- 2026-11-21T18:56Z · UAT approved (Andreas: "8 und 6 okayy" auf die Testliste des Koordinators), Release 0.2.2 vorher: nein · e9fb74e
