@@ -1,4 +1,4 @@
-Status: in progress · since 2026-11-21T17:50Z · S1, S2 done; S4, S3 offen
+Status: in progress · since 2026-11-21T17:50Z · S1, S2, S4 done; S3 offen
 Target: dev
 Batch-branch: batch/m004
 Lock: free
@@ -15,7 +15,7 @@ Start commit: c3fb926
 |---|---|---|---|---|---|
 | S1 | Erkennen statt neu einrichten (foreman-project liest workspace.json, eine Rückfrage, Regel „not installed → setup“ fällt weg) | done | 4f684ed | plugins/foreman/skills/foreman-project/SKILL.md | |
 | S2 | Skill-Beschreibungen abgrenzen, Routing-Test | done | 4f684ed | plugins/foreman/skills/foreman-project/SKILL.md, foreman-setup/SKILL.md (nur Beschreibung), scripts/test-project-routing.py, scripts/test-all.sh | |
-| S4 | Installer-Werte (Flags, autopilot.waitHours im Check, check-config) | open | | install.sh, template/scripts/lib/autopilot-check.mjs, template/scripts/check-config.sh, scripts/check-config.sh, Tests | |
+| S4 | Installer-Werte (Flags, autopilot.waitHours im Check, check-config) | done | c836f77 | install.sh, template/scripts/lib/autopilot-check.mjs, template/scripts/check-config.sh, scripts/check-config.sh, Tests | |
 | S3 | Projektfragen und Zusammenfassung (nach S4) | open | | plugins/foreman/skills/foreman-project/SKILL.md, references/project-questions.md, scripts/test-project-routing.py, docs/MODULES.md, README.md, docs/CONVENTIONS.md | |
 
 Reihenfolge: S1, S2, S4, S3.
@@ -55,3 +55,4 @@ One question, options, recommendation.
 - 2026-11-21T17:50Z · Brief und STATE geschrieben · (Commit folgt)
 - 2026-11-21T17:50Z · Rot vor der Änderung: `python3 scripts/test-project-routing.py` Exit 1 (9 FAIL) auf c377703 + Test
 - 2026-11-21T17:58Z · S1+S2 fertig: test-project-routing.py Exit 0, test-all.sh Exit 0 · 4f684ed
+- 2026-11-21T18:10Z · S4 rot vor der Änderung: test-autopilot-check.mjs, test-check-config.sh, test-install.sh je Exit 1 auf 4f684ed + neue Tests; grün danach: test-all.sh Exit 0 · c836f77
