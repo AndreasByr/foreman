@@ -1,4 +1,4 @@
-Status: batch-pr · since 2026-11-21T21:25Z · Validierung 4 needs-attention, mittlerer Fund vom Menschen als bekannte Grenze angenommen (MODULES.md)
+Status: uat-ready · since 2026-11-21T21:40Z · PR #18 in dev (c573732), UAT-Liste docs/uat/M009.md
 Target: dev
 Batch-branch: batch/m009
 Lock: free
@@ -68,3 +68,4 @@ Optionen: A) vierte Runde (Fremd-Prüfung auch bei Verschiebung, Tiefe im Fake).
 **Cause:** limit-exceeded
 - 2026-11-21T21:45Z · Validierung 4 needs-attention, test-all Exit 0 auf 01b49d0 · 01b49d0
 - 2026-11-21T21:25Z · Mensch wählt B: mittleren Fund (fremde Seite unter verschobener Spiegelseite) als bekannte Grenze annehmen, kein R4 · MODULES.md
+- 2026-11-21T21:40Z · Batch-PR #18 nach dev gemergt (Merge-Commit c573732, CI test und guards grün), UAT-Liste geschrieben · c573732
