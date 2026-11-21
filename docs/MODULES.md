@@ -27,6 +27,10 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 - Limits: at most 3 requests per second; on 429 it waits for `Retry-After` and retries at most 5 times; 100 blocks per request; 2000 characters per text.
 - Trigger: the batch run (module `autopilot`) and the manual batch PR flow run `scripts/post-merge.d/*.sh` after each merge; without either, run `node scripts/docs-notion.mjs` by hand or from your own CI.
 - `wiki` block in `.foreman.json` (added with the module, default off): `enabled` (true or false, default `false`), `language` (falls back to `context.language`), `audiences` (list of objects with a unique `name`, optional `description`), `rootPageId` (the wiki root page id), `forbidden` (list of non-empty strings, terms that must not appear in wiki pages). When `enabled` is `true`, language, audiences and rootPageId are required; `scripts/check-config.sh` reports what is missing. The installer never overwrites an existing `wiki` block.
+- Wiki publish: `node scripts/docs-notion.mjs --wiki [--dry-run]` publishes `docs/wiki/` under `wiki.rootPageId`, audience pages first, then their pages. Never run from the post-merge hook; it runs by hand at release time.
+- Wiki page head: `---`, then `audience` (exactly as in `.foreman.json`), `source` (repo paths) and `checked: no-ai-slop, humanizer`, then `---`. The head is removed before upload. Skill: `foreman-wiki`.
+- Scan (exit code 4): the run refuses the whole publish when internal terms (`wiki.forbidden`), hosts or secrets appear in a page; nothing is uploaded. The scan lands with this milestone.
+- Public page: after the first publish, make the Notion wiki page public by hand in Notion (Notion Sites or a share link). The script cannot do it.
 
 **Dispatcher settings** (module `autopilot`, see `dispatcher/README.md`):
 

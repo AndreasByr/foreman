@@ -1,4 +1,4 @@
-Status: slice · since 2026-11-21T22:10Z · S2 läuft
+Status: slice · since 2026-11-21T22:10Z · S3 läuft
 Target: dev
 Batch-branch: batch/m010
 Lock: free
@@ -14,8 +14,8 @@ Start commit: cd07088 (Basis dev 9950ab9, nach Merge von main)
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
 | S1 | Konfiguration: Block `wiki`, check-config, Installer-Standardwert | done | M010 S1 | install.sh, scripts/check-config.sh (+Template-Kopie), scripts/test-check-config.sh, scripts/test-install.sh, docs/MODULES.md, CHANGELOG.md | Sprache fällt auf context.language zurück |
-| S2 | Wiki-Dateien: Seitenformat, Kopfdaten, Skill `foreman-wiki`, Beispiel-Wiki im Test | in progress | | | |
-| S3 | Veröffentlichen: `--wiki`, Wiki-Scan, Ablehnung, Hook ohne Wiki | open | | | |
+| S2 | Wiki-Dateien: Seitenformat, Kopfdaten, Skill `foreman-wiki`, Beispiel-Wiki im Test | done | M010 S2 | template/scripts/lib/docs-wiki.mjs, docs-notion.mjs (--wiki), test-docs-wiki.mjs, template/.claude/skills/foreman-wiki/SKILL.md, install.sh, update.py, test-install.sh, test-all.sh, MODULES.md, CHANGELOG.md | Veröffentlichen folgt in S3 (Exit 1 Platzhalter) |
+| S3 | Veröffentlichen: `--wiki`, Wiki-Scan, Ablehnung, Hook ohne Wiki | in progress | | | |
 | S4 | Milestone-Todo: Vorlagen, foreman-brief, Prüfung der Wiki-Zeile in state-mirror | open | | | |
 
 ## Check plan per slice
@@ -44,3 +44,5 @@ None recorded.
 
 - 2026-11-21T21:45Z · Brief M010-CONTEXT.md und Role Review geschrieben, main in dev gemergt (9950ab9) · cd07088
 - 2026-11-21T22:10Z · S1: Tests vor Umsetzung rot (test-check-config Exit 1 bei l-enabled-string, test-install Exit 1); danach grün: test-check-config, test-install, test-update-classes, test-update, privacy-scan je Exit 0 · M010 S1
+- Korrektur Kriterium 1 im Brief: „kein installiertes File enthält wiki“ ist nicht haltbar (check-config.sh und die Milestone-Vorlagen sind immer installiert). Geprüft wird stattdessen: ohne Modul keine Wiki-Skript-, Lib- und Skill-Dateien.
+- 2026-11-21T22:45Z · S2: Test vorher rot (Lib fehlte, Import schlägt fehl), danach grün: test-docs-wiki, test-docs-notion, test-install, test-update-classes, test-update, test-plugin, test-update-skill, test-docs-rules, privacy-scan je Exit 0 · M010 S2

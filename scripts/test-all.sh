@@ -10,6 +10,7 @@ node template/scripts/test-measure.mjs
 node template/scripts/test-autopilot-check.mjs
 node template/scripts/test-pretest.mjs
 node template/scripts/test-docs-notion.mjs
+node template/scripts/test-docs-wiki.mjs
 node template/scripts/test-docs-check.mjs
 node template/scripts/docs-check.mjs docs/roadmap-0.2.x.md
 bash scripts/test-docs-rules.sh

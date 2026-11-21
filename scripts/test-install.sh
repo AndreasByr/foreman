@@ -152,6 +152,9 @@ inst "$T/dn0" --project p >/dev/null 2>&1 || fail "default install failed"
 [ -e "$T/dn0/scripts/docs-notion.mjs" ] && fail "docs-notion.mjs installed without its module" || true
 [ -e "$T/dn0/scripts/lib/docs-notion.mjs" ] && fail "lib/docs-notion.mjs installed without its module" || true
 [ -e "$T/dn0/scripts/lib/docs-notion-md.mjs" ] && fail "lib/docs-notion-md.mjs installed without its module" || true
+[ -e "$T/dn0/scripts/lib/docs-wiki.mjs" ] && fail "lib/docs-wiki.mjs installed without its module" || true
+[ -e "$T/dn0/scripts/test-docs-wiki.mjs" ] && fail "test-docs-wiki.mjs installed without its module" || true
+[ -e "$T/dn0/.claude/skills/foreman-wiki" ] && fail "foreman-wiki skill installed without its module" || true
 python3 - "$T/dn0/.foreman.json" <<'PY' || fail "docsNotion key written without the module"
 import json, sys
 assert "docsNotion" not in json.load(open(sys.argv[1]))
