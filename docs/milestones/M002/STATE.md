@@ -18,10 +18,10 @@ Start commit: e0d84d2
 | S3 | Zeitlimit je Rolle (`timeout`) | done | 2119a35 | template/tools/delegate/{run_task.py,test_run_task.py,config.toml,README.md}, tools/delegate (Kopie) | |
 | S4 | Drei Regeln je an einer Stelle (Lint-Test) | done | c8ec48c | template/.claude/skills/foreman-delegation/SKILL.md, .claude/skills (Kopie), plugins/foreman/skills/{foreman-setup,foreman-orchestrator}, scripts/test-rules.py, scripts/test-all.sh, docs/learnings.md | |
 | S5 | ChatGPT-Hinweis und Installer ohne `chatgpt/` ohne Zustimmung | done | 55c77f4 | gateway/README.md, gateway/litellm.config.example.yaml, gateway/litellm.chatgpt.example.yaml (neu), install.sh, scripts/test-install.sh, template/tools/delegate/{run_task.py,test_run_task.py,config.toml}, plugins/foreman/skills/foreman-setup/references/prerequisites.md, docs/MODULES.md | |
-| R1-rules | Rework: Modell-ID-Regel überall nur einmal, Lint erkennt Wiederholungen mit einem Signaturwort | done | | scripts/test-rules.py, plugins/foreman/skills/{foreman-project,foreman-setup}, docs/learnings.md | VALIDATION C H1, A F2 |
-| R2-wrapper | Rework: Pause auch für Claude, Timeout geht direkt zum Fallback, Zähler „in Folge“, ChatGPT-Prüfung ohne Umgehung, Fallback nur Claude, Tests ohne Umgebungsabhängigkeit | done | | template/tools/delegate/{run_task.py,test_run_task.py}, tools/delegate (Kopie), scripts/test-install.sh | VALIDATION A F1, B M1/M2/L1/L2, C M2-M6 |
-| R3-docs | Rework: Stunden-Limit-Text, „one retry“, ChatGPT-Verweise, CHANGELOG-Hinweis, STATE ehrlich | done | | template/tools/delegate/README.md, plugins/foreman/skills/foreman-setup/references/{delegation,prerequisites,profiles-and-modules}.md, CHANGELOG.md, docs/milestones/M002/STATE.md | VALIDATION A F5/F6/F8 |
-| R4-round2 | Rework Runde 2: Timeout sperrt Anbieter für die Kette ohne falsche Pausenzeile, Claude-Pause auch bei späterem Fallback, Regel-Lint härter | done | | template/tools/delegate/{run_task.py,test_run_task.py}, tools/delegate (Kopie), scripts/test-rules.py, plugins/foreman/skills/{foreman-setup,foreman-orchestrator} | 2. Validierung N1, N2 |
+| R1-rules | Rework: Modell-ID-Regel überall nur einmal, Lint erkennt Wiederholungen mit einem Signaturwort | done | 8651cec | scripts/test-rules.py, plugins/foreman/skills/{foreman-project,foreman-setup}, docs/learnings.md | VALIDATION C H1, A F2 |
+| R2-wrapper | Rework: Pause auch für Claude, Timeout geht direkt zum Fallback, Zähler „in Folge“, ChatGPT-Prüfung ohne Umgehung, Fallback nur Claude, Tests ohne Umgebungsabhängigkeit | done | 8651cec | template/tools/delegate/{run_task.py,test_run_task.py}, tools/delegate (Kopie), scripts/test-install.sh | VALIDATION A F1, B M1/M2/L1/L2, C M2-M6 |
+| R3-docs | Rework: Stunden-Limit-Text, „one retry“, ChatGPT-Verweise, STATE ehrlich | done | 8651cec | template/tools/delegate/README.md, plugins/foreman/skills/foreman-setup/references/{delegation,prerequisites,profiles-and-modules}.md, docs/milestones/M002/STATE.md | VALIDATION A F5/F6/F8 |
+| R4-round2 | Rework Runde 2: Timeout sperrt Anbieter für die Kette ohne falsche Pausenzeile, Claude-Pause auch bei späterem Fallback, Regel-Lint härter | done | 646ad52 | template/tools/delegate/{run_task.py,test_run_task.py}, tools/delegate (Kopie), scripts/test-rules.py, plugins/foreman/skills/{foreman-setup,foreman-orchestrator} | 2. Validierung N1, N2 |
 
 ## Check plan per slice
 
@@ -32,9 +32,6 @@ Start commit: e0d84d2
 | S3 | Eine Rolle mit eigenem `timeout` bricht nach diesem Wert ab; ohne Wert gilt `[defaults] timeout_seconds`; 0, negativ oder kein Integer wird mit Exit 2 abgelehnt. | `python3 template/tools/delegate/test_run_task.py` (test_timeout_*) | automatic | none |
 | S4 | Jede der drei Regeln steht in den Repo-Skills genau einmal und in den Chat-Skills genau einmal; Begründungen stehen in `docs/learnings.md`. | `python3 scripts/test-rules.py` | automatic | none |
 | S5 | Ohne `--chatgpt-via-gateway accepted-risk` installiert der Installer keine Datei mit `chatgpt/`-Ziel, und `validate_config` lehnt ein `chatgpt/`-Modell (auch als Fallback) ohne Zustimmung ab; `gateway/README.md` hat den Risikohinweis mit Alternativen. | `bash scripts/test-install.sh`, `python3 template/tools/delegate/test_run_task.py` (test_chatgpt_*) | automatic | none |
-| R1-rules | Rework: Modell-ID-Regel überall nur einmal, Lint erkennt Wiederholungen mit einem Signaturwort | done | | scripts/test-rules.py, plugins/foreman/skills/{foreman-project,foreman-setup}, docs/learnings.md | VALIDATION C H1, A F2 |
-| R2-wrapper | Rework: Pause auch für Claude, Timeout geht direkt zum Fallback, Zähler „in Folge“, ChatGPT-Prüfung ohne Umgehung, Fallback nur Claude, Tests ohne Umgebungsabhängigkeit | done | | template/tools/delegate/{run_task.py,test_run_task.py}, tools/delegate (Kopie), scripts/test-install.sh | VALIDATION A F1, B M1/M2/L1/L2, C M2-M6 |
-| R3-docs | Rework: Stunden-Limit-Text, „one retry“, ChatGPT-Verweise, CHANGELOG-Hinweis, STATE ehrlich | done | | template/tools/delegate/README.md, plugins/foreman/skills/foreman-setup/references/{delegation,prerequisites,profiles-and-modules}.md, CHANGELOG.md, docs/milestones/M002/STATE.md | VALIDATION A F5/F6/F8 |
 
 ## Mandatory questions per slice
 
@@ -47,9 +44,6 @@ Start commit: e0d84d2
 | S3 | Nicht anwendbar, kein Mandant. | `timeout` 0, negativ, Text, `true` je Rolle und global: Exit 2. | Worker hängt (Fake-`claude` schläft): Abbruch nach Rollen-Wert, Bericht nennt den Wert. | Keine neuen Dateien oder Variablen; `config.toml` und README dokumentieren den Schlüssel. |
 | S4 | Nicht anwendbar, kein Mandant. | Lint schlägt an bei Regel 0× und bei Regel 2× in einem Skill-Satz. | Nicht anwendbar, weil reine Doku und Lint. | `scripts/test-all.sh` ruft den Lint; Repo-Kopie `.claude/skills` muss der Vorlage entsprechen (Lint prüft das). |
 | S5 | Nicht anwendbar, kein Mandant; Zustimmung kommt vom Menschen per Flag. | Falscher Flag-Wert (`yes`, leer) wird abgelehnt; `chatgpt/` als Fallback ohne Zustimmung abgelehnt. | Nicht anwendbar, weil Installer und Config-Prüfung nur lokal arbeiten. | Neue Installer-Option `--chatgpt-via-gateway accepted-risk`; neue Datei `gateway/litellm.chatgpt.example.yaml` wird nur mit Flag kopiert; bestehende Installationen unverändert. |
-| R1-rules | Rework: Modell-ID-Regel überall nur einmal, Lint erkennt Wiederholungen mit einem Signaturwort | done | | scripts/test-rules.py, plugins/foreman/skills/{foreman-project,foreman-setup}, docs/learnings.md | VALIDATION C H1, A F2 |
-| R2-wrapper | Rework: Pause auch für Claude, Timeout geht direkt zum Fallback, Zähler „in Folge“, ChatGPT-Prüfung ohne Umgehung, Fallback nur Claude, Tests ohne Umgebungsabhängigkeit | done | | template/tools/delegate/{run_task.py,test_run_task.py}, tools/delegate (Kopie), scripts/test-install.sh | VALIDATION A F1, B M1/M2/L1/L2, C M2-M6 |
-| R3-docs | Rework: Stunden-Limit-Text, „one retry“, ChatGPT-Verweise, CHANGELOG-Hinweis, STATE ehrlich | done | | template/tools/delegate/README.md, plugins/foreman/skills/foreman-setup/references/{delegation,prerequisites,profiles-and-modules}.md, CHANGELOG.md, docs/milestones/M002/STATE.md | VALIDATION A F5/F6/F8 |
 
 ## Inherited red
 
@@ -71,3 +65,6 @@ One question, options, recommendation.
 - 2026-11-21T16:27Z · S5 fertig: Tests rot→grün, test-all Exit 0 · Commit 55c77f4
 - 2026-11-21T16:33Z · Validierung 1: A needs-attention, B needs-attention, C needs-remediation (H1) -> Gesamt needs-remediation; Rework R1-R3 geplant (Uhrzeiten oben aus git log korrigiert) · 55c77f4
 - 2026-11-21T16:42Z · Rework R1-R3 fertig: 5 Tests und Lint rot→grün (39 Tests), test-all Exit 0 · Commit 8651cec
+- 2026-11-21T16:46Z · Validierung 2: A, B, C je needs-attention (4 mittlere Befunde: falsche Pausenzeile nach Timeout, Timeout sperrt Kette nicht, Claude-Pause bei Fallback, Lint umgehbar) -> Rework R4 · 8651cec
+- 2026-11-21T16:51Z · Rework R4 fertig: 2 Tests rot→grün (41 gesamt), Lint gehärtet, test-all Exit 0 · Commit 646ad52
+- 2026-11-21T16:56Z · Validierung 3: A, B, C je needs-attention, nur 1 mittlerer Befund (STATE.md formal falsch, von der Sitzung selbst behoben); Rest low · 646ad52
