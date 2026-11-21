@@ -51,3 +51,11 @@ export function answers(comments, unit, since, botUserId) {
       c.actorUserId !== botUserId && String(c.body ?? "").trim().startsWith(`Answer ${unit}:`))
     .map(({ id, createdAt, body }) => ({ id, createdAt, body }));
 }
+
+/** Allowed causes of an intervention (STATE.md line `**Cause:** <category> · <one sentence>`). */
+export const CAUSES = ["missing-requirement", "open-decision", "missing-infra", "merge-conflict", "ui-deviation", "limit-exceeded", "security", "other"];
+
+/** Every "## Open question" section of STATE.md (answered ones too) with its cause. STUB, implemented in M011 S1. */
+export function interventions(_stateText) {
+  return [];
+}
