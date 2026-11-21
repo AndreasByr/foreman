@@ -39,7 +39,10 @@ fi
 if [ -f .foreman.json ] && command -v python3 >/dev/null 2>&1; then
   python3 - <<'PY' || fail=1
 import json, re, sys
-import zoneinfo
+try:
+    import zoneinfo
+except ImportError:  # Python without zoneinfo: the name lookup is skipped, the pattern check stays
+    zoneinfo = None
 
 bad = False
 try:
@@ -54,12 +57,15 @@ if not isinstance(cfg, dict):
 ctx = cfg.get("context")
 if isinstance(ctx, dict) and "timeZone" in ctx:
     tz = ctx["timeZone"]
-    ok = isinstance(tz, str) and re.fullmatch(r"[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+){0,2}", tz) is not None
-    if ok:
-        try:
-            zoneinfo.ZoneInfo(tz)
-        except Exception:
-            ok = False
+    ok = True
+    if tz != "":  # an empty string means "not set"
+        ok = isinstance(tz, str) and re.fullmatch(r"[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+){0,2}", tz) is not None
+        if ok and zoneinfo is not None:
+            try:
+                zoneinfo.ZoneInfo(tz)
+            except Exception:
+                # no tz database on this system: UTC is still fine; other names stay a failure
+                ok = tz == "UTC"
     if not ok:
         print("FAIL: context.timeZone must be a non-empty IANA time zone name such as Europe/Berlin")
         bad = True

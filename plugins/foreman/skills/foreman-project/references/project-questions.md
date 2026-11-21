@@ -8,13 +8,12 @@ Ask for the project name and a slug: a short lowercase id used for the repo, the
 
 **Suggestion:** the project name in lowercase, with dashes instead of spaces.
 
-### P2 Profile: Quick, Repo or Autopilot
+### P2 Profile: Repo or Autopilot
 
-Ask which profile fits the project:
+Ask which profile fits the project. Quick was already decided in step 1 of the skill, so only these two are offered here:
 
-- **Quick:** one prompt file for one session, no dispatcher, no tracker.
-- **Repo:** the repo with the foreman skills and the tracker; the human starts each run.
-- **Autopilot:** Repo plus unattended batch runs from the dispatcher.
+- Repo: the repo with the foreman skills and the tracker; the human starts each run.
+- Autopilot: Repo plus unattended batch runs that go on without the human.
 
 **Suggestion:** Repo. Take Autopilot when the runs should go on without the human.
 
@@ -38,9 +37,9 @@ Ask whether the project has a staging environment, separate from production, tha
 
 ### P6 Time zone
 
-**Autopilot only.** Ask the time zone for the merge window and the batch hours.
+**Profiles Repo and Autopilot.** Ask the time zone, used for the merge window and the batch hours.
 
-**Suggestion:** the time zone from `workspace.json`. If it is not there, ask.
+**Suggestion:** the zone from `workspace.json` when it has one, otherwise the zone the human names. Always ask; the human confirms.
 
 ### P7 Batch hours
 
@@ -70,7 +69,7 @@ Ask whether the project has a staging environment, separate from production, tha
 | P8 wait | `--wait-hours <number>`, greater than 0, at most 168 | `autopilot.waitHours` | the hours from P8 |
 | P9 mainAutoMerge | `--main-auto-merge yes\|no` | `autopilot.mainAutoMerge` | `yes` is `true`, `no` is `false` |
 
-P6 to P9 apply only to profile Autopilot.
+P6 applies to profiles Repo and Autopilot. P7 to P9 apply only to profile Autopilot.
 
 ## Do not ask
 

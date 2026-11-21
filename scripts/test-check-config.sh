@@ -108,7 +108,21 @@ echo "ok h-no-block"
 
 # i. invalid settings: exit 1 with a FAIL line naming the key
 bad_value i-tz-mars '{"context":{"timeZone":"Mars/Base"}}' context.timeZone
-bad_value i-tz-empty '{"context":{"timeZone":""}}' context.timeZone
+bad_value i-tz-num '{"context":{"timeZone":5}}' context.timeZone
+bad_value i-tz-null '{"context":{"timeZone":null}}' context.timeZone
+# an empty zone means "not set": exit 0 and ok line
+p=$(new_project i-tz-empty)
+printf '%s\n' '{"context":{"timeZone":""}}' > "$p/.foreman.json"
+run_check "$p"
+[ "$RC" -eq 0 ] || fail "i-tz-empty: exit $RC, expected 0: $OUT"
+grep -q "foreman config check: ok" <<<"$OUT" || fail "i-tz-empty: missing ok line: $OUT"
+echo "ok i-tz-empty"
+p=$(new_project i-tz-utc)
+printf '%s\n' '{"context":{"timeZone":"UTC"}}' > "$p/.foreman.json"
+run_check "$p"
+[ "$RC" -eq 0 ] || fail "i-tz-utc: exit $RC, expected 0: $OUT"
+grep -q "foreman config check: ok" <<<"$OUT" || fail "i-tz-utc: missing ok line: $OUT"
+echo "ok i-tz-utc"
 bad_value i-batch-24 '{"autopilot":{"batchHours":[24]}}' autopilot.batchHours
 bad_value i-batch-neg '{"autopilot":{"batchHours":[-1]}}' autopilot.batchHours
 bad_value i-batch-str '{"autopilot":{"batchHours":["3"]}}' autopilot.batchHours

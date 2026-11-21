@@ -30,16 +30,16 @@ Mixed signals: recommend Quick and say that the same repo can move to full later
 
 ### Detect the environment (before any question)
 
-- Read `workspace.json`: the copy in the chat project's docs (project "foreman"), else the `infra` block of `.foreman.json` in the repo. Use what it says (machines, tracker, gateway, plans, notification, time zone, language) and do not ask it again. Show each value in one short line so the human can object.
-- If there is no `workspace.json`, look for hints first: project docs, `.foreman.json`, `dispatcher/`, earlier answers in this chat. If the hints settle it, say what you found.
-- If it is still unclear, ask exactly one question, and only when `workspace.json` is missing: `Is foreman already set up?` Never guess.
+- Read `workspace.json`: the copy in the chat project's docs (project "foreman"), else the `infra` block of `.foreman.json` in the repo. Use what it says (machines, tracker, gateway, plans, notification, language) and do not ask it again. Show each value in one short line so the human can object. The time zone is the exception: it is asked per project (see Project questions).
+- If `workspace.json` is missing, the question is always asked and never skipped; it is asked only then, and exactly once. Ask exactly one question. Put the hints into the one question: project docs, `.foreman.json`, `dispatcher/`, a reachable itsaplan, other repos with `.foreman.json`, earlier answers in this chat. For example: "I found `dispatcher/` in this repo. Is foreman already set up?" Never guess.
+- If `workspace.json` is invalid, empty or cannot be read (no access in this chat), ask the same one question.
 - On "yes": do not start `foreman-setup`; continue below and ask only the project questions. Values the human does not know stay empty.
 - On "no": hand over to `foreman-setup` and return here when it is done.
 - An empty new repo does not mean a new environment.
 
 ### Project questions
 
-The questions come from `references/project-questions.md` (read it first): P1 to P9, each with a suggestion. Values from `workspace.json` are taken over and shown, not asked again. The Autopilot-only questions (time zone, batch hours, wait, mainAutoMerge) are asked only for profile Autopilot.
+The questions come from `references/project-questions.md` (read it first): P1 to P9, each with a suggestion. Values from `workspace.json` are taken over and shown, not asked again, except the time zone. The time zone is asked per project, with a suggestion from `workspace.json` when it has one, else a guess for the human to confirm. The Autopilot-only questions (batch hours, wait, mainAutoMerge) are asked only for profile Autopilot; the time zone is asked for profiles Repo and Autopilot.
 
 Read `.foreman.json` in the repo (if the repo exists), the chat project's files and `docs/`. Ask only what is missing, at most 3 per round, beyond P1 to P9:
 

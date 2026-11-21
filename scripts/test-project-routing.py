@@ -28,6 +28,7 @@ profiles-and-modules.md names --tz and foreman-project.
 Python stdlib only. Exit 0 when every check passes; exit 1 and one
 "FAIL:" line per problem otherwise.
 """
+import json
 import re
 import sys
 from pathlib import Path
@@ -49,18 +50,19 @@ QUESTION = "Is foreman already set up?"
 NEGATION = re.compile(r"\b(?:no|not|never|without)\b|n't", re.I)
 
 # Section 2: sample questions and the skill each one must reach.
-NEW_PROJECT = [
-    "new project",
-    "start a new project",
-    "I have a new project idea",
-    "set up a project in my existing foreman environment",
-]
-FIRST_SETUP = [
-    "first setup of foreman",
-    "install foreman for the first time",
-    "my environment changed: new server",
-    "I added a new machine",
-]
+# Each question has its own expected trigger keywords.
+NEW_PROJECT = {
+    "new project": ["new project"],
+    "start a new project": ["new project", "start a project"],
+    "I have a new project idea": ["new project", "project idea"],
+    "set up a project in my existing foreman environment": ["existing environment", "already set up"],
+}
+FIRST_SETUP = {
+    "first setup of foreman": ["first setup"],
+    "install foreman for the first time": ["first time"],
+    "my environment changed: new server": ["environment changed", "new server"],
+    "I added a new machine": ["new machine"],
+}
 
 # Section 2: trigger keywords per skill, matched case-insensitively as substrings.
 TRIGGERS = {
@@ -88,16 +90,16 @@ QUESTIONS_REF = "references/project-questions.md"
 QUESTIONS_LABEL = "project-questions"
 QUESTION_KEYWORDS = {
     "P1": ["name", "slug"],
-    "P2": ["Quick", "Repo", "Autopilot"],
+    "P2": ["Repo", "Autopilot"],
     "P3": ["module"],
     "P4": ["cloud", "local"],
     "P5": ["staging"],
-    "P6": ["time zone", "workspace.json"],
+    "P6": ["time zone", "workspace.json", "Repo", "Autopilot"],
     "P7": ["batch hours", "3, 7, 11, 15, 19, 23"],
     "P8": ["wait", "4 hours"],
     "P9": ["mainAutoMerge", "Batch PR main"],
 }
-AUTOPILOT_ONLY_IDS = {"P6", "P7", "P8", "P9"}
+AUTOPILOT_ONLY_IDS = {"P7", "P8", "P9"}
 AUTOPILOT_ONLY = "autopilot only"
 QUESTION_FLAGS = ["--tz", "--batch-hours", "--wait-hours", "--main-auto-merge"]
 QUESTION_KEYS = [
@@ -134,6 +136,13 @@ MODULES = ROOT / "docs" / "MODULES.md"
 CONVENTIONS = ROOT / "docs" / "CONVENTIONS.md"
 PROFILES = SKILLS / "foreman-setup" / "references" / "profiles-and-modules.md"
 PROFILE_NEEDLES = ["--tz", PROJECT_NAME]
+MERGE_WINDOW_KEYS = ["autopilot.batchHours", "autopilot.waitHours", "mainAutoMerge"]
+FIXTURE = ROOT / "docs" / "workspace.example.json"
+EXPECTED_ASKED = {
+    "quick": [],
+    "repo": ["P1", "P2", "P3", "P4", "P5", "P6"],
+    "autopilot": ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9"],
+}
 
 # "not for ..." runs up to the next ";" or "." and only points away; it is cut out.
 NOT_FOR_PATTERN = re.compile(r"not for[^;.]*")
@@ -211,6 +220,32 @@ def check_detection(body, failures):
             f"{PROJECT_NAME}: body does not say the question is asked only when workspace.json is missing"
         )
 
+    if "hints settle it" in lower:
+        failures.append(f"{PROJECT_NAME}: body still says 'hints settle it'")
+    hint_re = re.compile(
+        r"hints[^.]*\b(inside|into|with|part of)\b[^.]*question"
+        r"|question[^.]*\b(with|including)\b[^.]*(found|hints)"
+    )
+    if not any("hints" in s and "question" in s and hint_re.search(s) for s in body_sentences):
+        failures.append(
+            f"{PROJECT_NAME}: no sentence says the hints go into the question or are shown with it"
+        )
+    if not any("workspace.json" in s and "missing" in s and re.search(r"\balways\b|never skip", s)
+               for s in body_sentences):
+        failures.append(
+            f"{PROJECT_NAME}: no sentence says the question is always asked when workspace.json is missing"
+        )
+    if not any(
+        "workspace.json" in s
+        and re.search(r"\binvalid\b|\bempty\b|cannot be read|unreadable|not readable", s)
+        and re.search(r"\bask\b", s) and "question" in s
+        for s in body_sentences
+    ):
+        failures.append(
+            f"{PROJECT_NAME}: no sentence says an invalid, empty or unreadable workspace.json "
+            "leads to asking the one question"
+        )
+
     yes_ok = any(
         re.search(r"\byes\b", s, re.I) and "foreman-setup" in s and NEGATION.search(s)
         for s in body_sentences
@@ -237,25 +272,20 @@ def clean_description(description):
     return " ".join(kept)
 
 
-def trigger_hits(skill, text_lower):
-    return [keyword for keyword in TRIGGERS[skill] if keyword in text_lower]
-
-
 def check_questions(label, questions, skill, other, cleaned, failures):
-    skill_hits = trigger_hits(skill, cleaned[skill])
-    other_hits = trigger_hits(other, cleaned[other])
-    for question in questions:
-        if not skill_hits:
+    for question, keywords in questions.items():
+        in_skill = [k for k in keywords if k in cleaned[skill]]
+        in_other = [k for k in keywords if k in cleaned[other]]
+        if not in_skill:
+            for keyword in keywords:
+                failures.append(
+                    f"routing: {label} question {question!r}: keyword {keyword!r} "
+                    f"is not in the cleaned {skill} description"
+                )
+        for keyword in in_other:
             failures.append(
-                f"routing: {label} question {question!r} is not routed to {skill}: "
-                f"its cleaned description contains no trigger keyword"
-            )
-        shared = [keyword for keyword in other_hits if keyword in question.lower()]
-        if shared:
-            failures.append(
-                f"routing: {label} question {question!r} also routes to {other} via "
-                f"{', '.join(repr(k) for k in shared)}: the cleaned {other} description "
-                "must not match a keyword that the question contains"
+                f"routing: {label} question {question!r}: keyword {keyword!r} "
+                f"is also in the cleaned {other} description"
             )
 
 
@@ -324,6 +354,8 @@ def check_questions_file(text, failures):
             failures.append(f"questions: {qid} lacks 'Autopilot only'")
         if qid not in AUTOPILOT_ONLY_IDS and has_autopilot_only:
             failures.append(f"questions: {qid} must not contain 'Autopilot only'")
+        if qid == "P2" and "**quick:**" in block:
+            failures.append("questions: P2 must not contain '**Quick:**' (Quick is decided in step 1)")
         if "suggestion" not in block:
             failures.append(f"questions: {qid} has no 'Suggestion' line")
 
@@ -381,12 +413,65 @@ def check_project_questions_section(body, failures):
             "questions: the project questions section does not say that workspace.json values "
             "are taken over and shown, not asked again"
         )
+    all_sentences = [s.lower() for s in sentences(body)]
+    if not any("time zone" in s and "suggestion" in s and re.search(r"\bask", s) for s in all_sentences):
+        failures.append(
+            "questions: no sentence says the time zone from workspace.json is a suggestion that is asked"
+        )
+    if any("time zone" in s and "do not ask it again" in s for s in all_sentences):
+        failures.append("questions: a sentence claims the time zone is taken over and not asked again")
+    if not any(re.search(r"\bempty\b|\bunknown\b", s) and re.search(r"stay empty|left empty", s)
+               for s in all_sentences):
+        failures.append("questions: no sentence says values the human does not know stay empty")
     if not any("autopilot" in s and "profile" in s and re.search(r"\bonly\b", s) and re.search(r"\bask", s)
                for s in section_sentences):
         failures.append(
             "questions: the project questions section does not say that the Autopilot questions "
             "are asked only for profile Autopilot"
         )
+
+
+def asked_questions(questions_md, profile):
+    """Return the ids of the project questions asked for a profile (quick, repo, autopilot)."""
+    if profile == "quick":
+        return []
+    blocks = question_blocks(questions_md)
+    ids = sorted(blocks, key=lambda q: int(q[1:]))
+    if profile == "autopilot":
+        return ids
+    return [q for q in ids if AUTOPILOT_ONLY not in blocks[q].lower() or q == "P6"]
+
+
+def check_walkthrough(questions_md, failures):
+    text = read_text(FIXTURE, failures)
+    if text is None:
+        return
+    try:
+        fixture = json.loads(text)
+    except ValueError as exc:
+        failures.append(f"walkthrough: docs/workspace.example.json is not JSON: {exc}")
+        return
+    if not isinstance(fixture, dict) or ("machines" not in fixture and "gateway" not in fixture):
+        failures.append("walkthrough: docs/workspace.example.json has no 'machines' and no 'gateway' key")
+        return
+    names = []
+    for machine in fixture.get("machines") or []:
+        if isinstance(machine, dict):
+            if isinstance(machine.get("name"), str):
+                names.append(machine["name"])
+            names += [x for x in machine.get("services") or [] if isinstance(x, str)]
+    blocks = question_blocks(questions_md)
+    for profile, expected in EXPECTED_ASKED.items():
+        asked = asked_questions(questions_md, profile)
+        if asked != expected:
+            failures.append(f"walkthrough: profile {profile} asks {asked}, expected {expected}")
+        joined = "\n".join(blocks.get(q, "") for q in asked).lower()
+        for topic in FORBIDDEN_TOPICS:
+            if topic in joined:
+                failures.append(f"walkthrough: profile {profile} asks about the forbidden topic {topic!r}")
+        for name in names:
+            if re.search(r"\b" + re.escape(name.lower()) + r"\b", joined):
+                failures.append(f"walkthrough: profile {profile} asks about {name!r} from the fixture")
 
 
 def units(text):
@@ -427,6 +512,21 @@ def check_docs(failures):
         for needle in PROFILE_NEEDLES:
             if needle not in text:
                 failures.append(f"docs: profiles-and-modules.md does not mention {needle}")
+        for key in MERGE_WINDOW_KEYS:
+            if key not in text:
+                failures.append(f"docs: profiles-and-modules.md does not mention {key}")
+    setup = read_text(SETUP, failures)
+    if setup is not None:
+        for key in MERGE_WINDOW_KEYS:
+            if key not in setup:
+                failures.append(f"docs: foreman-setup SKILL.md does not mention {key}")
+        if not any(
+            "workspace.json" in s and re.search(r"chat copy|copy", s) and re.search(r"refresh|update", s)
+            for s in (x.lower() for x in sentences(setup))
+        ):
+            failures.append(
+                "docs: foreman-setup SKILL.md has no sentence about refreshing the chat copy of workspace.json"
+            )
 
 
 def main():
@@ -454,6 +554,7 @@ def main():
     questions_text = read_text(QUESTIONS, questions_failures)
     if questions_text is not None:
         check_questions_file(questions_text, questions_failures)
+        check_walkthrough(questions_text, questions_failures)
     if project_body is not None:
         check_project_questions_section(project_body, questions_failures)
 

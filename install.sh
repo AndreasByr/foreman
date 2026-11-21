@@ -32,7 +32,7 @@
 # --wait-hours <number> sets autopilot.waitHours: greater than 0, at most 168.
 # --main-auto-merge yes|no sets autopilot.mainAutoMerge.
 # The three autopilot options need module autopilot. In an existing .foreman.json only the given keys are replaced
-# (context.timeZone, autopilot.<key>); everything else is kept, and the old file is copied to .foreman.json.before-foreman.
+# (context.timeZone, autopilot.<key>); everything else is kept, and the old file is copied to .foreman.json.before-foreman (an existing backup is never overwritten).
 # The key value is never read or printed: the preset stores only the variable name (default FOREMAN_GATEWAY_KEY).
 set -euo pipefail
 
@@ -146,6 +146,26 @@ done
 if [ "$any_new" = yes ] && [ "$force" = no ] && [ -f "$target/.foreman.json" ] \
   && ! python3 -c 'import json,sys; json.load(open(sys.argv[1], encoding="utf-8"))' "$target/.foreman.json" >/dev/null 2>&1; then
   opt_fail "existing .foreman.json is not valid JSON"
+fi
+if [ "$any_new" = yes ] && [ "$force" = no ] && [ -f "$target/.foreman.json" ]; then
+  ap_any=no
+  if [ "$batch_given" = yes ] || [ "$wait_given" = yes ] || [ "$main_given" = yes ]; then ap_any=yes; fi
+  fj_bad="$(python3 - "$target/.foreman.json" "$tz_given" "$ap_any" <<'PY'
+import json, sys
+cfg = json.load(open(sys.argv[1], encoding="utf-8"))
+if not isinstance(cfg, dict):
+    print("object")
+elif sys.argv[2] == "yes" and "context" in cfg and not isinstance(cfg["context"], dict):
+    print("context")
+elif sys.argv[3] == "yes" and "autopilot" in cfg and not isinstance(cfg["autopilot"], dict):
+    print("autopilot")
+PY
+)"
+  case "$fj_bad" in
+    object) opt_fail ".foreman.json is not a JSON object" ;;
+    context) opt_fail ".foreman.json: context is not an object (needed for --tz)" ;;
+    autopilot) opt_fail ".foreman.json: autopilot is not an object (needed for the autopilot options)" ;;
+  esac
 fi
 # one-line summary of the autopilot keys, for --dry-run
 ap_summary=""
@@ -357,8 +377,8 @@ PY
   else
     kept+=(".foreman.json")
     if [ -n "$workspace" ] || [ "$any_new" = yes ]; then
-      # one backup per run, whatever mix of --workspace and the new options is given
-      cp "$target/.foreman.json" "$target/.foreman.json.before-foreman"
+      # one backup, kept: the first run that changes the file saves the old content, later runs never overwrite it
+      [ -e "$target/.foreman.json.before-foreman" ] || cp "$target/.foreman.json" "$target/.foreman.json.before-foreman"
       python3 - "$target/.foreman.json" "$workspace" "$tz" "$batch_csv" "$wait_norm" "$main_auto_merge" <<'PY'
 import json, sys
 path, workspace, tz, batch, wait, main = sys.argv[1:7]
@@ -377,6 +397,9 @@ if main:
     ap["mainAutoMerge"] = main == "yes"
 if ap:
     conf.setdefault("autopilot", {}).update(ap)
+# the check prefers autopilot.timezone: keep it in step with --tz when the file already has it
+if tz and isinstance(conf.get("autopilot"), dict) and "timezone" in conf["autopilot"]:
+    conf["autopilot"]["timezone"] = tz
 json.dump(conf, open(path, "w"), indent=2)
 open(path, "a").write("\n")
 PY

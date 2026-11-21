@@ -77,7 +77,8 @@ Rules for the command you hand out:
 - `--fallback-model <id>`: exact `claude/<id>` fallback model; required with a gateway URL.
 - `--chatgpt-via-gateway accepted-risk|declined`: the human's consent for ChatGPT via the gateway; `declined` keeps it off.
 - Always propose `--dry-run` first for a beginner.
-- Merge window: setup does not ask it; `foreman-project` asks it per project and the installer takes it as `--tz`, `--batch-hours`, `--wait-hours` and `--main-auto-merge yes|no`.
+
+Merge window (Autopilot): `autopilot.batchHours` sets the hours, in `context.timeZone`, in which the batch PR starts; `autopilot.waitHours` (default 4) sets how long a batch waits outside them; `autopilot.mainAutoMerge` (default `false`) lets `main` merge by itself when `true`. `foreman-project` asks these values per project and passes them to the installer as `--tz <IANA name>`, `--batch-hours <h,h,...>`, `--wait-hours <number>` and `--main-auto-merge yes|no`. Setup itself does not ask them.
 
 Examples:
 

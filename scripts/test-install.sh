@@ -679,4 +679,44 @@ out=$(inst "$T/o7" --project o --modules autopilot --tz Europe/Berlin --dry-run 
 [ ! -e "$T/o7/.foreman.json" ] || fail "dry-run wrote .foreman.json"
 echo "$out" | grep -qF Europe/Berlin || fail "dry-run output lacks the timezone: $out"
 
+# 8. existing .foreman.json that cannot be changed: exit 2, file byte-identical, no backup, no tools/
+# existing_refused NAME PATTERN JSON ARGS...: the install with ARGS must exit 2 with PATTERN in its message
+existing_refused() {
+  local name="$1" pat="$2" json="$3" rc=0 err d; shift 3
+  d="$T/ex-$name"; mkdir "$d" && git -C "$d" init -q
+  printf '%s\n' "$json" > "$d/.foreman.json"
+  cp "$d/.foreman.json" "$T/ex-$name-before.json"
+  err=$(inst "$d" --project o "$@" 2>&1) || rc=$?
+  [ "$rc" = 2 ] || fail "$name: exit $rc, expected 2: $err"
+  echo "$err" | grep -qF -- "$pat" || fail "$name: message does not name '$pat': $err"
+  cmp -s "$T/ex-$name-before.json" "$d/.foreman.json" || fail "$name: .foreman.json changed"
+  [ ! -e "$d/.foreman.json.before-foreman" ] || fail "$name: backup written"
+  [ ! -e "$d/tools" ] || fail "$name: wrote tools/"
+}
+
+# a. context is null, --tz given
+existing_refused ctx-null ".foreman.json" '{"project":"o","context":null}' --tz Europe/Berlin
+
+# b. autopilot is a list, autopilot options given
+existing_refused ap-list ".foreman.json" '{"project":"o","autopilot":[]}' --modules autopilot --wait-hours 3
+
+# c. valid existing file plus an invalid option: nothing changes
+existing_refused bad-opt "--tz" '{"project":"o","context":{"timeZone":"Europe/Berlin"}}' --tz Mars/Base
+
+# d. autopilot.timezone must follow --tz, otherwise the check reads a stale zone
+mkdir "$T/ex-d" && git -C "$T/ex-d" init -q
+printf '%s\n' '{"project":"o","context":{"timeZone":"UTC"},"autopilot":{"timezone":"Asia/Tokyo"}}' > "$T/ex-d/.foreman.json"
+inst "$T/ex-d" --project o --modules autopilot --tz Europe/Berlin >/dev/null 2>&1 || fail "ex-d: install failed"
+[ "$(jf "$T/ex-d/.foreman.json" context.timeZone)" = Europe/Berlin ] || fail "ex-d: context.timeZone is $(jf "$T/ex-d/.foreman.json" context.timeZone)"
+[ "$(jf "$T/ex-d/.foreman.json" autopilot.timezone)" = Europe/Berlin ] || fail "ex-d: autopilot.timezone is $(jf "$T/ex-d/.foreman.json" autopilot.timezone), expected Europe/Berlin"
+
+# e. two runs with new options: the backup keeps the content from before the first run that changed the file
+mkdir "$T/ex-e" && git -C "$T/ex-e" init -q
+printf '%s\n' '{"project":"o","autopilot":{"waitHours":4}}' > "$T/ex-e/.foreman.json"
+cp "$T/ex-e/.foreman.json" "$T/ex-e-before.json"
+inst "$T/ex-e" --project o --modules autopilot --tz Europe/Berlin >/dev/null 2>&1 || fail "ex-e: first run failed"
+inst "$T/ex-e" --project o --modules autopilot --wait-hours 6 >/dev/null 2>&1 || fail "ex-e: second run failed"
+[ -f "$T/ex-e/.foreman.json.before-foreman" ] || fail "ex-e: backup missing"
+cmp -s "$T/ex-e-before.json" "$T/ex-e/.foreman.json.before-foreman" || fail "ex-e: backup was overwritten by the second run"
+
 echo "install tests: ok"
