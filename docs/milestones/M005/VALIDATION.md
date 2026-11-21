@@ -39,7 +39,7 @@ A needs-attention (low), B needs-attention (1 medium), C needs-attention (gleich
 
 | Nr | Schwere | Fund | Umgang |
 |---|---|---|---|
-| 20 | medium | Wortliste in `check-config.sh` enthält `art` und `mit`; „Concept art“ oder „MIT“ ergibt FAIL, „Art“ meldet „Type“ | offen: dritte Runde nur mit Freigabe von Andreas |
+| 20 | medium | Wortliste in `check-config.sh` enthält `art` und `mit`; „Concept art“ oder „MIT“ ergibt FAIL, „Art“ meldet „Type“ | offen: dritte Runde nur mit Freigabe des Menschen |
 | 21 | low | Doppelte Wortlisten (Validator, Check), Heuristik; „Erledigt“ unerkannt | offen, im UAT erwähnt |
 | 22 | low | Ansichten: Namen nicht auf Eindeutigkeit geprüft | offen |
 | 23 | low | Proxy-Variablen ignoriert: hinter Pflicht-Proxy nur WARN; in Doku nicht genannt | offen |

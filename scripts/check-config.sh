@@ -88,7 +88,7 @@ if isinstance(ap, dict):
 
 # German words (lowercase, whole words) that mark a name as German; no word here is also an English name
 GERMAN_WORDS = {"paket", "meilenstein", "freitag", "wartet", "warten", "eingriff", "runde", "abgebrochen",
-                "fertig", "bereit", "pruefung", "fehler", "aufgabe", "art", "und", "oder", "nicht", "auf", "mit",
+                "fertig", "bereit", "pruefung", "fehler", "aufgabe", "und", "oder", "nicht", "auf",
                 "freigabe", "abnahme"}
 GERMAN_UMLAUTS = set("äöüÄÖÜß")
 # known German names and the English foreman name they stand for (named in the FAIL line)
@@ -130,7 +130,7 @@ def name_problems(kind, names, expected, alias_map, hint, prefix=None):
     for name in dict.fromkeys(names):
         if name in known:
             continue
-        if looks_german(name):
+        if looks_german(name) or name in TRANSLATIONS:
             if name in TRANSLATIONS:
                 msgs.append('FAIL: itsaplan %s "%s" looks German (English name: "%s")' % (kind, name, TRANSLATIONS[name]))
             else:

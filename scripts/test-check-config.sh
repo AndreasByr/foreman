@@ -402,6 +402,24 @@ grep -q '^FAIL:.*Prüfung' <<<"$OUT" || fail "k-german-umlaut: no FAIL line nami
 FAIL_OUT="$FAIL_OUT$OUT"
 echo "ok k-german-umlaut"
 
+# k-english-art-mit: all English names plus the extra labels "Concept art", "UI art" and "MIT": exit 0, ok line, no FAIL line
+p=$(itsaplan_project k-english-art-mit "$ITS_CFG")
+project_json "$ENG_COLS" "$ENG_LABELS|Concept art|UI art|MIT"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 0 ] || fail "k-english-art-mit: exit $RC, expected 0: $OUT"
+grep -q "foreman config check: ok" <<<"$OUT" || fail "k-english-art-mit: missing ok line: $OUT"
+grep -q "FAIL:" <<<"$OUT" && fail "k-english-art-mit: unexpected FAIL line: $OUT"
+echo "ok k-english-art-mit"
+
+# k-art-exact: all English names plus the extra label "Art": exit 1, FAIL line names "Art" and the English name "Type"
+p=$(itsaplan_project k-art-exact "$ITS_CFG")
+project_json "$ENG_COLS" "$ENG_LABELS|Art"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 1 ] || fail "k-art-exact: exit $RC, expected 1: $OUT"
+grep -q '^FAIL:.*"Art".*Type' <<<"$OUT" || fail "k-art-exact: no FAIL line naming Art and Type: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-art-exact"
+
 # k-extra-names: extra labels Bug, Feature, Improvement, v0.2.0 and extra column Canceled: exit 0, ok line, no FAIL line
 p=$(itsaplan_project k-extra-names "$ITS_CFG")
 project_json "$ENG_COLS|Canceled" "$ENG_LABELS|Bug|Feature|Improvement|v0.2.0"
