@@ -297,6 +297,73 @@ grep -q "WARN:" <<<"$OUT" || fail "k-unreachable: missing WARN line: $OUT"
 FAIL_OUT="$FAIL_OUT$OUT"
 echo "ok k-unreachable"
 
+# k-extra-label: extra labels and an extra column that foreman does not use: exit 0, ok line, no FAIL line
+p=$(itsaplan_project k-extra-label "$ITS_CFG")
+project_json "$ENG_COLS|Canceled" "$ENG_LABELS|Bug|Feature|v0.2.0"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 0 ] || fail "k-extra-label: exit $RC, expected 0: $OUT"
+grep -q "foreman config check: ok" <<<"$OUT" || fail "k-extra-label: missing ok line: $OUT"
+grep -q "FAIL:" <<<"$OUT" && fail "k-extra-label: unexpected FAIL line: $OUT"
+echo "ok k-extra-label"
+
+# k-extra-prefix-label: a label with the foreman prefix that foreman does not use: exit 1, FAIL line names it
+p=$(itsaplan_project k-extra-prefix-label "$ITS_CFG")
+project_json "$ENG_COLS" "$ENG_LABELS|AP: Something else"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 1 ] || fail "k-extra-prefix-label: exit $RC, expected 1: $OUT"
+grep -q '^FAIL:.*AP: Something else' <<<"$OUT" || fail "k-extra-prefix-label: no FAIL line naming AP: Something else: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-extra-prefix-label"
+
+# k-empty-project: the project has no columns and no labels: exit 1, FAIL lines name a column and a label, no key printed
+p=$(itsaplan_project k-empty-project "$ITS_CFG")
+project_json "" ""
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 1 ] || fail "k-empty-project: exit $RC, expected 1: $OUT"
+grep -q '^FAIL:.*Wait for Merge' <<<"$OUT" || fail "k-empty-project: no FAIL line naming Wait for Merge: $OUT"
+grep -q '^FAIL:.*AP: UAT ready' <<<"$OUT" || fail "k-empty-project: no FAIL line naming AP: UAT ready: $OUT"
+grep -q "secret-test-key" <<<"$OUT" && fail "k-empty-project: output contains the API key: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-empty-project"
+
+# k-wrong-project-key: projectKey NOPE, the stub answers 404: exit 0, WARN line with 404, no key printed
+p=$(itsaplan_project k-wrong-project-key '{"tracker":{"type":"itsaplan"},"mirror":{"itsaplan":{"projectKey":"NOPE"}}}')
+project_json "$ENG_COLS" "$ENG_LABELS"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 0 ] || fail "k-wrong-project-key: exit $RC, expected 0: $OUT"
+grep -q '^WARN:.*404' <<<"$OUT" || fail "k-wrong-project-key: no WARN line containing 404: $OUT"
+grep -q "secret-test-key" <<<"$OUT" && fail "k-wrong-project-key: output contains the API key: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-wrong-project-key"
+
+# k-invalid-json: the stub answers 200 with a body that is not JSON: exit 0, WARN line, no key printed
+p=$(itsaplan_project k-invalid-json "$ITS_CFG")
+printf '%s' 'not json' > "$T/body.json"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 0 ] || fail "k-invalid-json: exit $RC, expected 0: $OUT"
+grep -q '^WARN:' <<<"$OUT" || fail "k-invalid-json: missing WARN line: $OUT"
+grep -q "secret-test-key" <<<"$OUT" && fail "k-invalid-json: output contains the API key: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-invalid-json"
+
+# k-modules-only: the itsaplan module is listed, no tracker block: the name check still runs, label typo is a FAIL
+p=$(itsaplan_project k-modules-only '{"modules":["tracker-itsaplan"],"mirror":{"itsaplan":{"projectKey":"TST"}}}')
+project_json "$ENG_COLS" "Milestone|Fix pack|AP: Coding|AP: Fix round|AP: Action Required|AP: Waiting for merge|AP: Pretest waiting|AP: Pretest running|AP: UAT bereit|AP: Release ready"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 1 ] || fail "k-modules-only: exit $RC, expected 1: $OUT"
+grep -q '^FAIL:.*AP: UAT bereit' <<<"$OUT" || fail "k-modules-only: no FAIL line naming AP: UAT bereit: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-modules-only"
+
+# k-string-alias: columnAliases with a string instead of a list: exit 1, the column "Waiting" is not a name foreman uses
+p=$(itsaplan_project k-string-alias '{"tracker":{"type":"itsaplan","columnAliases":{"Wait for Merge":"Waiting"}},"mirror":{"itsaplan":{"projectKey":"TST"}}}')
+project_json "Backlog|Todo|In Progress|Action Required|Waiting|Testing|In Review|Done" "$ENG_LABELS"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 1 ] || fail "k-string-alias: exit $RC, expected 1: $OUT"
+grep -q '^FAIL:.*Waiting' <<<"$OUT" || fail "k-string-alias: no FAIL line naming Waiting: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-string-alias"
+
 # k-no-key-in-output: the API key appears in no output of the failing and warning cases
 grep -q "secret-test-key" <<<"$FAIL_OUT" && fail "k-no-key-in-output: the API key appears in the output of a failing case"
 echo "ok k-no-key-in-output"

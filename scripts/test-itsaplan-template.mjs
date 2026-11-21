@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { validateTemplate, projectFromTemplate } from "./lib/itsaplan-template.mjs";
+import { validateTemplate, projectFromTemplate, GERMAN_WORDS } from "./lib/itsaplan-template.mjs";
 import { plan, TARGETS } from "./lib/itsaplan-mirror.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -57,12 +57,6 @@ function textFields(node, out = []) {
   }
   return out;
 }
-
-const GERMAN = new Set([
-  "bereit", "eingriff", "wartet", "warten", "fertig", "prüfung", "aufgabe", "meilenstein", "korrektur", "fehler",
-  "hinweis", "nötig", "für", "und", "der", "die", "das", "nicht", "zusammen", "abnahme", "vorlage",
-  "ist", "sind", "oder", "mit", "bitte", "eine", "einen", "wird", "werden", "keine", "auf", "bei", "zum", "zur", "vom",
-]);
 
 const LABEL_NAMES = [
   "Milestone", "Fix pack", "AP: Coding", "AP: Fix round", "AP: Action Required", "AP: Waiting for merge",
@@ -123,7 +117,7 @@ t("no German in names, descriptions or templates; no äöüß", () => {
   const violations = [];
   for (const text of textFields(loadTemplate())) {
     for (const word of text.toLowerCase().split(/[^\p{L}]+/u).filter(Boolean)) {
-      if (GERMAN.has(word)) violations.push({ text, word });
+      if (GERMAN_WORDS.has(word)) violations.push({ text, word });
     }
     if (/[äöüßÄÖÜ]/.test(text)) violations.push({ text, word: "non-ASCII letter" });
   }
@@ -150,6 +144,20 @@ const mutations = [
     types.forEach((x) => { x.isDefault = true; });
     types.push({ ...copy(types[0]), id: maxId + 1, name: "Extra type", position: Math.max(...types.map((x) => x.position)) + 1 });
   }, /default/i],
+  ["no default issue type", (m) => { m.snapshot.issueTypes.forEach((x) => { x.isDefault = false; }); }, /default/i],
+  ["German label name as extra label", (m) => {
+    const labels = m.snapshot.labels;
+    labels.push({ id: Math.max(...labels.map((l) => l.id)) + 1, groupId: null, name: "Fehler", color: "#1F2937" });
+  }, /Fehler/],
+  ["two issue types with the same position", (m) => {
+    const types = m.snapshot.issueTypes;
+    const maxId = Math.max(...types.map((x) => x.id));
+    types.push({ ...copy(types[0]), id: maxId + 1, name: "Bug", isDefault: false, position: types[0].position });
+  }, /position/i],
+  ["two views with the same position", (m) => {
+    const views = m.snapshot.views;
+    views.push({ ...copy(views[0]), name: "Dup view" });
+  }, /position/i],
 ];
 for (const [name, mutate, hint] of mutations) {
   t(`negative: ${name} is reported`, () => {
@@ -166,6 +174,35 @@ t("negative mirror: without 'Wait for Merge' plan for awaiting-merge throws Miss
   m.snapshot.columns = m.snapshot.columns.filter((c) => c.name !== "Wait for Merge");
   const project = projectFromTemplate(m);
   assert.throws(() => plan(unitFor("awaiting-merge"), null, project, {}), /Missing column/);
+});
+
+const FIXPACK_STATE = `Status: fixpack since 2026-11-21T08:00:00Z
+Target: dev
+
+# F900 Demo fix pack
+
+## Points
+
+| # | Point | Status | Commit | Files | Open points |
+|---|---|---|---|---|---|
+| F1 | First fix | open | | a.js | - |
+`;
+const fixpackUnit = () => ({ id: "F900", kind: "fixpack", status: "fixpack", note: "Fix round", stateText: FIXPACK_STATE });
+
+t("mirror: fixpack unit with note 'Fix round' plans as create with 'Fix pack' and 'AP: Fix round' labels", () => {
+  const tpl = loadTemplate();
+  const project = projectFromTemplate(tpl);
+  const result = plan(fixpackUnit(), null, project, {});
+  assert.equal(result.action, "create");
+  assert.ok(result.fields.labelIds.includes(labelId(tpl, "Fix pack")), "label 'Fix pack' missing");
+  assert.ok(result.fields.labelIds.includes(labelId(tpl, "AP: Fix round")), "label 'AP: Fix round' missing");
+});
+
+t("negative mirror: without label 'Fix pack' plan for a fixpack unit throws Missing labels", () => {
+  const m = loadTemplate();
+  m.snapshot.labels = m.snapshot.labels.filter((l) => l.name !== "Fix pack");
+  const project = projectFromTemplate(m);
+  assert.throws(() => plan(fixpackUnit(), null, project, {}), /Missing labels/);
 });
 
 let n = 0;
