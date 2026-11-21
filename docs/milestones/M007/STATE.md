@@ -14,8 +14,8 @@ Start commit: 7f8c84c (dev, Baseline: bash scripts/test-all.sh exit 0)
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
 | S1 | Versionsvergleich und Quelle | done | e9dc13c | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
-| S2 | Ticket (itsaplan) | done | S23SHA | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
-| S3 | Webhook | done | S23SHA | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
+| S2 | Ticket (itsaplan) | done | 28d045a | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
+| S3 | Webhook | done | 28d045a | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
 | S4 | Doku und Learnings | open | | dispatcher/README.md, dispatcher/config.example.json, docs/MODULES.md, CHANGELOG.md, docs/learnings.md, scripts/test-dispatcher-docs.sh | |
 
 ## Check plan per slice
@@ -50,4 +50,4 @@ Keine.
 
 - 2026-11-21T19:10Z · Brief, Role Review und STATE.md geschrieben · batch/m007
 - 2026-11-21T19:20Z · S1 rot vor Änderung: `node dispatcher/tests/test-dispatch.mjs` Exit 1 (TypeError cmp is not a function) auf 7f8c84c; grün danach: Exit 0, 47 Tests; `bash scripts/test-all.sh` Exit 0 · e9dc13c
-- 2026-11-21T19:35Z · S2+S3 (ein Commit, gemeinsamer Zustandscode): rot vor Änderung `node dispatcher/tests/test-dispatch.mjs` Exit 1 (14 neue Tests) auf e9dc13c+Tests; grün danach Exit 0, 61 Tests; `bash scripts/test-all.sh` Exit 0 · S23SHA
+- 2026-11-21T19:35Z · S2+S3 (ein Commit, gemeinsamer Zustandscode): rot vor Änderung `node dispatcher/tests/test-dispatch.mjs` Exit 1 (14 neue Tests) auf e9dc13c+Tests; grün danach Exit 0, 61 Tests; `bash scripts/test-all.sh` Exit 0 · 28d045a
