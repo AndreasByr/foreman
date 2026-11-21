@@ -1,4 +1,4 @@
-Status: planning · since 2026-11-21T17:05Z · Brief geschrieben, Start folgt
+Status: slice · since 2026-11-21T17:15Z · Slices geplant, S1 offen
 Target: dev
 Batch-branch: batch/m008
 Lock: free
@@ -7,17 +7,25 @@ Pretest-round: 0
 
 # M008: Docs-Regeln und Aufteilen
 
-Start commit: c6b3149
+Start commit: c6b3149 (Baseline: bash scripts/test-all.sh exit 0)
 
 ## Slices
 
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
+| S1 | Regeldatei: Dokumentarten, Ort, Schreiber, Zeitpunkt | open | | template/docs/docs-rules.md, docs/CONVENTIONS.md, scripts/test-docs-rules.sh | |
+| S2 | Aufteilen (Übersicht + Ordner, Tabelle, Konfliktreihenfolge, Schwelle) und Stand-Zeile | open | | template/docs/docs-rules.md, scripts/test-docs-rules.sh | |
+| S3 | Prüfskript für Stand-Zeile mit Beispielen, in test-all | open | | template/scripts/docs-check.mjs, template/scripts/lib/docs-check.mjs, template/scripts/test-docs-check.mjs, template/scripts/fixtures/docs-check/, scripts/test-all.sh | |
+| S4 | Verweise in roast und roadmap, Learnings, MODULES | open | | plugins/foreman/skills/foreman-roast/, plugins/foreman/skills/foreman-roadmap/, docs/learnings.md | |
 
 ## Check plan per slice
 
 | Slice | Success criterion (testable sentence) | Check (test file or command) | Kind (automatic / browser / human only) | Board |
 |---|---|---|---|---|
+| S1 | Regeldatei liegt in `template/docs/`, nennt je Dokumentart Ort, Schreiber und Zeitpunkt; keine Überschrift der Regeldatei steht auch in `docs/CONVENTIONS.md` | `bash scripts/test-docs-rules.sh` | automatic | n/a, keine UI |
+| S2 | Regel enthält Übersicht + gleichnamigen Ordner, Tabelle „Datei, Inhalt, Lesen bei“, Konfliktreihenfolge, Schwelle als Zahl (5000), Stand-Zeilen-Regel | `bash scripts/test-docs-rules.sh` | automatic | n/a |
+| S3 | `docs-check` gibt Exit 1 bei Versionsbereich, Versionsliste, mehreren „Version N“, fehlender und doppelter Stand-Zeile; Exit 0 bei einer Version mit Datum und Ziffern in der Notiz und auf `docs/roadmap-0.2.x.md`; Kasev-Beispiel rot | `node template/scripts/test-docs-check.mjs`, `node template/scripts/docs-check.mjs docs/roadmap-0.2.x.md` | automatic | n/a |
+| S4 | `foreman-roast` und `foreman-roadmap` nennen die Regeldatei; beide `SKILL.md` unter 8 KB; Plugin-Validierung grün; Begründung in `docs/learnings.md` | `bash scripts/test-plugin.sh`, `bash scripts/test-all.sh` | automatic | n/a |
 
 ## Mandatory questions per slice
 
@@ -25,6 +33,10 @@ Start commit: c6b3149
 
 | Slice | 1 Permissions and tenant isolation | 2 Negative tests | 3 Failure cases | 4 Operations |
 |---|---|---|---|---|
+| S1 | Nicht anwendbar, weil nur Text im Repo, kein Mandant | Überschrift in beiden Dateien doppelt wird vom Test gefunden | Datei fehlt: Test rot mit Meldung | Datei kommt über `install.sh` in `docs/` jedes Projekts; Installer-Test grün |
+| S2 | Nicht anwendbar, weil nur Text | Fehlende Schwellen-Zahl oder fehlende Spalte: Test rot | wie S1 | keine |
+| S3 | Skript liest nur den übergebenen Pfad, schreibt nichts | leere Datei, keine Stand-Zeile, zwei Stand-Zeilen, Datum und Ziffern in der Notiz, Versionsbereich, Liste | Datei nicht lesbar: Exit 2 mit Meldung, kein Absturz | neues Skript in `template/scripts/`; Installer legt es mit an; `test-install.sh` grün |
+| S4 | Nicht anwendbar, weil nur Text | SKILL.md über 8 KB: Plugin-Test rot | Verweis auf nicht vorhandene Datei: Test rot | Plugin-Version unverändert bis Release |
 
 ## Inherited red
 
