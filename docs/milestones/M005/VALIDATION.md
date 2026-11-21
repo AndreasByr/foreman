@@ -18,3 +18,17 @@ Drei unabhängige Prüfer (Anforderungen, Integration, Kriterien/Nachweise), Ges
 | 10 | low | Import wird nicht in `workspace.json` vermerkt | offen, nur Zusammenfassungszeile (Schema-Änderung nicht im Umfang) |
 | 11 | low | Python-`urllib` statt Node-Client | offen, kein Verhaltensunterschied; `check-config.sh` bleibt ohne Node-Abhängigkeit |
 | 12 | low | Vorlage ohne Bug/Feature/Improvement-Labels | offen, Entscheidung im UAT |
+
+## Runde 2 (bis 6c27c0d)
+
+A needs-attention, B pass, C needs-attention. Offene Funde: 1 medium (requirements:52 verlangt: übersetzter Name ist ein Fehler; Check meldete nur fehlende Namen und Labels mit Präfix), mehrere low.
+
+| Nr | Schwere | Fund | Umgang |
+|---|---|---|---|
+| 13 | medium | Übersetzte Zusatznamen (Fix-Paket, Abgebrochen) gingen durch | R2: deutsch aussehende Spalten- und Labelnamen sind FAIL mit englischem Soll; Bug, Canceled, Versions-Labels bleiben erlaubt. Label-Gruppen und Ansichten prüft nur die Vorlagen-Validierung, der Projekt-Check liest sie nicht (Abweichung von requirements, im UAT zu bestätigen) |
+| 14 | low | Doppelter Satz in trackers.md; Vorlagenname `foreman` statt Dateiname in README/MODULES/CHANGELOG | R2 behoben |
+| 15 | low | urllib nutzt Proxy-Variablen | R2: ProxyHandler({}), Test k-proxy-ignored |
+| 16 | low | Kopie in template/ nicht gegen Abweichung gesichert | R2: Test k-copy-identical |
+| 17 | low | Validierungs-CLI ohne Test, Stacktrace bei fehlender Datei | R2: CLI-Tests, klare Meldung |
+| 18 | low | Wortliste: `die`, `den`, `mit` sind auch englisch; es fehlten paket, freitag, wartet, eingriff, runde | R2 angepasst |
+| 19 | low | Mirror-Test nutzt scripts/lib statt template/scripts/lib | offen (beide Kopien identisch) |

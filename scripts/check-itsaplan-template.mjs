@@ -9,12 +9,18 @@ if (!file) {
   process.exit(2);
 }
 
-const text = readFileSync(file, "utf8");
+let text;
+try {
+  text = readFileSync(file, "utf8");
+} catch (err) {
+  console.error(`itsaplan template: cannot read ${file}: ${err.code ?? err.message}`);
+  process.exit(1);
+}
 let template;
 try {
   template = JSON.parse(text);
-} catch (err) {
-  console.log(`invalid JSON in ${file}: ${err.message}`);
+} catch {
+  console.error(`itsaplan template: invalid JSON in ${file}`);
   process.exit(1);
 }
 

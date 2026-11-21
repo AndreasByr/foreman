@@ -27,16 +27,18 @@ const WIP_MODES = ["soft", "hard"];
 const SETTING_KEYS = ["auto_archive", "subtask_automation"];
 
 // German words that must not appear as a whole word in names or text fields (the template is English).
-// Lowercase only; matched case-insensitively. Words that are also English are left out.
+// Lowercase only; matched case-insensitively. Words that are also English words or abbreviations
+// (such as "die", "den", "mit") are not listed, so English text with them stays valid.
 export const GERMAN_WORDS = new Set([
-  "der", "die", "das", "den", "dem", "des", "ein", "eine", "einen", "einem", "einer",
-  "und", "oder", "nicht", "ist", "sind", "wird", "werden", "mit", "auf", "aus", "bei", "nach", "vor",
+  "der", "das", "dem", "des", "ein", "eine", "einen", "einem", "einer",
+  "und", "oder", "nicht", "ist", "sind", "wird", "werden", "auf", "aus", "bei", "nach", "vor",
   "ohne", "zum", "zur", "auch", "noch", "schon", "dann", "wenn", "aber", "weil", "bitte", "ja", "nein",
   "ich", "wir", "ihr", "sie", "fuer", "ueber", "hallo", "fehler", "frage", "fragen", "antwort", "antworten",
   "aufgabe", "aufgaben", "projekt", "projekte", "benutzer", "mensch", "bereit", "freigabe", "empfehlung",
   "bericht", "hinweis", "schritt", "schritte", "bearbeitung", "abschluss", "ergebnis", "vorlage",
   "beschreibung", "bezeichnung", "titel", "liste", "datei", "meilenstein", "ansicht", "eintrag",
   "ausgabe", "hilfe", "pruefung", "prüfung",
+  "paket", "freitag", "wartet", "eingriff", "runde", "abgebrochen",
 ]);
 
 // Returns why a text field is not acceptable (German word or äöüß), or null.

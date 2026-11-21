@@ -86,9 +86,29 @@ if isinstance(ap, dict):
         print("FAIL: autopilot.mainAutoMerge must be true or false")
         bad = True
 
-# itsaplan names: the tracker project's columns and labels must match the names foreman uses.
+# German words (lowercase, whole words) that mark a name as German; no word here is also an English name
+GERMAN_WORDS = {"paket", "meilenstein", "freitag", "wartet", "warten", "eingriff", "runde", "abgebrochen",
+                "fertig", "bereit", "pruefung", "fehler", "aufgabe", "art", "und", "oder", "nicht", "auf", "mit",
+                "freigabe", "abnahme"}
+GERMAN_UMLAUTS = set("äöüÄÖÜß")
+# known German names and the English foreman name they stand for (named in the FAIL line)
+TRANSLATIONS = {
+    "Fix-Paket": "Fix pack", "Meilenstein": "Milestone", "Art": "Type", "Abgebrochen": "Canceled",
+    "Wartet auf Merge": "Wait for Merge", "Fertig": "Done",
+    "AP: Eingriff nötig": "AP: Action Required", "AP: Fix-Runde": "AP: Fix round",
+    "AP: Pretest läuft": "AP: Pretest running", "AP: Pretest wartet": "AP: Pretest waiting",
+    "AP: Release Freitag": "AP: Release ready", "AP: UAT bereit": "AP: UAT ready",
+    "AP: Wartet auf Merge": "AP: Waiting for merge",
+}
+
+def looks_german(name):
+    if any(ch in GERMAN_UMLAUTS for ch in name):
+        return True
+    # split on non-letters, case-insensitive: "Fix-Paket" -> fix, paket
+    return any(w in GERMAN_WORDS for w in re.findall(r"[^\W\d_]+", name.lower()))
+
 def name_problems(kind, names, expected, alias_map, hint, prefix=None):
-    # prefix None (columns): unknown names are never reported; a string prefix (labels): only names starting with it
+    # prefix None (columns): unknown names are listed only inside a missing-column message; a string prefix (labels): only names starting with it are reported as unknown
     msgs = []
     have = set(names)
     known = set(expected)
@@ -96,17 +116,27 @@ def name_problems(kind, names, expected, alias_map, hint, prefix=None):
         known.update(alias_map.get(canon, []))
     # columns: the project's names foreman does not use, listed only inside a missing-column message
     unnamed = [n for n in dict.fromkeys(names) if n not in known] if prefix is None else []
+    # labels: the project's names that look German, listed only inside a missing-label message
+    german = [n for n in dict.fromkeys(names) if n not in known and looks_german(n)] if prefix is not None else []
     for canon in expected:
         alts = alias_map.get(canon, [])
         if canon not in have and not any(a in have for a in alts):
             detail = hint
             if unnamed:
                 detail = "project columns without a foreman name: %s; %s" % (", ".join('"%s"' % n for n in unnamed), hint)
+            if german:
+                detail = "project labels that look German: %s; %s" % (", ".join('"%s"' % n for n in german), hint)
             msgs.append('FAIL: itsaplan %s "%s" is missing (%s)' % (kind, canon, detail))
-    if prefix is not None:
-        for name in dict.fromkeys(names):
-            if name.startswith(prefix) and name not in known:
-                msgs.append('FAIL: itsaplan %s "%s" is not a name foreman uses' % (kind, name))
+    for name in dict.fromkeys(names):
+        if name in known:
+            continue
+        if looks_german(name):
+            if name in TRANSLATIONS:
+                msgs.append('FAIL: itsaplan %s "%s" looks German (English name: "%s")' % (kind, name, TRANSLATIONS[name]))
+            else:
+                msgs.append('FAIL: itsaplan %s "%s" looks German (use the English foreman name)' % (kind, name))
+        elif prefix is not None and name.startswith(prefix):
+            msgs.append('FAIL: itsaplan %s "%s" is not a name foreman uses' % (kind, name))
     return msgs
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -114,7 +144,8 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
 
-_OPENER = urllib.request.build_opener(_NoRedirect)
+# an empty ProxyHandler: proxy variables (HTTP_PROXY, NO_PROXY, ...) are never used
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
 
 def itsaplan_base(raw):
     # scheme://host[:port]/path only: credentials, query and fragment are dropped
