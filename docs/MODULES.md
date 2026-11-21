@@ -22,6 +22,7 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 - Everything under the root page belongs to the mirror: each page is overwritten from its repo file, and pages without a file are archived.
 - Defaults: `include` `docs/**/*.md`; `exclude` `docs/agent-reports/**`, `docs/answers/**`, `docs/uat/**`, `docs/wiki/**`, `**/STATE.md`.
 - Limits: at most 3 requests per second; on 429 it waits for `Retry-After` and retries at most 5 times; 100 blocks per request; 2000 characters per text.
+- Trigger: the batch run (module `autopilot`) and the manual batch PR flow run `scripts/post-merge.d/*.sh` after each merge; without either, run `node scripts/docs-notion.mjs` by hand or from your own CI.
 
 **Dispatcher settings** (module `autopilot`, see `dispatcher/README.md`):
 
