@@ -32,6 +32,7 @@ Each worker is a separate `claude -p` process with its own temp `HOME`, only `PA
 token. A Claude worker receives only the variable(s) listed in `claude_auth_env`; an Ollama worker only its own key.
 Keys are never written to files or logs, and all output is masked. Workers may not use `git`, `rm`, `curl` or `wget`.
 Readonly roles (`research`, `planning`, `validation`) get only `Read`, `Glob`, `Grep`.
+The three worker rules (no writes under `.claude/`, no reads of key files, model IDs only in `config.toml`) are also part of every worker prompt (preamble), besides the skills.
 
 ## Verify
 
