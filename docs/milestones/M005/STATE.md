@@ -14,7 +14,7 @@ Start commit: 302496a
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
 | S1 | Vorlage im Repo (acht Spalten, zehn Labels, Ansicht „UAT ready“, drei Issue-Vorlagen) plus Validierungsskript und Test | done | f80b2a4 | plugins/foreman/skills/foreman-setup/references/itsaplan-project-template.json, scripts/lib/itsaplan-template.mjs, scripts/check-itsaplan-template.mjs, scripts/test-itsaplan-template.mjs, scripts/test-all.sh | |
-| S4 | Namensprüfung in `check-config.sh` (beide Kopien), Stub-API-Tests | done | S4COMMIT | scripts/check-config.sh, template/scripts/check-config.sh, scripts/test-check-config.sh | |
+| S4 | Namensprüfung in `check-config.sh` (beide Kopien), Stub-API-Tests | done | 7914f15 | scripts/check-config.sh, template/scripts/check-config.sh, scripts/test-check-config.sh | |
 | S2 | Import im Setup (`foreman-setup`) | open | | | |
 | S3 | Projekt aus Vorlage (`foreman-project`), Doku, CHANGELOG | open | | | |
 
@@ -50,5 +50,5 @@ Keine: `bash scripts/test-all.sh` auf dem Startstand 302496a (dev) lief mit Exit
 
 - 2026-11-21T19:20Z · Brief und STATE geschrieben; Vorlage aus Format und trackers.md statt Export aus einem Bestandsprojekt (Entscheidung im Brief, der Mensch im UAT)
 - 2026-11-21T19:30Z · S1 rot vor der Änderung: `node scripts/test-itsaplan-template.mjs` Exit 1 (Vorlage fehlt) auf d782beb; grün danach: Exit 0 (12 Tests), `bash scripts/test-all.sh` Exit 0 · f80b2a4
-- 2026-11-21T19:45Z · S4 rot vor der Änderung: `bash scripts/test-check-config.sh` Exit 1 (k-label-typo) auf 8dda099; grün danach: Exit 0, `bash scripts/test-all.sh` Exit 0 · S4COMMIT
+- 2026-11-21T19:45Z · S4 rot vor der Änderung: `bash scripts/test-check-config.sh` Exit 1 (k-label-typo) auf 8dda099; grün danach: Exit 0, `bash scripts/test-all.sh` Exit 0 · 7914f15
 - 2026-11-21T19:45Z · Repo ist öffentlich: keine echten Projekt- oder Personennamen in neuen Dateien (Brief und STATE bereinigt)
