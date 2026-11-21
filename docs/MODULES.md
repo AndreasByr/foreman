@@ -19,6 +19,8 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 **docs-notion** (module `docs-notion`):
 
 - Setup: create an internal Notion integration, share the root page with it, put the root page id into `.foreman.json` `docsNotion.rootPageId`, export `NOTION_API_KEY` (the token stays out of the repo).
+- Existing project: run `./install.sh <repo> --project <slug> --modules docs-notion`; it adds the module and the `docsNotion` block to `.foreman.json` without touching other keys. Set `docsNotion.rootPageId` afterwards.
+- Pages under the root page that carry no mirror marker are never archived; they are listed on stderr.
 - Everything under the root page belongs to the mirror: each page is overwritten from its repo file, and pages without a file are archived.
 - Defaults: `include` `docs/**/*.md`; `exclude` `docs/agent-reports/**`, `docs/answers/**`, `docs/uat/**`, `docs/wiki/**`, `**/STATE.md`.
 - Limits: at most 3 requests per second; on 429 it waits for `Retry-After` and retries at most 5 times; 100 blocks per request; 2000 characters per text.

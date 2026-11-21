@@ -55,6 +55,7 @@ async function main() {
   const client = token && cfg.rootPageId ? createClient({ token, base: process.env.NOTION_API_BASE }) : null;
   const existing = client ? await readExisting(client, cfg.rootPageId) : null;
   const plan = buildPlan(root, buildTree(files), existing);
+  for (const p of plan.foreign) err(`docs-notion: ${p.title} (not mirrored, left alone)`);
 
   if (opts.dryRun) {
     for (const it of plan.items) out(`${it.action} ${it.path}${it.parent && it.action !== "unchanged" ? ` (under ${it.parent})` : ""}`);

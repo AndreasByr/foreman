@@ -8,7 +8,8 @@ const MIN_GAP_MS = 334; // at most 3 requests per second
 const MAX_RETRIES = 5;
 const MAX_BLOCKS = 100; // top-level blocks per request, children per array
 const MAX_ELEMENTS = 1000; // block elements per request, nested children included
-const MARKER_RE = /^Mirrored from \S+\. Edits here are overwritten\. sha256:([0-9a-f]{16})$/;
+const MARKER_RE = /^Mirrored from .+\. Edits here are overwritten\. sha256:([0-9a-f]{16})$/;
+const MARKER_LOOSE_RE = /^Mirrored from .+\. Edits here are overwritten\. sha256:/; // marker with any hash: the page is ours
 
 export class CliError extends Error {
   constructor(message, code) {
@@ -65,6 +66,13 @@ export function collectFiles(root, cfg) {
   const inc = cfg.include.filter((g) => !outside(g)).map(globToRegExp);
   const exc = cfg.exclude.map(globToRegExp);
   const wanted = (p) => /\.md$/i.test(p) && inc.some((r) => r.test(p)) && !exc.some((r) => r.test(p));
+  // Static part of each include glob (up to the first wildcard): a symlink on that path could lead to matching files.
+  const prefixes = cfg.include.filter((g) => !outside(g)).map((g) => {
+    const x = g.replace(/^\.\//, "");
+    const k = x.search(/[*?]/);
+    return k === -1 ? x : x.slice(0, k);
+  });
+  const linkRelevant = (p) => !exc.some((r) => r.test(p)) && (wanted(p) || prefixes.some((pre) => `${p}/`.startsWith(pre) || pre.startsWith(`${p}/`)));
   const rootReal = realpathSync(root);
   const files = [];
   const walk = (rel) => {
@@ -73,7 +81,7 @@ export function collectFiles(root, cfg) {
       const p = rel ? `${rel}/${name}` : name;
       const st = lstatSync(join(root, p));
       if (st.isSymbolicLink()) {
-        if (wanted(p)) skipped.push(`${p} (symlink)`);
+        if (linkRelevant(p)) skipped.push(`${p} (symlink)`);
       } else if (st.isDirectory()) walk(p);
       else if (st.isFile() && wanted(p)) {
         if (realpathSync(join(root, p)).startsWith(rootReal + sep)) files.push(p);
@@ -117,8 +125,13 @@ export function createClient({ token, base }) {
   const headers = { Authorization: `Bearer ${token}`, "Notion-Version": "2022-06-28", "Content-Type": "application/json" };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let last = 0;
+  let waited = 0; // seconds spent on 429 waits in this run
+  let exhausted = false;
+  const budgetEnv = parseFloat(process.env.NOTION_MAX_TOTAL_WAIT_S);
+  const budget = budgetEnv >= 0 ? budgetEnv : 300;
   async function call(method, path, body) {
     for (let attempt = 0; ; attempt++) {
+      if (exhausted) throw new HttpError("wait budget exhausted (NOTION_MAX_TOTAL_WAIT_S)");
       const wait = last + MIN_GAP_MS - Date.now();
       if (wait > 0) await sleep(wait);
       last = Date.now();
@@ -132,7 +145,13 @@ export function createClient({ token, base }) {
         await res.text().catch(() => "");
         const ra = parseFloat(res.headers.get("retry-after"));
         const cap = parseFloat(process.env.NOTION_MAX_RETRY_WAIT_S);
-        await sleep(Math.min(ra >= 0 ? ra : 1, cap >= 0 ? cap : 60) * 1000);
+        const w = Math.min(ra >= 0 ? ra : 1, cap >= 0 ? cap : 60);
+        if (waited + w > budget) {
+          exhausted = true;
+          throw new HttpError("wait budget exhausted (NOTION_MAX_TOTAL_WAIT_S)");
+        }
+        waited += w;
+        await sleep(w * 1000);
         continue;
       }
       if (!res.ok) {
@@ -182,7 +201,7 @@ export async function readExisting(client, rootId) {
       await hydrate(client, page.blocks);
     }
     for (const k of kids.filter((x) => x.type === "child_page")) {
-      const child = { id: k.id, title: k.child_page?.title ?? "", blocks: [] };
+      const child = { id: k.id, title: k.child_page?.title ?? "", blocks: [], parent: id };
       all.push(child);
       if (!byTitle.has(child.title)) byTitle.set(child.title, child);
       await walkPage(k.id, child);
@@ -194,7 +213,13 @@ export async function readExisting(client, rootId) {
 
 const textOf = (b) => (b?.paragraph?.rich_text ?? []).map((r) => r.text?.content ?? r.plain_text ?? "").join("");
 const markerHash = (page) => (page.blocks[0]?.type === "paragraph" ? textOf(page.blocks[0]).match(MARKER_RE)?.[1] : undefined);
-const richText = (rt = []) => rt.map((r) => r.text?.content ?? r.plain_text ?? "").join("");
+const isMirrored = (page) => page.blocks[0]?.type === "paragraph" && MARKER_LOOSE_RE.test(textOf(page.blocks[0]));
+// Text with its formatting: set annotations (color "default" counts as none) and link url.
+const richText = (rt = []) =>
+  rt.map((r) => {
+    const a = Object.entries(r.annotations ?? {}).filter(([, v]) => v && v !== "default").sort(([x], [y]) => (x < y ? -1 : 1));
+    return { x: r.text?.content ?? r.plain_text ?? "", a, l: r.text?.link?.url ?? r.href ?? null };
+  });
 
 // Comparable shape of a block: type, text, code language, checked, table cells, nesting. Works for fresh and Notion blocks.
 export function fingerprint(b) {
@@ -202,6 +227,7 @@ export function fingerprint(b) {
   const f = { t: b.type, x: richText(inner.rich_text), k: (Array.isArray(inner.children) ? inner.children : []).map(fingerprint) };
   if (b.type === "code") f.l = inner.language;
   if (b.type === "to_do") f.c = !!inner.checked;
+  if (b.type === "table") f.h = [!!inner.has_column_header, !!inner.has_row_header, inner.table_width];
   if (b.type === "table_row") f.cells = (inner.cells ?? []).map(richText);
   return JSON.stringify(f);
 }
@@ -230,8 +256,17 @@ export function buildPlan(root, entries, existing) {
     item.action = !existing ? "sync" : !ex ? "new" : item.blocks && sameContent(ex.blocks, item.blocks) ? "unchanged" : "update";
     return item;
   });
-  const archives = existing ? existing.all.filter((p) => !used.has(p.id)) : [];
-  return { items, archives };
+  const unused = existing ? existing.all.filter((p) => !used.has(p.id)) : [];
+  const archives = unused.filter(isMirrored);
+  // A page below an archived page goes with it; only pages that stay are reported as left alone.
+  const gone = new Set(archives.map((p) => p.id));
+  const parents = new Map((existing?.all ?? []).map((p) => [p.id, p.parent]));
+  const cascaded = (p) => {
+    for (let q = parents.get(p.id); q; q = parents.get(q)) if (gone.has(q)) return true;
+    return false;
+  };
+  const foreign = unused.filter((p) => !isMirrored(p) && !cascaded(p));
+  return { items, archives, foreign };
 }
 
 // ---------------------------------------------------------------- writing
@@ -340,9 +375,11 @@ export async function runSync(client, rootId, plan, log = () => {}) {
       fail(item.path, e);
     }
   }
+  const gone = new Set();
   for (const page of plan.archives) {
     try {
-      await client.call("PATCH", `/pages/${page.id}`, { archived: true });
+      if (!gone.has(page.parent)) await client.call("PATCH", `/pages/${page.id}`, { archived: true }); // else Notion cascades
+      gone.add(page.id);
       counts.archived++;
       log(`archived ${page.title}`);
     } catch (e) {

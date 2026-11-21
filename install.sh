@@ -396,13 +396,22 @@ PY
     if [ -n "$workspace" ]; then echo "  workspace: infra block written to .foreman.json"; fi
   else
     kept+=(".foreman.json")
-    if [ -n "$workspace" ] || [ "$any_new" = yes ]; then
+    if [ -n "$workspace" ] || [ "$any_new" = yes ] || has docs-notion; then
       # one backup, kept: the first run that changes the file saves the old content, later runs never overwrite it
       [ -e "$target/.foreman.json.before-foreman" ] || cp "$target/.foreman.json" "$target/.foreman.json.before-foreman"
-      python3 - "$target/.foreman.json" "$workspace" "$tz" "$batch_csv" "$wait_norm" "$main_auto_merge" <<'PY'
+      python3 - "$target/.foreman.json" "$workspace" "$tz" "$batch_csv" "$wait_norm" "$main_auto_merge" "$modules" <<'PY'
 import json, sys
-path, workspace, tz, batch, wait, main = sys.argv[1:7]
+path, workspace, tz, batch, wait, main, modules = sys.argv[1:8]
 conf = json.load(open(path, encoding="utf-8"))
+# enabling docs-notion in an existing project: add the module and the block only if missing; never reset rootPageId
+if "docs-notion" in modules.split(","):
+    mods = conf.setdefault("modules", [])
+    if "docs-notion" not in mods:
+        mods.append("docs-notion")
+    conf.setdefault("docsNotion", {
+        "rootPageId": "", "include": ["docs/**/*.md"],
+        "exclude": ["docs/agent-reports/**", "docs/answers/**", "docs/uat/**", "docs/wiki/**", "**/STATE.md"],
+    })
 if workspace:
     conf["infra"] = json.load(open(workspace, encoding="utf-8"))
 if tz:
