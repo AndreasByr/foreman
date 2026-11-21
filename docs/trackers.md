@@ -20,7 +20,9 @@ The tracker is a mirror for people (phone, overview) and the place for answers a
 | `release-ready` | In Review | `AP: Release ready` |
 | `done` | Done | none |
 
-Create the columns and the labels (`Milestone`, `Fix pack`, and the `AP: ...` labels) once in the project; the mirror reports missing ones instead of guessing. Other column names: `.foreman.json` `tracker.columnAliases`, for example `{ "Action Required": ["<your column>"] }`. Title of a ticket: `[<unit>] <title>`. The mirror prints the ticket ID of a new ticket; the run writes it into `Tracker:` of `STATE.md`.
+New projects are created from the template `plugins/foreman/skills/foreman-setup/references/itsaplan-project-template.json` (`foreman-setup` imports it once per workspace; `foreman-project` creates the project from it). The one manual step is adding the bot account as a member. A template does not change existing projects. The mirror reports missing ones instead of guessing. Other column names: `.foreman.json` `tracker.columnAliases`, for example `{ "Action Required": ["<your column>"] }`. Title of a ticket: `[<unit>] <title>`. The mirror prints the ticket ID of a new ticket; the run writes it into `Tracker:` of `STATE.md`.
+
+**Name check.** `scripts/check-config.sh` reads the columns and labels of the project (it needs `ITSAPLAN_URL`, `ITSAPLAN_API_KEY` and `mirror.itsaplan.projectKey`). The check reports every name that is not the English name, and the English name it expects. Without the variables it prints a note and passes.
 
 ## Answers and approvals per tracker
 

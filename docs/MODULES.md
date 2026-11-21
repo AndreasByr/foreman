@@ -13,7 +13,7 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 | `autopilot` | `scripts/autopilot-check.sh` (the dispatcher's check), the work-run routine docs, `foreman-dispatch-run`; the central dispatcher in this repo's `dispatcher/` runs on your server | GitHub or similar, Claude Code routines (API trigger), a machine that is on for the dispatcher (or Plan B, see below) |
 | `pretest` | `foreman-pretest`, the headless pretest runner, UAT checklist script, test-login pattern doc | a test login in your app (`docs/test-login.md`), dev or staging environment, Playwright and axe-core installed in the worktree at run time |
 
-`tracker-itsaplan` and `tracker-linear` exclude each other.
+`tracker-itsaplan` and `tracker-linear` exclude each other. itsaplan projects are created from the foreman template `itsaplan-project-template`; only the bot account is added by hand, and `check-config.sh` reports names that are not English.
 
 **Dispatcher settings** (module `autopilot`, see `dispatcher/README.md`):
 

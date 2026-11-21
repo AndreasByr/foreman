@@ -102,7 +102,7 @@ Close with the status line and the list of what is already done.
 
 ### 8. After install
 
-When the human reports the install ran: check `.foreman.json` (version `0.2.0`, agent, modules), run the repo's checks if you have a shell (`bash scripts/check-config.sh`), then hand over to `foreman-project`. Model IDs in `tools/delegate/config.toml`: propose a distribution by role from `references/delegation.md` after checking the current model lists for newer versions; the human decides per row.
+When the human reports the install ran: check `.foreman.json` (version `0.2.0`, agent, modules), run the repo's checks if you have a shell (`bash scripts/check-config.sh`), then hand over to `foreman-project`. Model IDs in `tools/delegate/config.toml`: propose a distribution by role from `references/delegation.md` after checking the current model lists for newer versions; the human decides per row. With `tracker-itsaplan`: import the project template once per workspace, see `references/itsaplan-template.md`.
 
 ### 9. Claude Code project (optional, 2 min)
 
