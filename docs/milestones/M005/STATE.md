@@ -1,4 +1,4 @@
-Status: batch-pr · since 2026-11-21T21:30Z · R3 freigegeben und fertig, Batch-PR folgt
+Status: uat-ready · since 2026-11-21T20:10Z · PR #17 in dev (0e815ca), UAT-Liste docs/uat/M005.md
 Target: dev
 Batch-branch: batch/m005
 Lock: free
@@ -66,3 +66,4 @@ Frage an den Menschen: dritte Reworkrunde zulassen (nur dieser Fund, Test zuerst
 - 2026-11-21T20:55Z · Validierung Runde 2: A needs-attention (1 medium: requirements verlangt, dass übersetzte Namen Fehler sind), B pass, C needs-attention (gleicher medium-Fund); R2 rot vor der Änderung ddfdd86; grün danach: test-check-config.sh, test-itsaplan-template.mjs Exit 0, dev eingemergt (4479319), `bash scripts/test-all.sh` Exit 0 · 540c1c5
 - 2026-11-21T21:10Z · Validierung Runde 3: A/C needs-attention, B needs-attention; 1 medium (art/mit in der Wortliste von check-config.sh, nur Heuristik), Rest low; keine dritte Runde ohne Freigabe des Menschen
 - 2026-11-21T21:30Z · R3 rot vor der Änderung: `bash scripts/test-check-config.sh` Exit 1 (k-english-art-mit) auf f90673d + Test; grün danach: Exit 0; dev eingemergt; `bash scripts/test-all.sh` Exit 0 · 74866e2
+- 2026-11-21T20:10Z · Batch-PR #17 nach dev gemergt (0e815ca), Checks guards und test grün · UAT offen
