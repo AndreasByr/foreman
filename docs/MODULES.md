@@ -16,6 +16,13 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 
 `tracker-itsaplan` and `tracker-linear` exclude each other.
 
+**docs-notion** (module `docs-notion`):
+
+- Setup: create an internal Notion integration, share the root page with it, put the root page id into `.foreman.json` `docsNotion.rootPageId`, export `NOTION_API_KEY` (the token stays out of the repo).
+- Everything under the root page belongs to the mirror: each page is overwritten from its repo file, and pages without a file are archived.
+- Defaults: `include` `docs/**/*.md`; `exclude` `docs/agent-reports/**`, `docs/answers/**`, `docs/uat/**`, `docs/wiki/**`, `**/STATE.md`.
+- Limits: at most 3 requests per second; on 429 it waits for `Retry-After` and retries at most 5 times; 100 blocks per request; 2000 characters per text.
+
 **Dispatcher settings** (module `autopilot`, see `dispatcher/README.md`):
 
 - `webhook_format`: `auto` (default), `discord` or `slack`. Picks the body of the error webhook; `auto` decides by host.
