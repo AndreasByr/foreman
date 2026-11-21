@@ -1,4 +1,4 @@
-Status: validation · since 2026-11-21T16:51Z · Rework-Runde 2 fertig, dritte Prüfung offen
+Status: batch-pr · since 2026-11-21T17:00Z · Validierung pass, Batch-PR nach dev
 Target: dev
 Batch-branch: batch/m002
 Lock: free
@@ -68,3 +68,4 @@ One question, options, recommendation.
 - 2026-11-21T16:46Z · Validierung 2: A, B, C je needs-attention (4 mittlere Befunde: falsche Pausenzeile nach Timeout, Timeout sperrt Kette nicht, Claude-Pause bei Fallback, Lint umgehbar) -> Rework R4 · 8651cec
 - 2026-11-21T16:51Z · Rework R4 fertig: 2 Tests rot→grün (41 gesamt), Lint gehärtet, test-all Exit 0 · Commit 646ad52
 - 2026-11-21T16:56Z · Validierung 3: A, B, C je needs-attention, nur 1 mittlerer Befund (STATE.md formal falsch, von der Sitzung selbst behoben); Rest low · 646ad52
+- 2026-11-21T17:00Z · Nachprüfung pass, Endlauf aller Prüfungen Exit 0, VALIDATION.md und Abschlussbericht geschrieben · 610a4ae
