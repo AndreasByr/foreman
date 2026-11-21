@@ -5,6 +5,7 @@
 ### New
 
 - **Module `docs-notion`**: one-way mirror of the repo docs to Notion, one page per file, the overview as parent page of its parts. The repo wins: edits made in Notion are overwritten on the next run. Run with `node scripts/docs-notion.mjs [--dry-run]`; the batch run calls it after each merge through `scripts/post-merge.d/`. Needs `NOTION_API_KEY` and `docsNotion.rootPageId` in `.foreman.json`. No model writes to Notion; the script respects Notion's rate and size limits. The old name `notion` is refused with a hint to `docs-notion`.
+- **`wiki` block in `.foreman.json`** (with module `docs-notion`, default off): `enabled`, `language`, `audiences`, `rootPageId`, `forbidden`. `scripts/check-config.sh` checks it; the installer adds it without overwriting an existing block.
 
 - **Gateway preset in the installer**: `--gateway-url`, `--fallback-model` and `--chatgpt-via-gateway accepted-risk` write the active gateway preset (`scripts/gateway-preset.py`), with a reachability check and a dry run; ChatGPT routing only after explicit acceptance.
 

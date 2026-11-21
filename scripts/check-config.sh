@@ -227,6 +227,41 @@ if (isinstance(tracker, dict) and tracker.get("type") == "itsaplan") or (isinsta
                         print(msg)
                         bad = True
 
+# wiki.* settings: enabled is a boolean; when true it needs a language, audiences and rootPageId;
+# forbidden entries are non-empty strings in every state
+def nonempty_str(v):
+    return isinstance(v, str) and v.strip() != ""
+
+wk = cfg.get("wiki", {})
+if not isinstance(wk, dict):
+    print("FAIL: wiki must be an object")
+    bad = True
+    wk = {}
+wk_on = wk.get("enabled", False)
+if not isinstance(wk_on, bool):
+    print("FAIL: wiki.enabled must be true or false")
+    bad = True
+    wk_on = False
+forb = wk.get("forbidden", [])
+if not (isinstance(forb, list) and all(nonempty_str(x) for x in forb)):
+    print("FAIL: wiki.forbidden must be a list of non-empty strings")
+    bad = True
+if wk_on:
+    lang = wk.get("language") or (ctx.get("language") if isinstance(ctx, dict) else None)
+    if not nonempty_str(lang):
+        print("FAIL: wiki.language must be a non-empty language code such as de (or set context.language)")
+        bad = True
+    auds = wk.get("audiences")
+    if not (isinstance(auds, list) and auds and all(isinstance(a, dict) and nonempty_str(a.get("name")) for a in auds)):
+        print("FAIL: wiki.audiences must be a non-empty list of objects, each with a non-empty name")
+        bad = True
+    elif len({a["name"].strip().lower() for a in auds}) != len(auds):
+        print("FAIL: wiki.audiences names must be unique (case-insensitive)")
+        bad = True
+    if not nonempty_str(wk.get("rootPageId")):
+        print("FAIL: wiki.rootPageId must be a non-empty string when wiki.enabled is true")
+        bad = True
+
 sys.exit(1 if bad else 0)
 PY
 fi

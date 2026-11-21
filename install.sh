@@ -377,6 +377,7 @@ if "docs-notion" in mods:
         "rootPageId": "", "include": ["docs/**/*.md"],
         "exclude": ["docs/agent-reports/**", "docs/answers/**", "docs/uat/**", "docs/wiki/**", "**/STATE.md"],
     }
+    conf["wiki"] = {"enabled": False, "language": "", "audiences": [], "rootPageId": "", "forbidden": []}
 ap = {}
 if batch:
     ap["batchHours"] = [int(x) for x in batch.split(",")]
@@ -412,6 +413,7 @@ if "docs-notion" in modules.split(","):
         "rootPageId": "", "include": ["docs/**/*.md"],
         "exclude": ["docs/agent-reports/**", "docs/answers/**", "docs/uat/**", "docs/wiki/**", "**/STATE.md"],
     })
+    conf.setdefault("wiki", {"enabled": False, "language": "", "audiences": [], "rootPageId": "", "forbidden": []})
 if workspace:
     conf["infra"] = json.load(open(workspace, encoding="utf-8"))
 if tz:

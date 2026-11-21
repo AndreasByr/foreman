@@ -96,6 +96,56 @@ PY
 [ -f "$T/dn1/scripts/docs-notion.mjs" ] || fail "docs-notion: scripts/docs-notion.mjs missing"
 (cd "$T/dn1" && bash scripts/check-config.sh >/dev/null) || fail "docs-notion: check-config failed"
 
+# 4b-wiki. wiki block: docs-notion install adds it with disabled defaults; default install has no wiki key;
+# enabling docs-notion in an existing project adds the block only if missing and never overwrites it
+python3 - "$T/dn1/.foreman.json" <<'PY' || fail "wiki: block with disabled defaults missing after docs-notion install"
+import json, sys
+w = json.load(open(sys.argv[1])).get("wiki")
+assert isinstance(w, dict), "no wiki object"
+assert w.get("enabled") is False, w
+assert w.get("language") == "", w
+assert w.get("audiences") == [], w
+assert w.get("rootPageId") == "", w
+assert w.get("forbidden") == [], w
+PY
+(cd "$T/dn1" && bash scripts/check-config.sh >/dev/null) || fail "wiki: check-config failed with the disabled wiki block"
+
+mkdir "$T/wk0" && git -C "$T/wk0" init -q
+inst "$T/wk0" --project p >/dev/null 2>&1 || fail "wiki: default install failed"
+python3 - "$T/wk0/.foreman.json" <<'PY' || fail "wiki: wiki key written without docs-notion"
+import json, sys
+assert "wiki" not in json.load(open(sys.argv[1]))
+PY
+
+mkdir "$T/wkr" && git -C "$T/wkr" init -q
+inst "$T/wkr" --project p >/dev/null 2>&1 || fail "wiki: default install for enable test failed"
+inst "$T/wkr" --project p --modules docs-notion >/dev/null 2>&1 || fail "wiki: enabling docs-notion in an existing project exited nonzero"
+python3 - "$T/wkr/.foreman.json" <<'PY' || fail "wiki: block not added when enabling docs-notion in an existing project"
+import json, sys
+w = json.load(open(sys.argv[1])).get("wiki")
+assert isinstance(w, dict), "no wiki object"
+assert w.get("enabled") is False and w.get("language") == "" and w.get("audiences") == [], w
+assert w.get("rootPageId") == "" and w.get("forbidden") == [], w
+PY
+# set real values, then re-run: they must stay
+python3 - "$T/wkr/.foreman.json" <<'PY' || fail "wiki: could not set wiki values"
+import json, sys
+p = sys.argv[1]; d = json.load(open(p))
+d["wiki"].update({"enabled": True, "language": "de", "audiences": [{"name": "Spieler und Tester", "description": "Testende Spieler"}], "rootPageId": "root-test-1", "forbidden": ["Projekt B"]})
+open(p, "w").write(json.dumps(d, indent=2) + "\n")
+PY
+inst "$T/wkr" --project p --modules docs-notion >/dev/null 2>&1 || fail "wiki: re-run with docs-notion exited nonzero"
+python3 - "$T/wkr/.foreman.json" <<'PY' || fail "wiki: existing wiki block overwritten on re-run"
+import json, sys
+w = json.load(open(sys.argv[1]))["wiki"]
+assert w.get("enabled") is True, w
+assert w.get("language") == "de", w
+assert w.get("rootPageId") == "root-test-1", w
+assert w.get("audiences") == [{"name": "Spieler und Tester", "description": "Testende Spieler"}], w
+assert w.get("forbidden") == ["Projekt B"], w
+PY
+(cd "$T/wkr" && bash scripts/check-config.sh >/dev/null) || fail "wiki: check-config failed after enabling wiki values"
+
 # docs-notion absent by default: no module files, no docsNotion key
 mkdir "$T/dn0" && git -C "$T/dn0" init -q
 inst "$T/dn0" --project p >/dev/null 2>&1 || fail "default install failed"

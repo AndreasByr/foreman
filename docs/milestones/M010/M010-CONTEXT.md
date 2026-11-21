@@ -34,7 +34,7 @@ Bericht: `docs/role-reviews/M010-briefing.md`. Übernommen: Scan im Skript statt
 `docs/requirements.md` (Abschnitt Wiki unter „Must-have: Modul `docs-notion`“), `docs/roadmap-0.2.x.md` (Abschnitt M010), `template/docs/docs-rules.md`, `docs/MODULES.md`, `docs/PRINCIPLES.md`, `docs/CONVENTIONS.md`, `CLAUDE.md`. Konfliktreihenfolge: Requirements, Design, Roadmap, dieser Brief.
 
 ## Fixed decisions
-Die drei offenen Fragen aus den Requirements sind hier mit Vorschlägen entschieden; Andreas bestätigt oder ändert sie im UAT:
+Die drei offenen Fragen aus den Requirements sind hier mit Vorschlägen entschieden; der Maintainer bestätigt oder ändert sie im UAT:
 - **Zeitpunkt:** Das Wiki wird nur auf ausdrücklichen Aufruf veröffentlicht (`--wiki`, vorgesehen beim Release). Der Hook `post-merge.d` und der Batch-Lauf veröffentlichen es nie.
 - **Texte:** Die Seitentexte schreibt ein Modell mit starker Rolle (`execution`) nur aus den im Seitenkopf genannten Quelldateien. Beide Text-Skills laufen nur für neue oder geänderte Seiten; der Seitenkopf trägt den Vermerk. Das Veröffentlichungsskript lehnt Seiten ohne Vermerk ab. Kein Modell schreibt je nach Notion.
 - **Öffentlich machen:** Das Skript legt nur Seiten an. „Notion Sites“ oder Freigabe-Link aktiviert der Mensch in Notion von Hand (die API kann das nicht); die Doku sagt es.

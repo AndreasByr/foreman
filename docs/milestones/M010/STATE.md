@@ -1,4 +1,4 @@
-Status: slice · since 2026-11-21T21:50Z · S1 läuft
+Status: slice · since 2026-11-21T22:10Z · S2 läuft
 Target: dev
 Batch-branch: batch/m010
 Lock: free
@@ -13,8 +13,8 @@ Start commit: cd07088 (Basis dev 9950ab9, nach Merge von main)
 
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
-| S1 | Konfiguration: Block `wiki`, check-config, Installer-Standardwert | in progress | | | |
-| S2 | Wiki-Dateien: Seitenformat, Kopfdaten, Skill `foreman-wiki`, Beispiel-Wiki im Test | open | | | |
+| S1 | Konfiguration: Block `wiki`, check-config, Installer-Standardwert | done | M010 S1 | install.sh, scripts/check-config.sh (+Template-Kopie), scripts/test-check-config.sh, scripts/test-install.sh, docs/MODULES.md, CHANGELOG.md | Sprache fällt auf context.language zurück |
+| S2 | Wiki-Dateien: Seitenformat, Kopfdaten, Skill `foreman-wiki`, Beispiel-Wiki im Test | in progress | | | |
 | S3 | Veröffentlichen: `--wiki`, Wiki-Scan, Ablehnung, Hook ohne Wiki | open | | | |
 | S4 | Milestone-Todo: Vorlagen, foreman-brief, Prüfung der Wiki-Zeile in state-mirror | open | | | |
 
@@ -43,3 +43,4 @@ None recorded.
 ## Log
 
 - 2026-11-21T21:45Z · Brief M010-CONTEXT.md und Role Review geschrieben, main in dev gemergt (9950ab9) · cd07088
+- 2026-11-21T22:10Z · S1: Tests vor Umsetzung rot (test-check-config Exit 1 bei l-enabled-string, test-install Exit 1); danach grün: test-check-config, test-install, test-update-classes, test-update, privacy-scan je Exit 0 · M010 S1
