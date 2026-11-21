@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Tests for the itsaplan project template and its mirror fit. Run: node scripts/test-itsaplan-template.mjs
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateTemplate, projectFromTemplate, GERMAN_WORDS } from "./lib/itsaplan-template.mjs";
@@ -9,6 +11,9 @@ import { plan, TARGETS } from "./lib/itsaplan-mirror.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE = join(here, "..", "plugins", "foreman", "skills", "foreman-setup", "references", "itsaplan-project-template.json");
+const CHECK = join(here, "check-itsaplan-template.mjs");
+const tmp = mkdtempSync(join(tmpdir(), "itsaplan-template-test-"));
+process.on("exit", () => rmSync(tmp, { recursive: true, force: true }));
 
 // Loaded lazily inside each test, so a missing file fails the test that needs it and nothing else.
 function loadTemplate() {
@@ -203,6 +208,69 @@ t("negative mirror: without label 'Fix pack' plan for a fixpack unit throws Miss
   m.snapshot.labels = m.snapshot.labels.filter((l) => l.name !== "Fix pack");
   const project = projectFromTemplate(m);
   assert.throws(() => plan(fixpackUnit(), null, project, {}), /Missing labels/);
+});
+
+// Adds a label with the given name to a template copy (ids stay unique).
+function addLabel(m, name) {
+  const labels = m.snapshot.labels;
+  labels.push({ id: Math.max(...labels.map((l) => l.id)) + 1, groupId: null, name, color: "#1F2937" });
+}
+// Writes content to a fresh file in the test's temp dir and returns its path.
+let fileCounter = 0;
+function writeTmp(content) {
+  const path = join(tmp, `case-${fileCounter++}.json`);
+  writeFileSync(path, typeof content === "string" ? content : JSON.stringify(content, null, 2));
+  return path;
+}
+// Runs the CLI checker with one argument and returns its exit code and combined output.
+function runCheck(arg) {
+  const res = spawnSync(process.execPath, [CHECK, arg], { encoding: "utf8" });
+  return { status: res.status, out: `${res.stdout ?? ""}${res.stderr ?? ""}` };
+}
+const STACK_LINE = /^ {4}at /m;
+
+t("CLI ok: the real template exits 0 and prints 'itsaplan template: ok'", () => {
+  const res = spawnSync(process.execPath, [CHECK, TEMPLATE], { encoding: "utf8" });
+  assert.equal(res.status, 0, `exit ${res.status}: ${res.stdout}${res.stderr}`);
+  assert.match(res.stdout, /itsaplan template: ok/);
+});
+
+t("CLI missing file: exit 1, names the path, no stack trace", () => {
+  const missing = join(tmp, "does-not-exist.json");
+  const { status, out } = runCheck(missing);
+  assert.equal(status, 1, `exit ${status}: ${out}`);
+  assert.ok(out.includes(missing), `path not in output: ${out}`);
+  assert.doesNotMatch(out, STACK_LINE, "stack trace in output");
+});
+
+t("CLI broken file: content '{' gives exit 1, a JSON message, no stack trace", () => {
+  const { status, out } = runCheck(writeTmp("{"));
+  assert.equal(status, 1, `exit ${status}: ${out}`);
+  assert.match(out, /JSON/i);
+  assert.doesNotMatch(out, STACK_LINE, "stack trace in output");
+});
+
+t("CLI bad template: German label 'AP: UAT bereit' gives exit 1 and names 'AP: UAT ready'", () => {
+  const m = loadTemplate();
+  m.snapshot.labels.find((l) => l.name === "AP: UAT ready").name = "AP: UAT bereit";
+  const { status, out } = runCheck(writeTmp(m));
+  assert.equal(status, 1, `exit ${status}: ${out}`);
+  assert.match(out, /AP: UAT ready/);
+});
+
+for (const word of ["Fix-Paket", "Freitag", "Wartet", "Eingriff", "Runde", "Abgebrochen"]) {
+  t(`German word: extra label '${word}' gives a validator error naming it`, () => {
+    const m = loadTemplate();
+    addLabel(m, word);
+    const errors = validateTemplate(m);
+    assert.ok(errors.some((e) => e.includes(word)), `no error names '${word}': ${errors.join(" | ") || "(no errors)"}`);
+  });
+}
+
+t("English words that are also German words stay valid: 'die', 'mit', 'den' in an English description", () => {
+  const m = loadTemplate();
+  m.description = "A task may die when the MIT license is shown";
+  assert.deepEqual(validateTemplate(m), []);
 });
 
 let n = 0;

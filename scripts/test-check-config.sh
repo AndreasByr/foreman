@@ -364,8 +364,79 @@ grep -q '^FAIL:.*Waiting' <<<"$OUT" || fail "k-string-alias: no FAIL line naming
 FAIL_OUT="$FAIL_OUT$OUT"
 echo "ok k-string-alias"
 
+# k-german-extra-label: all English names plus the extra label "Fix-Paket": exit 1, FAIL lines name "Fix-Paket" and "Fix pack"
+p=$(itsaplan_project k-german-extra-label "$ITS_CFG")
+project_json "$ENG_COLS" "$ENG_LABELS|Fix-Paket"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 1 ] || fail "k-german-extra-label: exit $RC, expected 1: $OUT"
+grep -q '^FAIL:.*Fix-Paket' <<<"$OUT" || fail "k-german-extra-label: no FAIL line naming Fix-Paket: $OUT"
+grep -q '^FAIL:.*Fix pack' <<<"$OUT" || fail "k-german-extra-label: no FAIL line naming Fix pack: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-german-extra-label"
+
+# k-german-extra-column: all English names plus the extra column "Abgebrochen": exit 1, FAIL line names it
+p=$(itsaplan_project k-german-extra-column "$ITS_CFG")
+project_json "$ENG_COLS|Abgebrochen" "$ENG_LABELS"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 1 ] || fail "k-german-extra-column: exit $RC, expected 1: $OUT"
+grep -q '^FAIL:.*Abgebrochen' <<<"$OUT" || fail "k-german-extra-column: no FAIL line naming Abgebrochen: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-german-extra-column"
+
+# k-german-prefix-label: all English names plus the label "AP: UAT bereit": exit 1, FAIL lines name it and "AP: UAT ready"
+p=$(itsaplan_project k-german-prefix-label "$ITS_CFG")
+project_json "$ENG_COLS" "$ENG_LABELS|AP: UAT bereit"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 1 ] || fail "k-german-prefix-label: exit $RC, expected 1: $OUT"
+grep -q '^FAIL:.*AP: UAT bereit' <<<"$OUT" || fail "k-german-prefix-label: no FAIL line naming AP: UAT bereit: $OUT"
+grep -q '^FAIL:.*AP: UAT ready' <<<"$OUT" || fail "k-german-prefix-label: no FAIL line naming AP: UAT ready: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-german-prefix-label"
+
+# k-german-umlaut: all English names plus the extra label "Prüfung": exit 1, FAIL line names it
+p=$(itsaplan_project k-german-umlaut "$ITS_CFG")
+project_json "$ENG_COLS" "$ENG_LABELS|Prüfung"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 1 ] || fail "k-german-umlaut: exit $RC, expected 1: $OUT"
+grep -q '^FAIL:.*Prüfung' <<<"$OUT" || fail "k-german-umlaut: no FAIL line naming Prüfung: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-german-umlaut"
+
+# k-extra-names: extra labels Bug, Feature, Improvement, v0.2.0 and extra column Canceled: exit 0, ok line, no FAIL line
+p=$(itsaplan_project k-extra-names "$ITS_CFG")
+project_json "$ENG_COLS|Canceled" "$ENG_LABELS|Bug|Feature|Improvement|v0.2.0"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 0 ] || fail "k-extra-names: exit $RC, expected 0: $OUT"
+grep -q "foreman config check: ok" <<<"$OUT" || fail "k-extra-names: missing ok line: $OUT"
+grep -q "FAIL:" <<<"$OUT" && fail "k-extra-names: unexpected FAIL line: $OUT"
+echo "ok k-extra-names"
+
+# k-missing-found-name: the project has "Meilenstein" instead of "Milestone": exit 1, FAIL lines name both
+p=$(itsaplan_project k-missing-found-name "$ITS_CFG")
+project_json "$ENG_COLS" "Meilenstein|Fix pack|AP: Coding|AP: Fix round|AP: Action Required|AP: Waiting for merge|AP: Pretest waiting|AP: Pretest running|AP: UAT ready|AP: Release ready"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 1 ] || fail "k-missing-found-name: exit $RC, expected 1: $OUT"
+grep -q '^FAIL:.*Meilenstein' <<<"$OUT" || fail "k-missing-found-name: no FAIL line naming Meilenstein: $OUT"
+grep -q '^FAIL:.*Milestone' <<<"$OUT" || fail "k-missing-found-name: no FAIL line naming Milestone: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-missing-found-name"
+
+# k-proxy-ignored: proxy variables point at port 9, NO_PROXY unset, stub on 127.0.0.1: exit 0, ok line, no WARN line
+p=$(itsaplan_project k-proxy-ignored "$ITS_CFG")
+project_json "$ENG_COLS" "$ENG_LABELS"
+run_env "$p" -u NO_PROXY -u no_proxy ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key HTTP_PROXY=http://127.0.0.1:9 http_proxy=http://127.0.0.1:9
+[ "$RC" -eq 0 ] || fail "k-proxy-ignored: exit $RC, expected 0: $OUT"
+grep -q "foreman config check: ok" <<<"$OUT" || fail "k-proxy-ignored: missing ok line: $OUT"
+grep -q "WARN:" <<<"$OUT" && fail "k-proxy-ignored: unexpected WARN line: $OUT"
+echo "ok k-proxy-ignored"
+
 # k-no-key-in-output: the API key appears in no output of the failing and warning cases
 grep -q "secret-test-key" <<<"$FAIL_OUT" && fail "k-no-key-in-output: the API key appears in the output of a failing case"
 echo "ok k-no-key-in-output"
+
+# k-copy-identical: the template copy of check-config.sh is byte-identical to scripts/check-config.sh
+[ -f "$HERE/template/scripts/check-config.sh" ] || fail "k-copy-identical: template/scripts/check-config.sh is missing"
+cmp -s "$HERE/scripts/check-config.sh" "$HERE/template/scripts/check-config.sh" || fail "k-copy-identical: template/scripts/check-config.sh differs from scripts/check-config.sh (copy the file so both are identical)"
+echo "ok k-copy-identical"
 
 echo "check-config tests: ok"
