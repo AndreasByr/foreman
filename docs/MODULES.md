@@ -31,6 +31,7 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 - Wiki page head: `---`, then `audience` (exactly as in `.foreman.json`), `source` (repo paths) and `checked: no-ai-slop, humanizer`, then `---`. The head is removed before upload. Skill: `foreman-wiki`.
 - Scan (exit code 4, also with `--dry-run`): before any request, every page body and audience name is checked for internal terms (roadmap, fix pack, STATE.md and similar), hosts (IPs, localhost, internal suffixes, `ssh://`), secret shapes (tokens, keys; the matched text is never printed) and `wiki.forbidden` terms. Any finding refuses the whole run, one stderr line each: `docs-notion: <path>: <rule> (line N)`. A real publish also refuses pages with no head, an unknown audience, a folder that does not match the audience, no `source`, or `checked` without `no-ai-slop` and `humanizer` (exit 4). A dry run only reports those head problems on stderr.
 - Public page: after the first publish, make the Notion wiki page public by hand in Notion (Notion Sites or a share link). The script cannot do it.
+- Wiki todo: with `wiki.enabled` true, a milestone from batch-pr on needs a `Wiki:` line in its STATE.md (pages affected or "no change"); `state-mirror.mjs` reports a missing one as `PROBLEM` and exits 1.
 
 **Dispatcher settings** (module `autopilot`, see `dispatcher/README.md`):
 

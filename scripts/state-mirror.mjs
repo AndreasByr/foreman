@@ -12,6 +12,8 @@
 // Intervention: a unit in `needs-input` moves to the column "Action Required" and the ticket must carry an explanation
 // comment (question, options with consequences, recommendation, report link, how to answer). The mirror writes it from the
 // "Open question" section of STATE.md and `--check` fails while it is missing.
+// Wiki: with `wiki.enabled` in .foreman.json, a milestone from batch-pr on needs a `Wiki:` line in STATE.md (pages or
+// "no change"). A missing or placeholder line is a PROBLEM and the script exits 1 in every mode.
 // Models never set tracker statuses by hand; they run this script.
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -62,6 +64,20 @@ export function interventionProblems(units) {
   return units
     .filter((u) => u.status === "needs-input" && !openQuestion(u.stateText))
     .map((u) => `${u.id}: status needs-input but STATE.md has no "Open question" section with content`);
+}
+
+const WIKI_STATUSES = ["batch-pr", "awaiting-merge", "pretest-waiting", "pretest-running", "uat-ready", "release-ready", "done"];
+
+/** With wiki on: a milestone from batch-pr on needs its `Wiki:` line in STATE.md (pages affected or "no change"). */
+export function wikiProblems(units, conf) {
+  if (conf?.wiki?.enabled !== true) return [];
+  return units
+    .filter((u) => u.kind === "milestone" && WIKI_STATUSES.includes(u.status))
+    .filter((u) => {
+      const wiki = parseState(u.stateText).wiki;
+      return !wiki || wiki === "-" || wiki.startsWith("<");
+    })
+    .map((u) => `${u.id}: Wiki line missing in STATE.md (wiki is on)`);
 }
 
 // ---------- reading units ----------
@@ -211,7 +227,8 @@ async function main() {
   const units = args.includes("--local") ? unitsFromWorkingTree() : unitsFromBranches();
   console.log(`UNITS|${units.length}|tracker ${kind}`);
   let failed = false;
-  const problems = interventionProblems(units);
+  const wikiIssues = wikiProblems(units, conf);
+  const problems = [...interventionProblems(units), ...wikiIssues];
   for (const p of problems) { pending++; console.log(`PROBLEM|${p}`); }
   if (kind === "itsaplan") {
     if (!process.env.ITSAPLAN_URL || !process.env.ITSAPLAN_API_KEY) console.log("SKIP|itsaplan|ITSAPLAN_URL or ITSAPLAN_API_KEY missing");
@@ -222,7 +239,7 @@ async function main() {
     else await mirrorLinear(units, conf.mirror.linear, dry).catch((e) => { failed = true; console.log(`ERROR|linear|${e.message}`); });
   }
   if (check && pending > 0) console.log(`DIFF|${pending} changes pending`);
-  process.exit(failed || (check && pending > 0) ? 1 : 0);
+  process.exit(failed || wikiIssues.length > 0 || (check && pending > 0) ? 1 : 0);
 }
 
 export { mirrorItsaplan, mirrorLinear };

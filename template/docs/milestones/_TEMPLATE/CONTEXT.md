@@ -49,3 +49,9 @@ Commands without pipes: tests, typecheck, lint, build.
 ## Risks
 
 Permissions and tenant isolation, migrations, external services, login through a third party (provide a test login that is active only in `dev`/`test` behind its own switch; startup aborts with the switch on staging or production).
+
+## Wiki
+
+Only when `wiki.enabled` is true in `.foreman.json`; otherwise delete this section.
+
+- Check whether the wiki needs an update. The result goes into STATE.md as the `Wiki:` line (pages affected, or "no change"). Without that line a wiki-enabled milestone cannot close.

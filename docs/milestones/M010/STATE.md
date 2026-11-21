@@ -1,9 +1,10 @@
-Status: slice · since 2026-11-21T22:10Z · S4 läuft
+Status: validation · since 2026-11-22T00:10Z · Slices fertig, Validierung läuft
 Target: dev
 Batch-branch: batch/m010
 Lock: free
 Tracker: -
 Pretest-round: 0
+Wiki: no change (wiki is off in this repo)
 
 # M010: Öffentliches Wiki
 
@@ -16,7 +17,7 @@ Start commit: cd07088 (Basis dev 9950ab9, nach Merge von main)
 | S1 | Konfiguration: Block `wiki`, check-config, Installer-Standardwert | done | M010 S1 | install.sh, scripts/check-config.sh (+Template-Kopie), scripts/test-check-config.sh, scripts/test-install.sh, docs/MODULES.md, CHANGELOG.md | Sprache fällt auf context.language zurück |
 | S2 | Wiki-Dateien: Seitenformat, Kopfdaten, Skill `foreman-wiki`, Beispiel-Wiki im Test | done | M010 S2 | template/scripts/lib/docs-wiki.mjs, docs-notion.mjs (--wiki), test-docs-wiki.mjs, template/.claude/skills/foreman-wiki/SKILL.md, install.sh, update.py, test-install.sh, test-all.sh, MODULES.md, CHANGELOG.md | Veröffentlichen folgt in S3 (Exit 1 Platzhalter) |
 | S3 | Veröffentlichen: `--wiki`, Wiki-Scan, Ablehnung, Hook ohne Wiki | done | M010 S3 | template/scripts/docs-notion.mjs, lib/docs-wiki-scan.mjs, lib/docs-wiki-publish.mjs, test-docs-wiki.mjs, install.sh, update.py, test-install.sh, MODULES.md, CHANGELOG.md | Seitentitel in Notion sind virtuelle Pfade (Lib nutzt Pfad als Titel); --dry-run meldet Kopffehler nur als Hinweis, scheitert nur an Scan-Treffern |
-| S4 | Milestone-Todo: Vorlagen, foreman-brief, Prüfung der Wiki-Zeile in state-mirror | in progress | | | |
+| S4 | Milestone-Todo: Vorlagen, foreman-brief, Prüfung der Wiki-Zeile in state-mirror | done | M010 S4 | _TEMPLATE (beide), foreman-brief (SKILL, brief-template), foreman-milestone (2 Kopien), state.mjs, state-mirror.mjs (2 Kopien), test-state-mirror.mjs, test-wiki-todo.sh, test-all.sh, MODULES.md, CHANGELOG.md | Wiki-Problem lässt state-mirror in jedem Modus mit Exit 1 enden; Todo-Text in Vorlagen englisch |
 
 ## Check plan per slice
 
@@ -47,3 +48,4 @@ None recorded.
 - Korrektur Kriterium 1 im Brief: „kein installiertes File enthält wiki“ ist nicht haltbar (check-config.sh und die Milestone-Vorlagen sind immer installiert). Geprüft wird stattdessen: ohne Modul keine Wiki-Skript-, Lib- und Skill-Dateien.
 - 2026-11-21T22:45Z · S2: Test vorher rot (Lib fehlte, Import schlägt fehl), danach grün: test-docs-wiki, test-docs-notion, test-install, test-update-classes, test-update, test-plugin, test-update-skill, test-docs-rules, privacy-scan je Exit 0 · M010 S2
 - 2026-11-21T23:20Z · S3: Tests vorher rot (scanText not implemented), Worker `execution` Exit 1 (verify rot wegen Fehler im Test: `plainText` undefiniert); Sitzung hat den Testfehler behoben (1 Zeile), Rest war grün. Danach `bash scripts/test-all.sh` Exit 0 (inkl. privacy-scan; Secret-Beispiele im Test zur Laufzeit zusammengesetzt) · M010 S3
+- 2026-11-22T00:10Z · S4: Tests vorher rot (Vorlage ohne Todo, test-state-mirror Fehler), Worker execution_simple verify rot, Eskalation `execution` grün. Sitzung: Exit-Code nur bei Wiki-Problemen (nicht bei needs-input) eingeschränkt. `bash scripts/test-all.sh` Exit 0 · M010 S4

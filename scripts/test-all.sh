@@ -33,4 +33,5 @@ bash scripts/test-project-block.sh
 bash scripts/test-update-docs.sh
 bash scripts/privacy-scan.sh
 bash scripts/test-plugin.sh
+bash scripts/test-wiki-todo.sh
 python3 scripts/test-rules.py

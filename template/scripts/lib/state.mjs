@@ -44,6 +44,7 @@ export function parseState(text) {
     tracker: tracker && tracker !== "-" ? tracker.split(/\s/)[0].replace(/`/g, "") : "",
     pretestRound: parseInt(field(text, "Pretest-round") || "0", 10) || 0,
     lock: lockStamp ? stamp(lockStamp) : null,
+    wiki: field(text, "Wiki"),
   };
 }
 

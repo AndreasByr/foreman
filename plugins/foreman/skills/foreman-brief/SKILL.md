@@ -77,6 +77,7 @@ Rules:
 - Verification commands run as single commands, no pipes. Name the project's real test, typecheck, lint and build commands.
 - Reference requirements and design; do not copy them.
 - Technical demands from the human are fixed decisions with a short reason, not capabilities.
+- The brief carries the `## Wiki` section with the todo "Check whether the wiki needs an update" when `wiki.enabled` is true in `.foreman.json`.
 
 ### 5. Handoff
 

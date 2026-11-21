@@ -71,6 +71,7 @@ Limits: UAT and approval stay with the human. A reviewer or session never marks 
 - "Learned" (collected from slices, or "nothing new").
 - Metric line: `Bugs found only in UAT: _ (the human fills this after UAT; the session never does)`.
 - Proposed changelog points (New, Improved, Fixed; user-facing, no internals) as raw material for `docs/changelog/vX.Y.Z.md`. The file itself is written at release (`docs/versioning.md`).
+- When `wiki.enabled` is true in `.foreman.json`: check whether the wiki needs an update and write the `Wiki:` line into `STATE.md` (pages affected, or "no change") before `Status: batch-pr`. `node scripts/state-mirror.mjs --local` fails without it.
 
 Then set `Status: batch-pr` (autopilot) or tell the human the milestone is ready for a batch PR (`foreman-batch`).
 
