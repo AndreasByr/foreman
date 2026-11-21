@@ -70,9 +70,20 @@ It starts nothing and rejects model placeholders that setup has not filled in.
 
 `python3 tools/delegate/test_run_task.py`
 
+## Limits
+
+Two limits apply: the number of worker attempts per run (`max_calls_per_run`, default 12; reaching it stops the run with exit 1 and a report) and the requests per provider (`requests_per_minute`, `requests_per_hour` in `[limits.<provider>]`; the wrapper waits only when a free slot comes within `max_pause_seconds` (default 60 s); otherwise the provider is locked for the rest of the run. For the hourly window the wait is practically always longer, so a full hourly window means a lock).
+Endpoint providers (`ollama`, `gateway`) make up to 3 attempts in total (the first try plus two retries), each retry after a growing pause (`pause_seconds`, doubled after each failure, capped at `max_pause_seconds`), then fall back to `fallback_model`, or to the next role when there is none.
+After a failed Claude attempt that looks like a provider error (429, rate limit), the wrapper pauses before the next Claude attempt (same growing pause); three such failures in a row lock Claude. A timeout of a gateway or Ollama attempt is not retried; it goes straight to the fallback, and the provider is locked for the rest of the run (later roles skip it; the lock appears in `## Limits and locks`). A timeout of a Claude worker counts like any provider error for the Claude failure counter.
+A provider is locked after 3 failures in a row. The lock lasts only for the rest of the run. Every lock appears in the section `## Limits and locks` of the result and report files.
+The ledger (`ledger_file`, default `tasks/.limits.json`) records only the call times per provider.
+Per-role timeout: a role can set `timeout = <seconds>` in its `[roles.<name>]` block; without it the global `timeout_seconds` from `[defaults]` applies. An attempt that runs out reports the cause `timeout after <N>s`. A value of 0 or below is rejected with exit 2.
+
 ## Claude login of workers
 
-Claude workers reuse the login of the running session (`claude_login = "inherit"`, the default). This is required in Claude Code cloud sessions and routines: the login belongs to the session, so a worker with a clean `HOME` and no token fails with "Not logged in". Keys of other providers, trackers and tokens (`ANTHROPIC_API_KEY`, `OLLAMA_API_KEY`, `LLM_GATEWAY_KEY`, `ITSAPLAN_*`, `LINEAR_*`, `GITHUB_TOKEN`, `*_FIRE_TOKEN`, Discord tokens) are stripped either way.
+Claude workers reuse the login of the running session (`claude_login = "inherit"`, the default). This is required in Claude Code cloud sessions and routines: the login belongs to the session, so a worker with a clean `HOME` and no token fails with "Not logged in". Keys of other providers, trackers and tokens (`ANTHROPIC_API_KEY`, `OLLAMA_API_KEY`, `FOREMAN_GATEWAY_KEY`, `FOREMAN_GATEWAY_URL`, `ITSAPLAN_*`, `LINEAR_*`, `GITHUB_TOKEN`, `*_FIRE_TOKEN`, Discord tokens) are stripped either way.
+
+The gateway variables never reach Claude workers.
 
 `claude_login = "isolated"` gives workers a clean `HOME`; then only `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) logs them in. `ANTHROPIC_API_KEY` is rejected: subscription only.
 

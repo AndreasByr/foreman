@@ -57,7 +57,7 @@ Present the steps once as a numbered list with minutes, then work through them o
    4. Export the reference canvas as HTML to `docs/design-reference/` so the Agent can read it.
    5. If the repo has a token file with a CI check, every later change to `design.md` updates that file in the same commit.
    Write the conflict order into the repo: requirements > design.md > roadmap > milestone brief.
-4. **Repo setup (10 min with the command ready).** Check scope and modules in `.foreman.json`. Branches `main` and `dev`; with staging and production separated also `prod`; with Autopilot also the batch branches. Guards active (`git config core.hooksPath .githooks`). `tools/delegate/config.toml` has exact model IDs (see `foreman-setup`). `CLAUDE.md` carries the `Workflow:` line.
+4. **Repo setup (10 min with the command ready).** Check scope and modules in `.foreman.json`. Branches `main` and `dev`; with staging and production separated also `prod`; with Autopilot also the batch branches. Guards active (`git config core.hooksPath .githooks`). `tools/delegate/config.toml` has its model IDs filled in (see `foreman-setup`). `CLAUDE.md` carries the `Workflow:` line.
 5. **Recommended skills for this project (5 min).** Ask again, per project: which of the recommended skills (`foreman-setup`, `references/recommended-skills.md`), and global or project scope. Skills already installed globally are not asked again. Run or print the command only after a yes.
 6. **Tracker project (10 to 20 min).** Read `references/tracker-and-dispatcher.md`.
    - itsaplan: a project with the status columns and labels, bot account key as `ITSAPLAN_API_KEY`.

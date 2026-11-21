@@ -5,7 +5,8 @@
 #                [--modules tracker-itsaplan|tracker-linear,delegate,gateway,autopilot,pretest]
 #                [--scope docs|repo|autopilot] [--agent claude-code|opencode|other]
 #                [--recommended-skills all|none|<name,name>] [--skills-scope global|project]
-#                [--session-model <exact model id>] [--no-staging] [--force] [--dry-run]
+#                [--session-model <exact model id>] [--chatgpt-via-gateway accepted-risk]
+#                [--no-staging] [--force] [--dry-run]
 #
 # Existing files are never overwritten without --force. An existing CLAUDE.md is kept and the
 # foreman rules are written to CLAUDE.foreman.md for you to merge. An existing .claude/settings.json
@@ -20,7 +21,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE="$HERE/template"
 VERSION="$(cat "$HERE/VERSION" 2>/dev/null || echo 0.2.0)"
 
-target="" project="" name="" modules="" scope="" model="" agent=claude-code rec="" skills_scope="" staging=yes force=no dry=no
+target="" project="" name="" modules="" scope="" model="" agent=claude-code chatgpt="" chatgpt_given=no rec="" skills_scope="" staging=yes force=no dry=no
 while [ $# -gt 0 ]; do
   case "$1" in
     --project) project="$2"; shift 2 ;;
@@ -29,6 +30,7 @@ while [ $# -gt 0 ]; do
     --scope) scope="$2"; shift 2 ;;
     --session-model) model="$2"; shift 2 ;;
     --agent) agent="$2"; shift 2 ;;
+    --chatgpt-via-gateway) chatgpt="${2-}"; chatgpt_given=yes; shift 2 ;;
     --recommended-skills) rec="$2"; shift 2 ;;
     --skills-scope) skills_scope="$2"; shift 2 ;;
     --no-staging) staging=no; shift ;;
@@ -59,6 +61,10 @@ for m in ${modules//,/ }; do
 done
 modules="$(printf '%s\n' "${norm[@]:-}" | awk 'NF && !s[$0]++' | paste -sd, -)"
 has() { [[ ",$modules," == *",$1,"* ]]; }
+if [ "$chatgpt_given" = yes ]; then
+  [ "$chatgpt" = accepted-risk ] || { echo "--chatgpt-via-gateway only accepts the value accepted-risk (informed consent, see README.md)" >&2; exit 2; }
+  has gateway || { echo "--chatgpt-via-gateway needs module gateway" >&2; exit 2; }
+fi
 if has tracker-itsaplan && has tracker-linear; then echo "tracker-itsaplan and tracker-linear exclude each other; choose one (or none)" >&2; exit 2; fi
 case "$agent" in claude-code|opencode|other) ;; *) echo "--agent must be claude-code, opencode or other" >&2; exit 2 ;; esac
 case "$skills_scope" in ""|global|project) ;; *) echo "--skills-scope must be global or project" >&2; exit 2 ;; esac
@@ -183,7 +189,9 @@ PY
   fi
   if has gateway; then
     mkdir -p "$target/tools/gateway"
-    for g in README.md litellm.config.example.yaml; do
+    gfiles=(README.md litellm.config.example.yaml)
+    [ "$chatgpt" = accepted-risk ] && gfiles+=(litellm.chatgpt.example.yaml)
+    for g in "${gfiles[@]}"; do
       if [ -e "$target/tools/gateway/$g" ] && [ "$force" = no ]; then kept+=("tools/gateway/$g"); continue; fi
       cp "$HERE/gateway/$g" "$target/tools/gateway/$g"; installed+=("tools/gateway/$g")
     done

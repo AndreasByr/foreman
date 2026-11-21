@@ -2,6 +2,13 @@
 
 Why the rules in foreman exist. Skills hold the rule; the story lives here. Projects keep their own `docs/learnings.md` in the same format (one bullet per lesson, newest at the top).
 
+## From foreman itself
+
+- The gateway key had two names (`FOREMAN_GATEWAY_KEY` in the conventions, `LLM_GATEWAY_KEY` in the setup references) and the worker block list knew only one, so the key could reach a Claude worker. One name, `FOREMAN_GATEWAY_*` (the convention name won because the config, README and work-run template already used it), and a test that checks the worker environment for both old and new names. Existing installations that set `LLM_GATEWAY_*` must rename the variables.
+- Aliases like `opusplan` change silently and ran autonomous work on a smaller model, so model IDs are written exact. Gateway roles use the proxy's `task-*` aliases because the proxy maps them to models.
+- Workers in acceptEdits mode could edit skills, hooks and settings under `.claude/`, and with them the guard that restricts them. Workers are kept out of `.claude/`; only the session changes it.
+- A worker that reads a key file puts the secret into its transcript and result file. Existence and permissions are enough to diagnose a problem, so workers never read key files.
+
 ## From the reference project
 
 - The Stand line of a roadmap in a reference project carried the change history of versions 9 to 27 in one paragraph, and every run read it. The rule now says: one version in the Stand line, history below it or in the git log. `docs-check` reports a violation.

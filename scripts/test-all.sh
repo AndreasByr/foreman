@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs every foreman test: guard, pre-push hook, mirror, dispatcher check, pretest runner, docs rules and docs check, wrapper, dispatcher, installer, privacy scan.
+# Runs every foreman test: guard, pre-push hook, mirror, dispatcher check, pretest runner, docs rules and docs check, wrapper, dispatcher, installer, privacy scan, rules lint.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 python3 template/scripts/test-guard.py
@@ -18,3 +18,4 @@ bash scripts/test-check-config.sh
 bash scripts/test-dispatcher-docs.sh
 bash scripts/privacy-scan.sh
 bash scripts/test-plugin.sh
+python3 scripts/test-rules.py
