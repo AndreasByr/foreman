@@ -538,7 +538,7 @@ Go/no-go: Projekteigene Dateien bleiben beim Update unverändert.
 
 ---
 
-### Dependencies
+**Status:** done (UAT vom Menschen abgenommen, 2026-11-21; PR #16 in dev)
 
 - **Blocked by:** M006 (approved), M001 (approved)
 - **Blocks:** M012

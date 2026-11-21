@@ -1,4 +1,4 @@
-Status: uat-ready · since 2026-11-21T19:42Z · PR #16 in dev gemergt (b45dbac), UAT-Liste docs/uat/M007.md
+Status: done · since 2026-11-21T19:56Z · UAT vom Menschen abgenommen, PR #16 in dev
 Target: dev
 Batch-branch: batch/m007
 Lock: free
@@ -56,3 +56,4 @@ Keine.
 - 2026-11-21T19:45Z · Validierung Runde 1: A needs-attention, B pass, C needs-attention (mittel: Testläufer stoppt beim ersten Fehler, Fehlerpfad-Tests, CHANGELOG-Check zu lose)
 - 2026-11-21T19:50Z · R1: rot `node dispatcher/tests/test-dispatch.mjs` Exit 1 (4 FAIL mit neuem Läufer) auf 43d0b81+Tests; grün danach Exit 0, 72 Tests; `bash scripts/test-all.sh` Exit 0 · 3630059
 - 2026-11-21T19:42Z · Batch-PR #16 nach dev gemergt, CI grün (guards, test) · b45dbac
+- 2026-11-21T19:56Z · UAT M007 approved; Versionsquelle: GitHub-Release als Standard, local bis 0.2.2 und bei privatem Repo · 432ab3e
