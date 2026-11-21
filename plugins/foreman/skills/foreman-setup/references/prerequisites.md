@@ -90,12 +90,16 @@ Why: cheap workers for the `delegate` module. Create an account and an API key; 
 
 ## Gateway with a ChatGPT subscription (about 45 min, optional)
 
-Why: pay only subscription costs, no API billing. LiteLLM proxy with Ollama and a ChatGPT subscription (Codex sign-in, provider prefix `chatgpt/`) behind one endpoint. Fallback to `claude -p` when limits run out. Example: `gateway/litellm.config.example.yaml` in foreman.
+Why: pay only subscription costs, no API billing. LiteLLM proxy with Ollama and a ChatGPT subscription (Codex sign-in, provider prefix `chatgpt/`) behind one endpoint. Fallback to `claude -p` when limits run out. Example: `gateway/litellm.chatgpt.example.yaml` in foreman (the ChatGPT targets; the installer copies it only with `--chatgpt-via-gateway accepted-risk`). The base example without ChatGPT is `gateway/litellm.config.example.yaml`.
+
+This route needs the human's informed consent (risk notice in `gateway/README.md`): the install command gets `--chatgpt-via-gateway accepted-risk` only after the human said yes, and without it no ChatGPT target is written.
 
 1. Run the proxy in Docker on a machine reachable from the work run.
 2. Avoid LiteLLM versions 1.82.7 and 1.82.8.
 3. Create virtual keys for the `task-*` roles only. Do not log prompts.
-4. Set `LLM_GATEWAY_URL` and `LLM_GATEWAY_KEY` in the cloud environment.
+4. Set `FOREMAN_GATEWAY_KEY` in the cloud environment. The gateway URL is `[gateway] base_url` in `tools/delegate/config.toml` (the installer writes it); if `base_url` is empty, the wrapper reads `FOREMAN_GATEWAY_URL`.
+
+Risk notice: this is not an official Codex client, and automatic use may violate the terms of use and get the subscription blocked. Alternatives: the official Codex CLI as worker, an API key with its own budget, or Ollama and Claude only; the human decides (see `gateway-block.md`).
 
 ## No deploy knowledge
 

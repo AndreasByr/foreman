@@ -9,7 +9,7 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 | `tracker-linear` (optional) | the same mirror to Linear, without sub-issues; done tickets archived after 7 days | `LINEAR_API_KEY`, a team with the states `In Progress`, `Wait for Merge`, `Testing`, `In Review`, `Done` (and `Action Required`, else `In Progress` is used) |
 | none (no tracker module) | nothing to mirror; questions, answers and UAT approvals live in files: `docs/answers/<unit>.md` (`Answer <unit>: ...`), `docs/uat/<unit>.md` (`UAT <unit> approved` or all points ticked), or the chat payload | nothing |
 | `delegate` | worker roles on Ollama Cloud models (Anthropic-compatible endpoint) | `OLLAMA_API_KEY` in the cloud environment, network access to `ollama.com` |
-| `gateway` | optional LiteLLM proxy in front of Ollama Cloud and a ChatGPT subscription (Codex OAuth) as a second worker backend; falls back to `claude -p` on your Claude subscription | a small server, `FOREMAN_GATEWAY_KEY` (virtual key); `gateway/` docs are copied to `tools/gateway/` |
+| `gateway` | optional LiteLLM proxy in front of Ollama Cloud and, optionally, a ChatGPT subscription (Codex OAuth, needs `--chatgpt-via-gateway accepted-risk`) as a second worker backend; falls back to `claude -p` on your Claude subscription | a small server, `FOREMAN_GATEWAY_KEY` (virtual key); `gateway/` docs are copied to `tools/gateway/` |
 | `autopilot` | `scripts/autopilot-check.sh` (the dispatcher's check), the work-run routine docs, `foreman-dispatch-run`; the central dispatcher in this repo's `dispatcher/` runs on your server | GitHub or similar, Claude Code routines (API trigger), a machine that is on for the dispatcher (or Plan B, see below) |
 | `pretest` | `foreman-pretest`, the headless pretest runner, UAT checklist script, test-login pattern doc | a test login in your app (`docs/test-login.md`), dev or staging environment, Playwright and axe-core installed in the worktree at run time |
 
@@ -60,6 +60,24 @@ Claude Code is the recommended agent: routines with API trigger are the dispatch
 | execution_simple | small | Ollama or `task-simple` |
 | completion, subagent | small | Ollama or `task-simple` |
 | fallback on provider outage | – | small Claude through `claude -p` |
+
+## Gateway options
+
+`install.sh --gateway-url <url> --fallback-model <claude/id>` writes the gateway preset into `tools/delegate/config.toml` and adds modules `delegate` and `gateway` if they are missing. The URL must be `https://`; plain `http` is accepted only for `localhost` or `127.0.0.1`. The fallback model is the exact Claude model ID that the wrapper uses when the gateway is down. ChatGPT routing (`task-normal`) happens only with `accepted-risk`, given as `--chatgpt-via-gateway accepted-risk` or stored as `chatgptViaGateway` in the workspace file; read the risk notice in `gateway/README.md` first. `declined` overrides a stored value, and without a gateway no preset is written. The URL rule is strict (https, plain host, no query, no secret-like path segment) and the preset needs `--scope repo` or `autopilot`. For an existing install (config.toml is kept without `--force`), run by hand: `python3 <foreman-repo>/scripts/gateway-preset.py tools/delegate/config.toml --url <url> --key-env FOREMAN_GATEWAY_KEY --fallback-model <claude/id> [--chatgpt]`. A changed workspace file updates only the `infra` block of an existing `.foreman.json` when you re-run the installer with `--workspace`. Defaults for URL, key variable (`FOREMAN_GATEWAY_KEY` unless set) and the ChatGPT choice come from `--workspace` when `gateway.running` is `yes`; flags win. The installer never reads or prints the key value: the config holds only the variable name.
+
+## Measurement (M011)
+
+`scripts/measure.mjs` measures a period. Per unit (milestone or fix pack): run minutes, minutes waited on a human, and reports. Per intervention: its cause. Per worker attempt: role, model and fallbacks. It reads `docs/milestones/*/STATE.md`, `docs/fixpacks/*/STATE.md`, `docs/agent-reports/` and the worker result files in `tools/delegate/tasks/`. No network, no environment variables, and no writes except its output.
+
+```
+node scripts/measure.mjs [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--root <dir>] [--results <dir>] [--strict]
+```
+
+The default period is the last 7 days, the root is the current directory. The output is `docs/metrics.md`: the whole file is regenerated on every run, and it covers one project only. For a fixed period (`--since` and `--until` both given) two runs differ only in the `Erzeugt:` line. A unit belongs to the period by its newest log time; worker result files belong to it by file modification time (copying them without keeping the time shifts them). The file holds numbers, unit ids, cause categories, role and model names, and gap texts; never titles, questions or cause sentences. `--strict` exits 1 when gaps exist (the file is still written). An invalid date or option exits 2 and writes nothing.
+
+Every "Open question" section of a STATE.md carries one cause line, `**Cause:** <category> · <one sentence>`. Categories: `missing-requirement`, `open-decision`, `missing-infra`, `merge-conflict`, `ui-deviation`, `limit-exceeded`, `security`, `other`. An intervention without a valid category counts as "without valid cause" and is listed as a gap.
+
+The result files (`tools/delegate/tasks/*.result.md`) exist only on the machine where the workers ran. On any other machine the report shows them as a gap, not as zero.
 
 ## Updating a project
 

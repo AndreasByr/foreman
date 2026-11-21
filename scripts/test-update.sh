@@ -267,4 +267,21 @@ OUT=$(cat "$T/upd.out"); ERR=$(cat "$T/upd.err")
 case "$ERR" in *"cannot check local changes"*) ;; *) fail "15: stderr lacks 'cannot check local changes': $ERR" ;; esac
 [ "$(tree_hash "$d")" = "$h" ] || fail "15: tree changed"
 
+# 16. optional ChatGPT gateway file: updated only where it exists, never created by update
+d="$T/gwopt"; mkdir "$d"
+inst "$d" --project gwopt --modules gateway --session-model test-model-id >/dev/null 2>&1 || fail "16: install failed"
+as_old "$d"
+upd "$d"
+[ "$RC" = 0 ] || fail "16a: update exit $RC: $ERR"
+case "$OUT" in *litellm.chatgpt.example.yaml*) fail "16a: update names the optional file: $OUT" ;; esac
+[ ! -e "$d/tools/gateway/litellm.chatgpt.example.yaml" ] || fail "16a: update created the optional file"
+mkdir -p "$d/tools/gateway"
+cp "$HERE/gateway/litellm.chatgpt.example.yaml" "$d/tools/gateway/"
+echo "# local test line" >> "$d/tools/gateway/litellm.chatgpt.example.yaml"
+as_old "$d"
+upd "$d"
+[ "$RC" = 0 ] || fail "16b: update exit $RC: $ERR"
+need_line "16b" "  update  tools/gateway/litellm.chatgpt.example.yaml"
+cmp -s "$d/tools/gateway/litellm.chatgpt.example.yaml" "$HERE/gateway/litellm.chatgpt.example.yaml" || fail "16b: optional file differs from the repo's file after update"
+
 echo "update tests: ok"

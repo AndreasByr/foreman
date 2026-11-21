@@ -53,7 +53,7 @@ Points follow, numbered `F1`, `F2`, ... Each is `Fix:` or `Analysis:` with probl
    - What only the browser or only the human can prove (re-test list for the next pretest), each with its reason. Pretest gets only what a local browser run cannot prove; the human gets only points needing a real second account or a product decision.
    - "Learned" (or "nothing new").
    Commit and push.
-8. Set the next status per `STATE.md` rules: `awaiting-merge` (all passed), `needs-input` (blocked or review open).
+8. Set the next status per `STATE.md` rules: `awaiting-merge` (all passed), `needs-input` (blocked or review open). Every `needs-input` writes the `**Cause:** <category> · <one sentence>` line in its Open question section; a missing cause is reported as a gap by `scripts/measure.mjs`.
 
 ## Out of context or time
 

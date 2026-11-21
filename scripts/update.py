@@ -16,6 +16,8 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE = os.path.join(HERE, "template")
 GATEWAY = os.path.join(HERE, "gateway")
 GATEWAY_FILES = ("README.md", "litellm.config.example.yaml")
+# Updated only where the project already has them (ChatGPT route accepted at install); update never creates them.
+GATEWAY_OPTIONAL = ("litellm.chatgpt.example.yaml",)
 
 # Skip rules: these mirror skip_file() in install.sh. Keep both in sync.
 AUTOPILOT_OFF = ("docs/routines/", "scripts/autopilot-check.", "scripts/test-autopilot-check.mjs",
@@ -196,6 +198,9 @@ def main(argv):
     if "gateway" in modules:
         for g in GATEWAY_FILES:
             sources.append(("tools/gateway/" + g, os.path.join(GATEWAY, g), "foreman"))
+        for g in GATEWAY_OPTIONAL:
+            if os.path.lexists(os.path.join(target, "tools", "gateway", g)):
+                sources.append(("tools/gateway/" + g, os.path.join(GATEWAY, g), "foreman"))
     sources.sort(key=lambda s: s[0])
 
     # --- plan
