@@ -92,6 +92,10 @@ Close with the status line and the list of what is already done.
 
 When the human reports the install ran: check `.foreman.json` (version `0.2.0`, agent, modules), run the repo's checks if you have a shell (`bash scripts/check-config.sh`), then hand over to `foreman-project`. Model IDs in `tools/delegate/config.toml`: propose a distribution by role from `references/delegation.md` after checking the current model lists for newer versions; the human decides per row.
 
+### 9. Claude Code project (optional, 2 min)
+
+If you run in a Claude Code project (project chat plus threads), run `foreman-project-mode` after the install: it writes the foreman rules into the project instructions, so every thread works the same way. It is also the update path for projects that already have foreman.
+
 ## Rules
 
 - Routines are created in the Claude Code routines UI or from a Claude Code session in the cloud environment, never from chat.
