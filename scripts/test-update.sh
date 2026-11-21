@@ -51,6 +51,11 @@ need_line "1 dry" "  keep  docs/learnings.md"
 need_line "1 dry" "foreman update: dry run, nothing written"
 printf '%s\n' "$OUT" | grep -q '^summary: ' || fail "1 dry: summary line missing"
 [ "$(tree_hash "$d")" = "$h0" ] || fail "1: dry run changed the tree"
+# 11. mixed files show the difference
+need_line "11 dry" "diff CLAUDE.md (current vs template):"
+need_line "11 dry" "-my own line in CLAUDE.md"
+printf '%s\n' "$OUT" | grep -q '^--- current' || fail "11 dry: no line starting with '--- current'"
+printf '%s\n' "$OUT" | grep -q '^+++ template' || fail "11 dry: no line starting with '+++ template'"
 upd "$d"
 [ "$RC" = 0 ] || fail "1: update exit $RC: $ERR"
 need_line "1 update" "foreman update: done"
@@ -86,6 +91,7 @@ for set in "none" "delegate" "autopilot,pretest" "gateway" "tracker-linear,deleg
   upd "$d"
   [ "$RC" = 0 ] || fail "2 ($set): update exit $RC: $ERR"
   need_line "2 ($set)" "nothing to do"
+  case "$OUT" in *"diff "*) fail "11 ($set): identical mixed files produce a diff section: $OUT" ;; esac
   [ "$(tree_hash "$d")" = "$h" ] || fail "2 ($set): tree changed"
 done
 
@@ -177,5 +183,62 @@ need_line "8" "  new  scripts/lib/state.mjs"
 need_line "8" "  create  docs/learnings.md"
 [ -f "$d/scripts/lib/state.mjs" ] || fail "8: state.mjs not restored"
 [ -f "$d/docs/learnings.md" ] || fail "8: learnings.md not created"
+
+# 9. git worktree target
+gitinit "$T/wtmain"
+inst "$T/wtmain" --project wt --session-model test-model-id >/dev/null 2>&1 || fail "9: install failed"
+commit "$T/wtmain" install
+git -C "$T/wtmain" worktree add "$T/wtree" -b wtbranch -q || fail "9: worktree add failed"
+[ -f "$T/wtree/.git" ] || fail "9: .git of the worktree is not a file"
+as_old "$T/wtree"; commit "$T/wtree" old
+echo "// local edit" >> "$T/wtree/scripts/lib/state.mjs"
+upd "$T/wtree"
+[ "$RC" = 2 ] || fail "9: exit $RC, expected 2; stderr: $ERR"
+printf '%s' "$ERR" | grep -q 'scripts/lib/state.mjs' || fail "9: stderr does not name scripts/lib/state.mjs: $ERR"
+
+# 10. subfolder target inside a repo
+gitinit "$T/mono"; mkdir "$T/mono/sub"
+inst "$T/mono/sub" --project mono --session-model test-model-id >/dev/null 2>&1 || fail "10: install failed"
+commit "$T/mono" install
+as_old "$T/mono/sub"; commit "$T/mono" old
+echo "// local edit" >> "$T/mono/sub/scripts/lib/state.mjs"
+upd "$T/mono/sub"
+[ "$RC" = 2 ] || fail "10: exit $RC, expected 2; stderr: $ERR"
+printf '%s' "$ERR" | grep -q 'scripts/lib/state.mjs' || fail "10: stderr does not name scripts/lib/state.mjs: $ERR"
+
+# 12. a missing mixed file is created
+d="$T/mixmiss"; mkdir "$d"
+inst "$d" --project mixmiss --modules delegate --session-model test-model-id >/dev/null 2>&1 || fail "12: install failed"
+rm "$d/tools/delegate/config.toml"
+upd "$d"
+[ "$RC" = 0 ] || fail "12: update exit $RC: $ERR"
+need_line "12" "  create  tools/delegate/config.toml"
+[ -f "$d/tools/delegate/config.toml" ] || fail "12: config.toml not created"
+
+# 13. unknown option, and .foreman.json as a symlink out of the target
+d="$T/bog"; mkdir "$d"
+inst "$d" --project bog --session-model test-model-id >/dev/null 2>&1 || fail "13: install failed"
+upd "$d" --bogus
+[ "$RC" = 2 ] || fail "13: --bogus exit $RC, expected 2; stderr: $ERR"
+case "$ERR" in "foreman update:"*) ;; *) fail "13: --bogus stderr does not start with 'foreman update:': $ERR" ;; esac
+d="$T/fsl"; mkdir "$d"
+inst "$d" --project fsl --session-model test-model-id >/dev/null 2>&1 || fail "13: install failed"
+as_old "$d"
+mkdir -p "$T/outside2"
+mv "$d/.foreman.json" "$T/outside2/foreman.json"; ln -s "$T/outside2/foreman.json" "$d/.foreman.json"
+ho=$(sha256sum "$T/outside2/foreman.json")
+upd "$d"
+[ "$RC" = 2 ] || fail "13: symlinked .foreman.json exit $RC, expected 2; stderr: $ERR"
+printf '%s' "$ERR" | grep -q 'outside' || fail "13: stderr does not mention 'outside': $ERR"
+[ "$(sha256sum "$T/outside2/foreman.json")" = "$ho" ] || fail "13: outside file was changed"
+
+# 14. pre-release project version is not newer
+d="$T/rc"; mkdir "$d"
+inst "$d" --project rc --session-model test-model-id >/dev/null 2>&1 || fail "14: install failed"
+sed -i 's/"foreman": *"[^"]*"/"foreman": "0.2.1-rc1"/' "$d/.foreman.json"
+grep -q '"foreman": *"0.2.1-rc1"' "$d/.foreman.json" || fail "14: could not set 0.2.1-rc1"
+upd "$d"
+case "$ERR" in *newer*) fail "14: pre-release 0.2.1-rc1 rejected as newer: $ERR" ;; esac
+[ "$RC" = 0 ] || fail "14: update exit $RC: $ERR"
 
 echo "update tests: ok"

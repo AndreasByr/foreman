@@ -16,9 +16,10 @@ Start commit: c6b3149 (dev, Baseline: bash scripts/test-all.sh exit 0)
 | S1 | Dateiklassen | done | 5f0deb7 | update-classes.json, scripts/test-update-classes.sh | |
 | S2 | Upgrade-Abschnitte | done | ec101eb | CHANGELOG.md, scripts/test-changelog.sh | |
 | S3 | `install.sh --update` | done | 740ee69 | install.sh, scripts/update.py, scripts/test-update.sh | |
-| S4 | Skill foreman-update | done | 45134b6 | plugins/foreman/skills/foreman-update/, scripts/test-plugin.sh | |
+| S4 | Skill foreman-update | done | 45134b6 | plugins/foreman/skills/foreman-update/, scripts/test-update-skill.sh | |
 | S5 | Projektanweisung | done | 0a50add | plugins/foreman/skills/foreman-project-mode/ (Skript + Doku), foreman-update, scripts/test-project-block.sh | |
 | S6 | Doku und Learnings | done | 86eea2b | docs/MODULES.md, README.md, docs/learnings.md | |
+| R1 | Rework Runde 1 (Validierung): Git-Worktree und Unterordner, Diff für gemischte Dateien, `check-config` im Projekt, Skill-Test mit Durchlauf, CHANGELOG-Struktur | in progress | | scripts/update.py, install.sh, SKILL.md, CHANGELOG.md, docs/MODULES.md, Tests | |
 
 ## Check plan per slice
 
@@ -27,7 +28,7 @@ Start commit: c6b3149 (dev, Baseline: bash scripts/test-all.sh exit 0)
 | S1 | Jede Datei aus `template/` passt auf genau eine Regel in `update-classes.json`; keine Regel ohne Datei; Klassen nur `foreman`, `project`, `mixed` | `bash scripts/test-update-classes.sh` | automatic | n/a, keine UI |
 | S2 | Jede Version in `CHANGELOG.md` hat „### Upgrade“; Unreleased nennt `pass_env`, `webhook_format`, `mainAutoMerge` | `bash scripts/test-changelog.sh` | automatic | n/a |
 | S3 | Siehe Brief 3 bis 6: Anpassungen bleiben, Dry-Run schreibt nichts, zweiter Lauf „nichts zu tun“, Version erst nach Erfolg, Fehlerfälle ohne Schreiben, ungesicherte Änderungen brechen ab | `bash scripts/test-update.sh`, `bash scripts/test-install.sh` | automatic | n/a |
-| S4 | Plugin-Validierung grün mit dem neuen Skill; Skill beschreibt Versionsvergleich, Änderungsliste, nummerierte Checkliste mit Minuten, Auftrag, Module nur nach Ja | `bash scripts/test-plugin.sh` (erweitert um Inhaltsprüfung) | automatic | n/a |
+| S4 | Plugin-Validierung grün mit dem neuen Skill; Skill beschreibt Versionsvergleich, Änderungsliste, nummerierte Checkliste mit Minuten, Auftrag, Module nur nach Ja | `bash scripts/test-update-skill.sh`, `bash scripts/test-plugin.sh` | automatic | n/a |
 | S5 | Block `v0` meldet „outdated“, aktueller Block „current“, ohne Markierung „missing“; Checklistenzeile im Skill | `bash scripts/test-project-block.sh` | automatic | n/a |
 | S6 | `docs/MODULES.md`, `README.md` nennen `--update`; Begründungen in `docs/learnings.md`; Skills nur Regel | `bash scripts/test-update-docs.sh`, `bash scripts/test-all.sh` | automatic | n/a |
 

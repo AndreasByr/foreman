@@ -69,9 +69,9 @@ Every file in `template/` has one class in `update-classes.json`:
 
 - `foreman`: replaced by the current version.
 - `project`: kept as it is.
-- `mixed`: `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`, `tools/delegate/config.toml`. Only reported, never changed, because a project's own edits must survive.
+- `mixed`: `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`, `tools/delegate/config.toml`. Never overwritten, because a project's own edits must survive. A missing one is created. For the ones that differ, the update prints a diff against the rendered template.
 
-`version` in `.foreman.json` is written last. A failed update leaves it unchanged, so a rerun finishes the work. `--update` never adds modules. It stops when foreman-owned files have uncommitted changes.
+`version` in `.foreman.json` is written last. A failed update leaves it unchanged, so a rerun finishes the work. `--update` never adds modules. It stops when foreman-owned files have uncommitted changes. Foreman-owned files that a project patched and committed are replaced too, so read the `update` lines before you run it for real.
 
 The steps for each version are in the `### Upgrade` part of its section in `CHANGELOG.md`.
 

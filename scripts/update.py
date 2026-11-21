@@ -5,6 +5,7 @@ Normally called through `./install.sh <target> --update [--dry-run]`.
 Plans everything first (all preconditions), writes afterwards. Python 3 standard library only.
 """
 import json
+import difflib
 import os
 import re
 import subprocess
@@ -41,10 +42,10 @@ def skip_file(rel, scope, modules, agent):
 
 
 def vtuple(s):
-    parts = re.findall(r"\d+", s)
-    if not parts:
+    m = re.match(r"\s*v?(\d+)\.(\d+)\.(\d+)", s)
+    if not m:
         return None
-    return tuple(int(p) for p in parts)
+    return tuple(int(p) for p in m.groups())
 
 
 def contained(real_target, path):
@@ -198,6 +199,7 @@ def main(argv):
     sources.sort(key=lambda s: s[0])
 
     # --- plan
+    mixed_keep = []  # (rel, current bytes, template bytes)
     plan = []  # (action, rel, data, mode, note)
     counts = {"new": 0, "update": 0, "create": 0, "keep": 0, "unchanged": 0}
     for rel, src, forced in sources:
@@ -228,21 +230,34 @@ def main(argv):
         else:
             die(2, "unknown class %r for %s" % (cls, rel))
         counts[action] += 1
+        if cls == "mixed" and action == "keep" and cur is not None:
+            mixed_keep.append((rel, cur, data))
         if action != "unchanged":
             plan.append((action, rel, data, mode, "  (mixed: merge by hand)" if (cls == "mixed" and action == "keep") else ""))
 
     # --- dirty check
     to_update = [p[1] for p in plan if p[0] == "update" and os.path.lexists(os.path.join(target, *p[1].split("/")))]
-    if to_update and os.path.isdir(os.path.join(target, ".git")):
+    git_note = False
+    if to_update:
+        env = dict(os.environ, GIT_OPTIONAL_LOCKS="0")
         try:
-            res = subprocess.run(["git", "-C", target, "status", "--porcelain", "-z", "--"] + to_update,
-                                 capture_output=True, check=True)
-        except (OSError, subprocess.CalledProcessError):
-            die(2, "cannot run git status in %s" % target)
-        dirty = [e[3:].decode("utf-8", "replace") for e in res.stdout.split(b"\0") if len(e) > 3]
-        if dirty:
-            die(2, "uncommitted changes in foreman files that would be overwritten (commit or stash them): %s"
-                % ", ".join(dirty))
+            inside = subprocess.run(["git", "-C", target, "rev-parse", "--is-inside-work-tree"],
+                                    capture_output=True, env=env)
+            in_tree = inside.returncode == 0 and inside.stdout.strip() == b"true"
+        except OSError:
+            in_tree = False
+        if not in_tree:
+            git_note = True
+        else:
+            try:
+                res = subprocess.run(["git", "-C", target, "status", "--porcelain", "-z", "--no-renames", "--"]
+                                     + to_update, capture_output=True, check=True, env=env)
+            except (OSError, subprocess.CalledProcessError):
+                die(2, "cannot run git status in %s" % target)
+            dirty = [e[3:].decode("utf-8", "replace") for e in res.stdout.split(b"\0") if len(e) > 3]
+            if dirty:
+                die(2, "uncommitted changes in foreman files that would be overwritten (commit or stash them): %s"
+                    % ", ".join(dirty))
 
     # --- version bump text
     bump = None
@@ -258,12 +273,24 @@ def main(argv):
 
     # --- report
     out = ["foreman update: %s -> %s" % (old, new), "target: %s" % target]
+    if git_note:
+        out.append("note: not a git repository, local changes not checked")
     if dry:
         out.append("(dry run, nothing written)")
     for action, rel, _d, _m, note in plan:
         out.append("  %s  %s%s" % (action, rel, note))
     out.append("summary: %d new, %d update, %d create, %d keep, %d unchanged" % (
         counts["new"], counts["update"], counts["create"], counts["keep"], counts["unchanged"]))
+    for rel, cur, tdata in mixed_keep:
+        try:
+            cl, tl = cur.decode("utf-8").splitlines(), tdata.decode("utf-8").splitlines()
+        except UnicodeDecodeError:
+            continue
+        dl = list(difflib.unified_diff(cl, tl, fromfile="current", tofile="template", lineterm=""))
+        out.append("diff %s (current vs template):" % rel)
+        out.extend(dl[:60])
+        if len(dl) > 60:
+            out.append("... (%d more lines)" % (len(dl) - 60))
     writes = [p for p in plan if p[0] in ("new", "update", "create")]
     if not writes:
         out.append("nothing to do")

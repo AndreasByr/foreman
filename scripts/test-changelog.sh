@@ -78,6 +78,22 @@ for v in REQUIRED_VERSIONS:
     if v not in found_versions:
         problems.append(f"version section {v} is missing")
 
+# 4b. Every upgrade part (except "- None") names Files, Steps and Optional.
+for s in sections:
+    nonempty = [l for l in s["upgrade"] if l.strip()]
+    if nonempty and nonempty[0].startswith("- None"):
+        continue
+    text = "\n".join(s["upgrade"])
+    for word in ("Files", "Steps", "Optional"):
+        if word not in text:
+            problems.append(f"section '{s['title']}': upgrade part does not contain '{word}'")
+
+# 4c. Unreleased upgrade part says the dispatcher code must be updated.
+if unreleased:
+    if not any(re.search(r"dispatcher", l, re.I) and re.search(r"update", l, re.I)
+               for l in unreleased[0]["upgrade"]):
+        problems.append("section 'Unreleased': upgrade part has no line with 'dispatcher' and 'update'")
+
 # 5. Report.
 if problems:
     for p in problems:

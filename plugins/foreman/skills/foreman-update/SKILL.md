@@ -13,7 +13,7 @@ Answer in the preferred language (`.foreman.json` `context.language`), else the 
 
 - Installed: the `foreman` value in the project's `.foreman.json`.
 - Available: the `VERSION` file of the foreman checkout or release the human names (in claude.ai: the plugin version).
-- Equal: say "up to date" and go to step 7.
+- Equal: say "up to date" and go to step 7. Exception: if the foreman checkout's `CHANGELOG.md` has an `## Unreleased` section, still run the dry run (step 4) and show its list.
 - Project newer than the release: stop and say so.
 - `.foreman.json` or its `foreman` value missing: stop and ask for the installed version.
 
@@ -27,7 +27,7 @@ From `update-classes.json`:
 
 - foreman-owned files are replaced.
 - project-owned files stay.
-- mixed files (`CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`, `tools/delegate/config.toml`) are only reported. The human merges them by hand.
+- mixed files (`CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`, `tools/delegate/config.toml`) are never overwritten. The update prints a diff of each one against the rendered template. The human merges by hand.
 
 ## 4. Write the order for Claude Code
 
@@ -38,9 +38,10 @@ On a clean working tree, on a fresh branch or the batch branch:
 1. ./install.sh <project path> --update --dry-run
    Read the list.
 2. ./install.sh <project path> --update
-3. bash scripts/check-config.sh
-4. Merge every file marked "keep ... (mixed: merge by hand)" by hand.
-5. Commit. Push only to dev, batch/* or an agent/* branch, never main.
+3. cd <project path>
+4. bash scripts/check-config.sh
+5. Merge every file marked "keep ... (mixed: merge by hand)" by hand.
+6. Commit (inside <project path>). Push only to dev, batch/* or an agent/* branch, never main.
 ```
 
 Run it first on a test project, never first on a live project. Never run the update on a project without the human's go.
@@ -65,7 +66,9 @@ Then one line per Upgrade item of the versions in between, with minutes.
 In a Claude Code project, the status comes from `block-status.py` of `foreman-project-mode` (run on the project instructions; without code execution, compare the marker version by eye). Put one line into the checklist:
 
 - `current`: `Project instructions up to date`
-- `outdated` or `missing`: `Project instructions outdated: run foreman-project-mode (2 min)`
+- `outdated` or `missing`: call `foreman-project-mode` in refresh mode (it shows the result and applies it only after a yes). Checklist line: `Project instructions outdated: run foreman-project-mode (2 min)`
+- `newer`: tell the human the skill is older than the instructions and to update the plugin.
+- `error:`: compare the marker version by eye.
 
 Outside a project: skip this step.
 
@@ -79,4 +82,5 @@ One line: what was done (versions, list written, checklist, project instructions
 - Names of variables only, never values or tokens.
 - Dry run before the real update; test project before a live project.
 - Files and steps come from `CHANGELOG.md` and `update-classes.json`, not from memory.
+- Every `update` line replaces a foreman-owned file; local patches there are lost, so read the list and `git diff` first.
 - Reasons for these rules: `docs/learnings.md`.

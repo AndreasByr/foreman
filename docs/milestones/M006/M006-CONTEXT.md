@@ -37,7 +37,7 @@ Bericht: `docs/role-reviews/M006-briefing.md`. Als Erfolgskriterien übernommen:
 ## Fixed decisions
 - Das Update läuft im Repo (`install.sh --update`). Der Chat-Skill führt es nicht selbst aus, er erzeugt den Auftrag und die Checkliste. Grund: Chat hat keinen sicheren Zugriff auf das Zielrepo, und das Repo-Skript ist testbar.
 - Die Klassenliste ist eine Datei im Repo (`update-classes.json`), keine Logik im Skript. Grund: ein Test kann sie gegen `template/` prüfen.
-- Gemischte Dateien (`CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`, `tools/delegate/config.toml`) werden nie geschrieben, nur gemeldet. Grund: sie lassen sich nicht automatisch zusammenführen.
+- Gemischte Dateien (`CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`, `tools/delegate/config.toml`) werden nie überschrieben, nur gemeldet, mit Diff gegen die gerenderte Vorlage; fehlt eine, wird sie angelegt. Grund: sie lassen sich nicht automatisch zusammenführen.
 - `version` in `.foreman.json` ist der letzte Schritt. Ein Fehler davor lässt sie unverändert.
 - Ein Update fügt keine Module hinzu, auch nicht still. Neue Module nennt der Skill und übernimmt sie nur nach Ja.
 - Jeder Fix bekommt zuerst einen fehlschlagenden Test.

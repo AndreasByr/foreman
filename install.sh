@@ -23,6 +23,7 @@ VERSION="$(cat "$HERE/VERSION" 2>/dev/null || echo 0.2.0)"
 
 target="" project="" name="" modules="" scope="" model="" agent=claude-code rec="" skills_scope="" staging=yes force=no dry=no
 update=no given=()
+for a in "$@"; do [ "$a" = --update ] && update=yes; done
 while [ $# -gt 0 ]; do
   case "$1" in --update|--dry-run|-h|--help) ;; -*) given+=("$1") ;; esac
   case "$1" in
@@ -39,7 +40,7 @@ while [ $# -gt 0 ]; do
     --force) force=yes; shift ;;
     --dry-run) dry=yes; shift ;;
     -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    -*) echo "unknown option: $1" >&2; exit 2 ;;
+    -*) if [ "$update" = yes ]; then echo "foreman update: unknown option: $1" >&2; else echo "unknown option: $1" >&2; fi; exit 2 ;;
     *) target="$1"; shift ;;
   esac
 done
