@@ -1,4 +1,4 @@
-Status: uat-ready · since 2026-11-21T16:10Z · Validierung Runde 2: A needs-attention, B pass, C needs-attention; Rework R3 fertig, Validierung Runde 3: pass, bereit für Batch-PR
+Status: done · since 2026-11-21T16:10Z · Validierung Runde 2: A needs-attention, B pass, C needs-attention; Rework R3 fertig, Validierung Runde 3: pass, bereit für Batch-PR
 Target: dev
 Batch-branch: batch/m003
 Lock: free
@@ -65,3 +65,4 @@ One question, options, recommendation.
 - 2026-11-21T19:55Z · Validierung Runde 3: A pass, B pass, C pass; Gesamt pass; Endlauf test-all.sh Exit 0 · 58b1916
 - 2026-11-21T17:19Z · Merge mit origin/dev aufgelöst, Prüflauf (nur niedrig), test-all.sh Exit 0 · 797f8ff
 - 2026-11-21T17:27Z · Batch-PR #7 gemergt nach dev (Merge-Commit d0646ad), CI grün (test, guards); UAT-Liste docs/uat/M003.md · d0646ad
+- 2026-11-21T17:45Z · UAT M003 approved von Andreas; Entscheidungen übernommen (workspace.json-Kopie in der Projekt-Doku, Block C nur bei quick prototype) · pending
