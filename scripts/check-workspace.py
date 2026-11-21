@@ -26,7 +26,8 @@ SUPPORTED = ANNOTATIONS | {
 }
 KNOWN_TYPES = {"object", "array", "string", "integer", "number", "boolean", "null"}
 
-CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")
+TZ_PATTERN = re.compile(r"[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+){0,2}")
+CONTROL_CHARS =re.compile(r"[\x00-\x1f\x7f]")
 
 SECRET_PATTERNS = [
     ("sk- key", re.compile(r"sk-[A-Za-z0-9_-]{10,}")),
@@ -176,6 +177,20 @@ def scan_secrets(value, path, errors):
             scan_secrets(item, f"{path}[{index}]", errors)
 
 
+def check_time_zone(data, errors):
+    """timeZone must be a known IANA name when zoneinfo is available (the schema checks the pattern)."""
+    zone = data.get("timeZone") if isinstance(data, dict) else None
+    if not isinstance(zone, str) or not TZ_PATTERN.fullmatch(zone):
+        return
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(zone)
+    except ImportError:
+        return
+    except Exception:
+        errors.append(("$.timeZone", "timeZone is not a known IANA time zone name"))
+
+
 def main(argv):
     if len(argv) != 2:
         print("usage: python3 scripts/check-workspace.py <file>", file=sys.stderr)
@@ -202,6 +217,7 @@ def main(argv):
 
     errors = []
     validate(data, schema, "$", errors)
+    check_time_zone(data, errors)
     scan_secrets(data, "$", errors)
     for path, problem in errors:
         print(f"workspace: {target}: {path}: {problem}")

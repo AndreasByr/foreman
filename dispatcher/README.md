@@ -15,6 +15,29 @@ Needs: Node 20+, git, a machine that is on (a small VPS, a home server, a Raspbe
    - **Other agents:** `fire_command`, a shell command that receives the order text on stdin, for example `opencode run`. It runs detached in the project checkout with the same environment rule (only PATH, HOME, LANG and the `pass_env` names) plus `FOREMAN_PROJECT`, `FOREMAN_KIND` and `FOREMAN_UNIT` set, output in `<workdir>/logs/`. Resuming a session, running several orders in parallel and cleaning up after a crashed agent are then your job: the dispatcher starts the command and does not watch it. The lock in `STATE.md` still protects each unit for 3 hours.
 6. Tokens and keys are never logged. A failed start goes to the optional webhook (`DISPATCHER_ERROR_WEBHOOK_URL`). The body depends on `webhook_format` in `config.json`: `discord` sends `{"content": ...}`, `slack` sends `{"text": ...}`, `auto` (default) decides by host (`discord.com`, `discordapp.com`, `hooks.slack.com`). Unknown host, an invalid or non-https URL or an unknown format is logged as `webhook not used: <reason>` without the URL, nothing is sent, the exit code stays 1.
 
+## Update notice
+
+On every run, for each project, the dispatcher checks whether the project runs an older foreman version. It is off when `update_notice` is `false` in `config.json` or in the project's entry.
+
+1. It reads `foreman` (the project's version) from the project's `.foreman.json`.
+2. It reads the current foreman version. The source is `foreman_version_source`:
+   - `release` (default): the newest GitHub release of `foreman_repo` (default `AndreasByr/foreman`), from `https://api.github.com/repos/<foreman_repo>/releases/latest`. One anonymous call per run. Public repositories only.
+   - `local`: the `VERSION` file of the foreman checkout that holds `dispatch.mjs`. Use it for a private repository or when offline.
+3. If the project is behind, it reports this once per project and version:
+   - **Webhook:** the same webhook, `webhook_format` and `webhook_url_env` as the failure messages. Sent only after a successful post. The version is remembered in the project's state file under `update`.
+   - **Ticket** (only with module `tracker-itsaplan`): titled `foreman update available: <old> → <new>`, in column `Action Required` (aliases `Intervention needed`, or `tracker.columnAliases` in `.foreman.json`). The dispatcher creates it with the bot account from the project's `pass_env` values `ITSAPLAN_URL` and `ITSAPLAN_API_KEY`. It needs `mirror.itsaplan.projectKey` in `.foreman.json`. Without these, no ticket is created, but the webhook still goes out.
+   - With tracker `none` or `linear`, only the webhook is sent.
+   - A ticket that was closed by hand is not recreated. A newer version supersedes the older open ticket. Once `.foreman.json` shows the new version, the ticket moves to `Done` with a comment.
+4. A failed ticket or webhook sets exit code 1. It is retried on the next run.
+
+The dispatcher updates nothing itself. The message names `foreman-update` for the project chat.
+
+`--dry-run` logs `would report update` and writes and sends nothing.
+
+If the source is unreachable or has no release, the dispatcher logs one line, `foreman version unknown`, reports nothing, and the other runs go on.
+
+Nothing is reported before a release newer than the project's version exists. To see the notice before that, set `"foreman_version_source": "local"`.
+
 ## Local run with Claude Code (fire_command)
 
 If you have no cloud routine, `fire_command` can start Claude Code on your own machine.

@@ -103,6 +103,8 @@ Only for an intervention (`needs-input`, shown in the tracker as Action Required
 
 ## Special cases
 
+- **Public repo:** briefs, state files and reports must not name real projects, hosts or people. Use placeholders (Project A, server-1, the maintainer) and run `bash scripts/privacy-scan.sh` before pushing.
+
 - Requirements unclear: sharpen them with the human or extend `requirements.md`. Never write a vague brief.
 - Board missing or `design.md` incomplete: create the board here and get approval first. Never leave it to the Agent.
 - Impatient human: show a draft with what exists plus the two most important open questions.

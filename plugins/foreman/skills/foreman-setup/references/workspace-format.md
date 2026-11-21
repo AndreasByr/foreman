@@ -39,6 +39,7 @@ It holds **names and roles only, never a value**. No API keys, tokens, passwords
 | `chatgptViaGateway` | no | `accepted-risk`, `declined`, `not-asked`, `unbekannt` |
 | `agent` | no | `claude-code`, `opencode`, `other`, `unbekannt` |
 | `github` | no | `yes`, `no`, `unbekannt` |
+| `timeZone` | no | IANA time zone name, e.g. `Europe/Berlin`; the suggestion `foreman-project` shows per project |
 
 No other fields are allowed. An unknown field is an error, so a typo cannot slip through.
 

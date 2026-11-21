@@ -14,7 +14,7 @@ Verdict: needs-attention
 - [low] scripts/update.py:242: Bei `git status --porcelain -z` steht bei einer Umbenennung der alte Pfad als eigener Eintrag ohne `XY `-Präfix. `e[3:]` schneidet dort drei Zeichen vom Pfadnamen ab. Betroffen ist nur die Meldung, der Abbruch passiert trotzdem.
 - [low] docs/milestones/M006/STATE.md: Bei S4 steht `scripts/test-plugin.sh` unter Files, und die Prüfung heißt „erweitert um Inhaltsprüfung“. `scripts/test-plugin.sh` ist im Diff aber nicht geändert. Die Inhaltsprüfung steht in `scripts/test-update-skill.sh`.
 - [low] VERSION (0.2.1) / scripts/update.py:141 und Bump-Logik: Solange `VERSION` 0.2.1 ist, ist ein 0.2.1-Projekt „gleich“. Das hat zwei Folgen. Erstens meldet der Skill (SKILL.md Schritt 1) „up to date“ und überspringt das Update, obwohl sich im Abschnitt Unreleased foreman-Dateien geändert haben. Zweitens kann UAT Flow A Schritt 3 („`version` neu“) vor dem Release nicht grün werden. Die Tests umgehen das mit `as_old` 0.1.9.
-- [low] update-classes.json: Die Analysen F2/F3 zu Guildora und Kasev, die laut Brief in die Klassen einfließen sollen, sind im Repo nicht zu finden (Grep nach Guildora/Kasev in `docs/` findet keine Fix-Paket-Analyse). `scripts/autopilot-check.*` ist als foreman-eigen eingestuft, obwohl Kasev ein abweichendes Prüfskript hat (`docs/requirements.md:50`). Ein committetes, angepasstes Prüfskript wird beim Update ohne Warnung ersetzt.
+- [low] update-classes.json: Die Analysen F2/F3 zu Projekt A und Projekt B, die laut Brief in die Klassen einfließen sollen, sind im Repo nicht zu finden (Grep nach Projekt A/Projekt B in `docs/` findet keine Fix-Paket-Analyse). `scripts/autopilot-check.*` ist als foreman-eigen eingestuft, obwohl Projekt B ein abweichendes Prüfskript hat (`docs/requirements.md:50`). Ein committetes, angepasstes Prüfskript wird beim Update ohne Warnung ersetzt.
 
 **Prüfungen**
 
@@ -43,5 +43,5 @@ Verdict: needs-attention
 
 **Unclear / not found**
 - Ich habe keine Tests ausgeführt; ob `bash scripts/test-all.sh` grün ist, habe ich nicht geprüft. Grund: Die Tests legen temporäre Dateien an, und der Auftrag erlaubte nur Lesen.
-- Die Analysen F2/F3 zu Guildora und Kasev habe ich im Repo nicht gefunden. Ob Kasev oder Guildora committete lokale Patches an foreman-eigenen Dateien haben, lässt sich hier nicht feststellen.
-- Ob mit „gemischte werden nur gezeigt“ im Brief bewusst nur der Dateiname gemeint ist, also eine Lockerung der requirements, entscheidet Andreas.
+- Die Analysen F2/F3 zu Projekt A und Projekt B habe ich im Repo nicht gefunden. Ob Projekt B oder Projekt A committete lokale Patches an foreman-eigenen Dateien haben, lässt sich hier nicht feststellen.
+- Ob mit „gemischte werden nur gezeigt“ im Brief bewusst nur der Dateiname gemeint ist, also eine Lockerung der requirements, entscheidet Maintainer.

@@ -649,4 +649,142 @@ rc=0; err=$(inst "$T/tv2" --project g --modules delegate --gateway-url 2>&1) || 
 [ "$rc" = 2 ] || fail "trailing --gateway-url: exit $rc, expected 2"
 echo "$err" | grep -q 'option --gateway-url needs a value' || fail "trailing --gateway-url: no message: $err"
 
+# ---- installer options: --tz, --batch-hours, --wait-hours, --main-auto-merge (autopilot) ----
+OPT_N=0
+# refusal helper: exit 2, message matches the pattern (the option name or "module autopilot"), nothing written
+opt_refused() {
+  local pat="$1" rc=0 err d; shift
+  OPT_N=$((OPT_N+1)); d="$T/opt$OPT_N"
+  mkdir "$d" && git -C "$d" init -q
+  err=$(inst "$d" --project o "$@" 2>&1) || rc=$?
+  [ "$rc" = 2 ] || fail "refusal ('$*'): exit $rc, expected 2"
+  echo "$err" | grep -qF -- "$pat" || fail "refusal ('$*'): message does not name '$pat': $err"
+  [ ! -e "$d/.foreman.json" ] || fail "refusal ('$*') wrote .foreman.json"
+  [ ! -e "$d/tools" ] || fail "refusal ('$*') wrote tools/"
+}
+
+# 1. all four options with module autopilot, then the opposite booleans
+mkdir "$T/o1" && git -C "$T/o1" init -q
+inst "$T/o1" --project o --modules autopilot --scope autopilot --tz Europe/Berlin --batch-hours 3,7,11,15,19,23 --wait-hours 4 --main-auto-merge no >/dev/null 2>&1 || fail "options install failed"
+[ "$(jf "$T/o1/.foreman.json" context.timeZone)" = Europe/Berlin ] || fail "options: context.timeZone is $(jf "$T/o1/.foreman.json" context.timeZone)"
+[ "$(jf "$T/o1/.foreman.json" autopilot.batchHours)" = '[3, 7, 11, 15, 19, 23]' ] || fail "options: batchHours is $(jf "$T/o1/.foreman.json" autopilot.batchHours)"
+[ "$(jf "$T/o1/.foreman.json" autopilot.waitHours)" = 4 ] || fail "options: waitHours is $(jf "$T/o1/.foreman.json" autopilot.waitHours)"
+[ "$(jf "$T/o1/.foreman.json" autopilot.mainAutoMerge)" = False ] || fail "options: mainAutoMerge (no) is $(jf "$T/o1/.foreman.json" autopilot.mainAutoMerge)"
+mkdir "$T/o1b" && git -C "$T/o1b" init -q
+inst "$T/o1b" --project o --modules autopilot --main-auto-merge yes >/dev/null 2>&1 || fail "main-auto-merge yes install failed"
+[ "$(jf "$T/o1b/.foreman.json" autopilot.mainAutoMerge)" = True ] || fail "options: mainAutoMerge (yes) is $(jf "$T/o1b/.foreman.json" autopilot.mainAutoMerge)"
+
+# 2. no new flags with module autopilot: defaults stay, no autopilot key is written
+mkdir "$T/o2" && git -C "$T/o2" init -q
+inst "$T/o2" --project o --modules autopilot >/dev/null 2>&1 || fail "defaults install with autopilot failed"
+[ "$(jf "$T/o2/.foreman.json" context.timeZone)" = UTC ] || fail "defaults: context.timeZone is not UTC"
+python3 - "$T/o2/.foreman.json" <<'PY' || fail "defaults: autopilot key written without the new flags"
+import json,sys
+d=json.load(open(sys.argv[1]))
+assert "autopilot" not in d, d.get("autopilot")
+PY
+
+# 3. only --tz with module core (no modules): timezone set, no autopilot key
+mkdir "$T/o3" && git -C "$T/o3" init -q
+inst "$T/o3" --project o --tz Asia/Tokyo >/dev/null 2>&1 || fail "--tz alone install failed"
+[ "$(jf "$T/o3/.foreman.json" context.timeZone)" = Asia/Tokyo ] || fail "--tz alone: timeZone is $(jf "$T/o3/.foreman.json" context.timeZone)"
+python3 - "$T/o3/.foreman.json" <<'PY' || fail "--tz alone: autopilot key written"
+import json,sys
+assert "autopilot" not in json.load(open(sys.argv[1]))
+PY
+
+# 4. refusals: exit 2, message names the option, nothing written
+opt_refused --tz --tz Mars/Base
+opt_refused --tz --tz "Europe/Berlin; rm"
+opt_refused --tz --tz ""
+opt_refused --batch-hours --modules autopilot --batch-hours 3,24
+opt_refused --batch-hours --modules autopilot --batch-hours 3,x
+opt_refused --batch-hours --modules autopilot --batch-hours ""
+opt_refused --batch-hours --modules autopilot --batch-hours -1
+opt_refused --wait-hours --modules autopilot --wait-hours 0
+opt_refused --wait-hours --modules autopilot --wait-hours abc
+opt_refused --wait-hours --modules autopilot --wait-hours 169
+opt_refused --wait-hours --modules autopilot --wait-hours -2
+opt_refused --main-auto-merge --modules autopilot --main-auto-merge maybe
+opt_refused --main-auto-merge --modules autopilot --main-auto-merge ""
+opt_refused "module autopilot" --batch-hours 3
+opt_refused "module autopilot" --wait-hours 4
+opt_refused "module autopilot" --main-auto-merge no
+# value-taking option as the last argument: exit 2 with the 'needs a value' message
+for opt in --tz --batch-hours --wait-hours --main-auto-merge; do
+  OPT_N=$((OPT_N+1)); d="$T/opt$OPT_N"; rc=0
+  mkdir "$d" && git -C "$d" init -q
+  err=$(inst "$d" --project o --modules autopilot "$opt" 2>&1) || rc=$?
+  [ "$rc" = 2 ] || fail "trailing $opt: exit $rc, expected 2"
+  echo "$err" | grep -qF "option $opt needs a value" || fail "trailing $opt: no 'needs a value' message: $err"
+  [ ! -e "$d/.foreman.json" ] || fail "trailing $opt wrote .foreman.json"
+done
+
+# 5. duplicate hours are stored once, in order of first occurrence
+mkdir "$T/o5" && git -C "$T/o5" init -q
+inst "$T/o5" --project o --modules autopilot --batch-hours 7,3,7 >/dev/null 2>&1 || fail "duplicate hours install failed"
+[ "$(jf "$T/o5/.foreman.json" autopilot.batchHours)" = '[7, 3]' ] || fail "duplicate hours: batchHours is $(jf "$T/o5/.foreman.json" autopilot.batchHours), expected [7, 3]"
+
+# 6. existing .foreman.json: only the given keys change; backup kept
+mkdir "$T/o6" && git -C "$T/o6" init -q
+inst "$T/o6" --project o --modules autopilot >/dev/null 2>&1 || fail "existing-file: first install failed"
+cp "$T/o6/.foreman.json" "$T/o6-before.json"
+inst "$T/o6" --project o --modules autopilot --tz Europe/Berlin --wait-hours 6 >/dev/null 2>&1 || fail "existing-file: second install failed"
+[ -f "$T/o6/.foreman.json.before-foreman" ] || fail "existing-file: .foreman.json.before-foreman backup missing"
+cmp -s "$T/o6-before.json" "$T/o6/.foreman.json.before-foreman" || fail "existing-file: backup is not the old .foreman.json"
+python3 - "$T/o6-before.json" "$T/o6/.foreman.json" <<'PY' || fail "existing-file: keys changed beyond --tz and --wait-hours (see above)"
+import json,sys
+b=json.load(open(sys.argv[1])); n=json.load(open(sys.argv[2]))
+assert n["context"]["timeZone"]=="Europe/Berlin", n["context"]
+assert n["autopilot"]["waitHours"]==6, n["autopilot"]
+assert n["project"]==b["project"], ("project", n["project"])
+assert n["modules"]==b["modules"], ("modules", n["modules"])
+PY
+
+# 7. dry run with flags: no .foreman.json, timezone shown in the output
+mkdir "$T/o7" && git -C "$T/o7" init -q
+out=$(inst "$T/o7" --project o --modules autopilot --tz Europe/Berlin --dry-run 2>&1) || fail "dry-run with options failed: $out"
+[ ! -e "$T/o7/.foreman.json" ] || fail "dry-run wrote .foreman.json"
+echo "$out" | grep -qF Europe/Berlin || fail "dry-run output lacks the timezone: $out"
+
+# 8. existing .foreman.json that cannot be changed: exit 2, file byte-identical, no backup, no tools/
+# existing_refused NAME PATTERN JSON ARGS...: the install with ARGS must exit 2 with PATTERN in its message
+existing_refused() {
+  local name="$1" pat="$2" json="$3" rc=0 err d; shift 3
+  d="$T/ex-$name"; mkdir "$d" && git -C "$d" init -q
+  printf '%s\n' "$json" > "$d/.foreman.json"
+  cp "$d/.foreman.json" "$T/ex-$name-before.json"
+  err=$(inst "$d" --project o "$@" 2>&1) || rc=$?
+  [ "$rc" = 2 ] || fail "$name: exit $rc, expected 2: $err"
+  echo "$err" | grep -qF -- "$pat" || fail "$name: message does not name '$pat': $err"
+  cmp -s "$T/ex-$name-before.json" "$d/.foreman.json" || fail "$name: .foreman.json changed"
+  [ ! -e "$d/.foreman.json.before-foreman" ] || fail "$name: backup written"
+  [ ! -e "$d/tools" ] || fail "$name: wrote tools/"
+}
+
+# a. context is null, --tz given
+existing_refused ctx-null ".foreman.json" '{"project":"o","context":null}' --tz Europe/Berlin
+
+# b. autopilot is a list, autopilot options given
+existing_refused ap-list ".foreman.json" '{"project":"o","autopilot":[]}' --modules autopilot --wait-hours 3
+
+# c. valid existing file plus an invalid option: nothing changes
+existing_refused bad-opt "--tz" '{"project":"o","context":{"timeZone":"Europe/Berlin"}}' --tz Mars/Base
+
+# d. autopilot.timezone must follow --tz, otherwise the check reads a stale zone
+mkdir "$T/ex-d" && git -C "$T/ex-d" init -q
+printf '%s\n' '{"project":"o","context":{"timeZone":"UTC"},"autopilot":{"timezone":"Asia/Tokyo"}}' > "$T/ex-d/.foreman.json"
+inst "$T/ex-d" --project o --modules autopilot --tz Europe/Berlin >/dev/null 2>&1 || fail "ex-d: install failed"
+[ "$(jf "$T/ex-d/.foreman.json" context.timeZone)" = Europe/Berlin ] || fail "ex-d: context.timeZone is $(jf "$T/ex-d/.foreman.json" context.timeZone)"
+[ "$(jf "$T/ex-d/.foreman.json" autopilot.timezone)" = Europe/Berlin ] || fail "ex-d: autopilot.timezone is $(jf "$T/ex-d/.foreman.json" autopilot.timezone), expected Europe/Berlin"
+
+# e. two runs with new options: the backup keeps the content from before the first run that changed the file
+mkdir "$T/ex-e" && git -C "$T/ex-e" init -q
+printf '%s\n' '{"project":"o","autopilot":{"waitHours":4}}' > "$T/ex-e/.foreman.json"
+cp "$T/ex-e/.foreman.json" "$T/ex-e-before.json"
+inst "$T/ex-e" --project o --modules autopilot --tz Europe/Berlin >/dev/null 2>&1 || fail "ex-e: first run failed"
+inst "$T/ex-e" --project o --modules autopilot --wait-hours 6 >/dev/null 2>&1 || fail "ex-e: second run failed"
+[ -f "$T/ex-e/.foreman.json.before-foreman" ] || fail "ex-e: backup missing"
+cmp -s "$T/ex-e-before.json" "$T/ex-e/.foreman.json.before-foreman" || fail "ex-e: backup was overwritten by the second run"
+
 echo "install tests: ok"
