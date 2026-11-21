@@ -2,7 +2,7 @@
 // Tests for the dispatcher. Run: node dispatcher/tests/test-dispatch.mjs
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseCheckOutput, selectTasks, run, redact, parseArgs, safeEnv } from "../dispatch.mjs";
@@ -248,8 +248,10 @@ t("run: the check script gets only PATH, HOME, LANG and pass_env, never other se
   });
   try {
     const testEnv = { ...env, LANG: "C.UTF-8", OTHER_FIRE_TOKEN: OTHER_SECRET, OTHER_PROJECT_KEY: "other-key-456", SOURCE_DEPLOY_KEY: "pass-value-42" };
-    const code = await run({ config: cfg, env: testEnv, fetch: async () => { throw new Error("must not be called"); }, log: () => {} });
+    const logs = [];
+    const code = await run({ config: cfg, env: testEnv, fetch: async () => { throw new Error("must not be called"); }, log: (m) => logs.push(m) });
     assert.equal(code, 0);
+    assert.ok(!logs.join("\n").includes(OTHER_SECRET), "other project's token in the dispatcher log");
     const dump = readFileSync(join(cfg.workdir, "repos", "p", "envdump.txt"), "utf8");
     assert.ok(!dump.includes(OTHER_SECRET), "other project's token leaked to the check");
     assert.ok(!dump.includes("other-key-456"), "other project's key leaked to the check");
@@ -274,9 +276,19 @@ t("run: fire_command gets FOREMAN_* plus PATH, HOME, LANG and pass_env, never ot
   process.env.P_TOKEN = TOKEN;
   try {
     const testEnv = { ...env, LANG: "C.UTF-8", OTHER_FIRE_TOKEN: OTHER_SECRET, SOURCE_DEPLOY_KEY: "pass-value-42" };
-    assert.equal(await run({ config: cfg, env: testEnv, log: () => {} }), 0);
+    const logs = [];
+    assert.equal(await run({ config: cfg, env: testEnv, log: (m) => logs.push(m) }), 0);
     const repo = join(cfg.workdir, "repos", "p");
     for (let i = 0; i < 50 && !(existsSync(join(repo, "u1.env")) && existsSync(join(repo, "u2.env"))); i++) await new Promise((r) => setTimeout(r, 100));
+    assert.ok(!logs.join("\n").includes(OTHER_SECRET), "other project's token in the dispatcher log");
+    const logDir = join(cfg.workdir, "logs");
+    const logFiles = readdirSync(logDir);
+    assert.ok(logFiles.length >= 2, "the command's log files exist");
+    for (const f of logFiles) {
+      const text = readFileSync(join(logDir, f), "utf8");
+      assert.ok(!text.includes(OTHER_SECRET), `${f}: other project's token in the command log`);
+      assert.ok(!text.includes(TOKEN), `${f}: project fire token in the command log`);
+    }
     const allowed = new Set(["FOREMAN_PROJECT", "FOREMAN_KIND", "FOREMAN_UNIT", "PATH", "HOME", "LANG", "DEPLOY_KEY_VALUE", "PWD", "SHLVL", "_", "OLDPWD"]);
     for (const [file, kind] of [["u1.env", "pretest-run"], ["u2.env", "coding"]]) {
       const unit = file.slice(0, -4);
@@ -316,7 +328,7 @@ t("run --dry-run and webhook bodies never contain another project's secret", asy
   }
 });
 
-// ---- webhook formats: dispatchModule.webhookRequest is not implemented yet, so these tests must fail ----
+// ---- webhook formats ----
 const HOOK_DISCORD = "https://discord.com/api/webhooks/1/abc";
 const HOOK_DISCORD_APP = "https://discordapp.com/api/webhooks/1/abc";
 const HOOK_DISCORD_SUB = "https://canary.discord.com/api/webhooks/1/abc";
@@ -433,7 +445,7 @@ t("run --dry-run with fire_command says 'would start ... via command' and leaks 
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-// ---- git environment and webhook redirects: dispatchModule.gitEnv is not implemented yet, so the first test must fail ----
+// ---- git environment and webhook redirects ----
 t("gitEnv: keeps the dispatcher environment, sets GIT_TERMINAL_PROMPT, GIT_SSH_COMMAND only when a key is given", () => {
   const env = { PATH: "/usr/bin", HOME: "/home/u", SSH_AUTH_SOCK: "/tmp/agent.sock", HTTPS_PROXY: "http://proxy.example:3128", GIT_CONFIG_GLOBAL: "/etc/gitconfig-x", OTHER_FIRE_TOKEN: OTHER_SECRET };
   const noKey = dispatchModule.gitEnv(env, null);
@@ -450,13 +462,26 @@ t("gitEnv: keeps the dispatcher environment, sets GIT_TERMINAL_PROMPT, GIT_SSH_C
   assert.equal(env.GIT_TERMINAL_PROMPT, undefined, "the input env is not mutated");
 });
 
-t("run: update true clones and checks out the local origin with the dispatcher environment", async () => {
+t("run: update true runs git with the dispatcher environment (SSH agent, marker, no prompts)", async () => {
   const { dir, cfg, env } = setup(SAMPLE);
   try {
+    // a git wrapper in front of the real git records the environment git gets, then runs the real git
+    const realGit = execFileSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).trim();
+    const bin = join(dir, "bin");
+    const envDump = join(dir, "git-env.txt");
+    mkdirSync(bin, { recursive: true });
+    const q = (p) => `'${p.replace(/'/g, "'\\''")}'`;
+    writeFileSync(join(bin, "git"), `#!/bin/sh\nenv >> ${q(envDump)}\nexec ${q(realGit)} "$@"\n`);
+    chmodSync(join(bin, "git"), 0o755);
+    const gitEnvIn = { ...env, PATH: `${bin}:${process.env.PATH}`, SSH_AUTH_SOCK: "/tmp/agent.sock", FOREMAN_TEST_MARKER: "1", OTHER_FIRE_TOKEN: OTHER_SECRET };
     const fetch = async () => ({ ok: true, status: 200, text: async () => "{}" });
-    const code = await run({ config: cfg, env: { ...env, FOREMAN_TEST_MARKER: "1" }, fetch, log: () => {} });
+    const code = await run({ config: cfg, env: gitEnvIn, fetch, log: () => {} });
     assert.equal(code, 0);
     assert.ok(existsSync(join(cfg.workdir, "repos", "p", ".git")), "clone exists");
+    const lines = readFileSync(envDump, "utf8").split("\n");
+    assert.ok(lines.includes("SSH_AUTH_SOCK=/tmp/agent.sock"), "git got the ssh agent socket");
+    assert.ok(lines.includes("FOREMAN_TEST_MARKER=1"), "git got the dispatcher environment");
+    assert.ok(lines.includes("GIT_TERMINAL_PROMPT=0"), "git got GIT_TERMINAL_PROMPT=0");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -481,6 +506,18 @@ t("run: a failed webhook request is logged without the webhook URL", async () =>
     assert.equal(code, 1);
     assert.ok(logs.some((l) => l.includes("webhook failed:")), "failure is logged");
     assert.ok(!logs.join("\n").includes(HOOK_DISCORD), "log must not contain the URL");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("run: a webhook that answers an error status is logged with the status only", async () => {
+  const { dir, cfg, env } = setup(SAMPLE, { code: 3, config: { webhook_format: "discord" } });
+  try {
+    const logs = [];
+    const fetch = async () => ({ ok: false, status: 404, text: async () => "" });
+    const code = await run({ config: cfg, env: { ...env, DISPATCHER_ERROR_WEBHOOK_URL: HOOK_DISCORD }, fetch, log: (m) => logs.push(m) });
+    assert.equal(code, 1);
+    assert.ok(logs.some((l) => l.includes("answered 404")), "the webhook's status is logged");
+    assert.ok(!logs.join("\n").includes("abc"), "log must not contain the webhook URL");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

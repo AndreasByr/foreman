@@ -13,12 +13,12 @@ Start commit: 28eab3e (Baseline: bash scripts/test-all.sh exit 0)
 
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
-| S1 | Umgebung begrenzen | done | see Log | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
-| S2 | Webhook-Format | done | see Log | dispatcher/dispatch.mjs, config.example.json, dispatcher.env.example, tests | |
-| S3 | Regel für `main` | done | see Log | template/scripts/lib/autopilot-check.mjs, test-autopilot-check.mjs, foreman-fix skill, batch-run.md | |
-| S4 | `--no-fetch` überall | done | see Log | check-config.sh (scripts/ und template/scripts/), test-check-config.sh, test-autopilot-check.mjs (Vorlage konnte `--no-fetch` schon) | |
-| S5 | Lokaler Lauf | done | see Log | dispatcher/ (Startskript-Vorlage), docs/MODULES.md, tests | |
-| S6 | Doku und Learnings | done | see Log | dispatcher/README.md, docs/MODULES.md, docs/learnings.md, scripts/test-dispatcher-docs.sh | |
+| S1 | Umgebung begrenzen | done | 3b75d6c | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
+| S2 | Webhook-Format | done | efdf364 | dispatcher/dispatch.mjs, config.example.json, dispatcher.env.example, tests | |
+| S3 | Regel für `main` | done | 1b6a104 | template/scripts/lib/autopilot-check.mjs, test-autopilot-check.mjs, foreman-fix skill, batch-run.md | |
+| S4 | `--no-fetch` überall | done | 35d40fe | check-config.sh (scripts/ und template/scripts/), test-check-config.sh, test-autopilot-check.mjs (Vorlage konnte `--no-fetch` schon) | |
+| S5 | Lokaler Lauf | done | 2d9e127 | dispatcher/ (Startskript-Vorlage), docs/MODULES.md, tests | |
+| S6 | Doku und Learnings | done | dd4d933 | dispatcher/README.md, docs/MODULES.md, docs/learnings.md, scripts/test-dispatcher-docs.sh | |
 
 ## Check plan per slice
 
@@ -53,6 +53,7 @@ Start commit: 28eab3e (Baseline: bash scripts/test-all.sh exit 0)
 | R1-3 | mittel: `FOREMAN_TZ` in `dispatcher.env` wirkt nicht mehr (B2) | `dispatcher.env.example`, `docs/MODULES.md` Upgrade-Hinweis | done |
 | R1-4 | niedrig: git bekam unnötig nur die Basis-Umgebung (A3, B3) | zurück auf Dispatcher-Umgebung (`gitEnv`), Test | done |
 | R1-5 | niedrig: Webhook folgte Weiterleitungen (B5) | `redirect: "error"`, Test | done |
+| R2 | niedrig (Runde 2, C): fehlende Nachweise, schwache Tests, Webhook-Antwort nicht geloggt (A1-A4, B1, B2, B5, C1-C6) | Webhook-Status geloggt, Tests für git-Umgebung und Logdateien, Bericht `M001-R1.md` mit rot/grün, SHAs, `GITHUB_TOKEN`-Hinweis | done |
 | R1-6 | niedrig: STATE-Angaben, `claude_login`-Test, ssh-Hinweis (A5, C3, C4, C6, C7, B3) | korrigiert / ergänzt | done |
 | offen | niedrig: `check-config` prüft nur den Text `--no-fetch` (A2, B6); `pass_env` lässt gefährliche Namen wie `NODE_OPTIONS` zu (B4, Betreiber-Konfig); `$S1`-Bericht: Dry-Run-Test wäre auch vorher grün gewesen (C5) | bewusst offen, im Abschlussbericht | open (low) |
 
@@ -75,3 +76,5 @@ One question, options, recommendation.
 - 2026-11-21T17:25Z · S6 done · test-dispatcher-docs exit 0, test-all exit 0 (CHANGELOG bewusst nicht angefasst) · committed as M001 S6
 - 2026-11-21T17:50Z · Validierung Runde 1 · A, B, C: needs-attention (Funde R1-1 bis R1-6) · -
 - 2026-11-21T18:10Z · Nacharbeit R1 · test-all exit 0 · committed as M001 R1
+- 2026-11-21T18:40Z · Validierung Runde 2 · A pass, B pass, C needs-attention (niedrig) · -
+- 2026-11-21T19:00Z · Nacharbeit R2 · test-all exit 0 (dispatch 31, autopilot 28) · committed as M001 R2

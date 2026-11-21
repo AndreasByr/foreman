@@ -27,6 +27,7 @@ set -euo pipefail
 : "${FOREMAN_PROJECT_DIR:=}"        # required: existing directory of the project checkout
 : "${FOREMAN_CLAUDE_MODEL:=}"       # required: EXACT model ID, e.g. claude-sonnet-5-5 (no aliases)
 # Word splitting of FOREMAN_CLAUDE_FLAGS is intended: put several flags in one string, separated by spaces.
+# The value is split at spaces, quotes inside it are NOT interpreted, so use flags without spaces inside a value.
 : "${FOREMAN_CLAUDE_FLAGS:=--permission-mode acceptEdits}"
 
 # Use the subscription login of this machine's user, never an API key.

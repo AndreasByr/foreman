@@ -212,7 +212,8 @@ async function notify(config, env, message, fetchImpl, log) {
   if (!req) return;
   try {
     // redirect: "error" keeps the request on the host that was checked
-    await fetchImpl(req.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: req.body, redirect: "error", signal: AbortSignal.timeout(15000) });
+    const res = await fetchImpl(req.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: req.body, redirect: "error", signal: AbortSignal.timeout(15000) });
+    if (res && res.ok === false) log(`webhook failed: answered ${res.status}`);
   } catch (e) { log(`webhook failed: ${redact(e.message, [req.url])}`); }
 }
 

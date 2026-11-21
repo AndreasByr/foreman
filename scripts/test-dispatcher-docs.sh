@@ -60,6 +60,12 @@ need dispatcher/README.md SSH_AUTH_SOCK
 # docs/MODULES.md: FOREMAN_* override upgrade note
 need docs/MODULES.md FOREMAN_TZ
 
+# docs/MODULES.md: check script loses GITHUB_TOKEN unless listed in pass_env
+need docs/MODULES.md GITHUB_TOKEN
+
+# dispatcher/fire-claude.example.sh: FOREMAN_CLAUDE_FLAGS split rule
+need dispatcher/fire-claude.example.sh "quotes inside it are NOT interpreted"
+
 # skills and template: no jargon the rule does not need
 forbid plugins/foreman/skills/foreman-fix/SKILL.md "reaches the outside"
 forbid template/.claude/skills/foreman-dispatch-run/references/batch-run.md outward-facing
