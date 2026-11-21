@@ -57,7 +57,7 @@ Overall: all `pass` = `pass`; any `needs-remediation` = `needs-remediation`; els
 
 Final run: the full check suite once on the final commit. Older evidence counts only if this run is green. Red or not runnable: overall at most `needs-attention` (red: `needs-remediation`), cause in `VALIDATION.md`.
 
-**The review blocks completion** on `needs-attention`, `needs-remediation` or findings of medium or higher. No "continue with a note". Add rework slices to `STATE.md` (`R1-`, `R2-`), implement, review again. At most 2 rework rounds; a security finding escalates after the first failed one. Still open: unit `needs-input` with the open finding as the question; no batch PR, no `pretest-waiting`. Low findings may stay open and go into the report.
+**The review blocks completion** on `needs-attention`, `needs-remediation` or findings of medium or higher. No "continue with a note". Add rework slices to `STATE.md` (`R1-`, `R2-`), implement, review again. At most 2 rework rounds; a security finding escalates after the first failed one. Still open: unit `needs-input` with the open finding as the question; no batch PR, no `pretest-waiting`. Low findings may stay open and go into the report. Every `needs-input` writes the `**Cause:** <category> · <one sentence>` line in its Open question section; a missing cause is reported as a gap by `scripts/measure.mjs`.
 
 Limits: UAT and approval stay with the human. A reviewer or session never marks product decisions (taste beyond the approved board, wording, clarity of text) or checks needing a real second account as passed.
 

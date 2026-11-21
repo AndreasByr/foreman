@@ -60,3 +60,17 @@ Claude Code is the recommended agent: routines with API trigger are the dispatch
 | execution_simple | small | Ollama or `task-simple` |
 | completion, subagent | small | Ollama or `task-simple` |
 | fallback on provider outage | – | small Claude through `claude -p` |
+
+## Measurement (M011)
+
+`scripts/measure.mjs` measures a period. Per unit (milestone or fix pack): run minutes, minutes waited on a human, and reports. Per intervention: its cause. Per worker attempt: role, model and fallbacks. It reads `docs/milestones/*/STATE.md`, `docs/fixpacks/*/STATE.md`, `docs/agent-reports/` and the worker result files in `tools/delegate/tasks/`. No network, no environment variables, and no writes except its output.
+
+```
+node scripts/measure.mjs [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--root <dir>] [--results <dir>] [--strict]
+```
+
+The default period is the last 7 days, the root is the current directory. The output is `docs/metrics.md`: the whole file is regenerated on every run, and it covers one project only. For a fixed period (`--since` and `--until` both given) two runs differ only in the `Erzeugt:` line. A unit belongs to the period by its newest log time; worker result files belong to it by file modification time (copying them without keeping the time shifts them). The file holds numbers, unit ids, cause categories, role and model names, and gap texts; never titles, questions or cause sentences. `--strict` exits 1 when gaps exist (the file is still written). An invalid date or option exits 2 and writes nothing.
+
+Every "Open question" section of a STATE.md carries one cause line, `**Cause:** <category> · <one sentence>`. Categories: `missing-requirement`, `open-decision`, `missing-infra`, `merge-conflict`, `ui-deviation`, `limit-exceeded`, `security`, `other`. An intervention without a valid category counts as "without valid cause" and is listed as a gap.
+
+The result files (`tools/delegate/tasks/*.result.md`) exist only on the machine where the workers ran. On any other machine the report shows them as a gap, not as zero.
