@@ -32,3 +32,16 @@ A needs-attention, B pass, C needs-attention. Offene Funde: 1 medium (requiremen
 | 17 | low | Validierungs-CLI ohne Test, Stacktrace bei fehlender Datei | R2: CLI-Tests, klare Meldung |
 | 18 | low | Wortliste: `die`, `den`, `mit` sind auch englisch; es fehlten paket, freitag, wartet, eingriff, runde | R2 angepasst |
 | 19 | low | Mirror-Test nutzt scripts/lib statt template/scripts/lib | offen (beide Kopien identisch) |
+
+## Runde 3 (bis 540c1c5)
+
+A needs-attention (low), B needs-attention (1 medium), C needs-attention (gleicher medium-Fund). Fixes aus Runde 1 und 2 halten im Code.
+
+| Nr | Schwere | Fund | Umgang |
+|---|---|---|---|
+| 20 | medium | Wortliste in `check-config.sh` enthält `art` und `mit`; „Concept art“ oder „MIT“ ergibt FAIL, „Art“ meldet „Type“ | offen: dritte Runde nur mit Freigabe von Andreas |
+| 21 | low | Doppelte Wortlisten (Validator, Check), Heuristik; „Erledigt“ unerkannt | offen, im UAT erwähnt |
+| 22 | low | Ansichten: Namen nicht auf Eindeutigkeit geprüft | offen |
+| 23 | low | Proxy-Variablen ignoriert: hinter Pflicht-Proxy nur WARN; in Doku nicht genannt | offen |
+| 24 | low | `labelPrefix: ""` macht jedes Label zum FAIL | offen |
+| 25 | low | README ohne Namensprüfung, CHANGELOG ohne Handschritt | offen |

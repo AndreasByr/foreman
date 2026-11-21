@@ -1,4 +1,4 @@
-Status: validation · since 2026-11-21T20:55Z · R2 fertig, dritte Validierung läuft
+Status: needs-input · since 2026-11-21T21:10Z · Validierung Runde 3: 1 medium offen, dritte Reworkrunde braucht Freigabe
 Target: dev
 Batch-branch: batch/m005
 Lock: free
@@ -49,6 +49,10 @@ Keine: `bash scripts/test-all.sh` auf dem Startstand 302496a (dev) lief mit Exit
 
 ## Open question (when `needs-input`)
 
+**Cause:** validation-limit · Nach zwei Reworkrunden bleibt ein mittlerer Fund (Wortliste der Namensprüfung enthält `art` und `mit`, die auch englisch sind: Label „Concept art“ oder „MIT“ ergibt FAIL).
+
+Frage an Andreas: dritte Reworkrunde zulassen (nur dieser Fund, Test zuerst, kleine Änderung an einer Wortliste)? Empfehlung: ja. Alternative: so lassen und im UAT prüfen (Check läuft nur lokal mit gesetzten Variablen, nicht in CI).
+
 ## Log
 
 - 2026-11-21T19:20Z · Brief und STATE geschrieben; Vorlage aus Format und trackers.md statt Export aus einem Bestandsprojekt (Entscheidung im Brief, der Mensch im UAT)
@@ -59,3 +63,4 @@ Keine: `bash scripts/test-all.sh` auf dem Startstand 302496a (dev) lief mit Exit
 - 2026-11-21T20:30Z · Validierung Runde 1: A/B/C needs-remediation (1 high); R1 rot vor der Änderung 449a3ee (test-check-config.sh Exit 1, test-itsaplan-template.mjs Exit 1); grün danach: beide Exit 0, `bash scripts/test-all.sh` Exit 0 · 6c27c0d
 - 2026-11-21T20:30Z · Koordinator: kein Merge nach dev, bis die Historie umgeschrieben ist; danach batch/m005 auf neues dev aufsetzen
 - 2026-11-21T20:55Z · Validierung Runde 2: A needs-attention (1 medium: requirements verlangt, dass übersetzte Namen Fehler sind), B pass, C needs-attention (gleicher medium-Fund); R2 rot vor der Änderung ddfdd86; grün danach: test-check-config.sh, test-itsaplan-template.mjs Exit 0, dev eingemergt (4479319), `bash scripts/test-all.sh` Exit 0 · 540c1c5
+- 2026-11-21T21:10Z · Validierung Runde 3: A/C needs-attention, B needs-attention; 1 medium (art/mit in der Wortliste von check-config.sh, nur Heuristik), Rest low; keine dritte Runde ohne Freigabe von Andreas
