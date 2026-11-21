@@ -1,6 +1,6 @@
 // Measurement of runs, interventions, fallbacks and models from files. Pure reading, no network, no writes.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { stamp, parseState } from "./state.mjs";
 import { CAUSES, interventions } from "./intervention.mjs";
 
@@ -9,6 +9,15 @@ export const FALLBACK_TAG = "fallback after provider outage";
 
 const DAY = 86400000;
 const ATTEMPT = /^## Attempt \d+: (\S+) \((.+?)\) - (ok|failed)/;
+
+/** Folder for output: relative to root when inside it, otherwise only its base name. Never an absolute path. */
+function shownDir(root, dir) {
+  const abs = resolve(dir);
+  const rel = relative(resolve(root), abs);
+  if (rel === "") return ".";
+  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return basename(abs);
+  return rel.split(sep).join("/");
+}
 
 /** Milliseconds of a Date or an ISO UTC string (a bare date means its start, or its last millisecond when `endOfDay`). */
 function toMs(value, name, endOfDay) {
@@ -135,7 +144,7 @@ export function collect(opts = {}) {
   let attempts = 0;
   let fallbacks = 0;
   const models = {};
-  if (!existsSync(resultsDir)) gaps.push(`worker result files not found (${resultsDir})`);
+  if (!existsSync(resultsDir)) gaps.push(`worker result files not found (${shownDir(root, resultsDir)})`);
   else {
     const files = listDir(resultsDir).filter((d) => d.isFile() && d.name.endsWith(".result.md")).map((d) => d.name).sort();
     const tag = `, ${FALLBACK_TAG}`;

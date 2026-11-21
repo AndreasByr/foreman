@@ -289,9 +289,17 @@ t("collect: wait longer than the span never drives minutes below zero", () => {
 t("collect: missing resultsDir gives a gap and no crash", () => {
   const root = tmp();
   const r = collect({ root, ...PERIOD });
-  assert.deepEqual(r.gaps, [`worker result files not found (${join(root, "tools", "delegate", "tasks")})`]);
+  assert.deepEqual(r.gaps, ["worker result files not found (tools/delegate/tasks)"]);
   assert.equal(r.attempts, 0);
   assert.deepEqual(r.units, []);
+});
+
+t("collect: a results dir outside root is shown by its base name, never as an absolute path", () => {
+  const root = tmp();
+  const outside = join(tmp(), "my-results");
+  const r = collect({ root, resultsDir: outside, ...PERIOD });
+  assert.deepEqual(r.gaps, ["worker result files not found (my-results)"]);
+  assert.ok(!JSON.stringify(r.gaps).includes(outside));
 });
 
 t("collect: empty result file and file without attempt give a gap", () => {
@@ -565,7 +573,17 @@ t("cli: empty project exits 0, says no units and lists the missing result files 
   assert.equal(r.status, 0, r.stderr);
   const md = metricsOf(root);
   assert.ok(md.includes("Keine Units im Zeitraum."));
-  assert.ok(md.includes("- worker result files not found ("));
+  assert.ok(md.includes("- worker result files not found (tools/delegate/tasks)\n"));
+});
+
+t("cli: metrics.md shows no absolute path when --results is outside the project", () => {
+  const root = tmp();
+  const outside = join(tmp(), "my-results");
+  const r = cli(["--root", root, "--results", outside, ...PERIOD_ARGS]);
+  assert.equal(r.status, 0, r.stderr);
+  const md = metricsOf(root);
+  assert.ok(md.includes("- worker result files not found (my-results)\n"));
+  assert.ok(!md.includes(outside) && !md.includes(root) && !md.includes(tmpdir()));
 });
 
 t("docs: MODULES.md and learnings.md mention measure.mjs", () => {
