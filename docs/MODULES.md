@@ -12,7 +12,7 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 | `gateway` | optional LiteLLM proxy in front of Ollama Cloud and, optionally, a ChatGPT subscription (Codex OAuth, needs `--chatgpt-via-gateway accepted-risk`) as a second worker backend; falls back to `claude -p` on your Claude subscription | a small server, `FOREMAN_GATEWAY_KEY` (virtual key); `gateway/` docs are copied to `tools/gateway/` |
 | `autopilot` | `scripts/autopilot-check.sh` (the dispatcher's check), the work-run routine docs, `foreman-dispatch-run`; the central dispatcher in this repo's `dispatcher/` runs on your server | GitHub or similar, Claude Code routines (API trigger), a machine that is on for the dispatcher (or Plan B, see below) |
 | `pretest` | `foreman-pretest`, the headless pretest runner, UAT checklist script, test-login pattern doc | a test login in your app (`docs/test-login.md`), dev or staging environment, Playwright and axe-core installed in the worktree at run time |
-| `docs-notion` | one-way mirror of repo docs to Notion, one page per file, the overview as parent page; run by the batch run, never by a model | Notion integration token in `NOTION_API_KEY`, a root page id in `.foreman.json` `docsNotion.rootPageId`, Node 20 |
+| `docs-notion` | one-way mirror of repo docs to Notion, one page per file, the overview as parent page; run by the batch run, never by a model; it runs after each merge in the batch run via `scripts/post-merge.d` | Notion integration token in `NOTION_API_KEY`, a root page id in `.foreman.json` `docsNotion.rootPageId`, Node 20 |
 
 `tracker-itsaplan` and `tracker-linear` exclude each other.
 

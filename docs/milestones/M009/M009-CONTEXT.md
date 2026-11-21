@@ -22,7 +22,7 @@ M008 (abgenommen) ist die Grundlage. M010 (Wiki) baut auf diesem Milestone auf. 
 M004, M006, M007. Geteilte Dateien: `install.sh`, `scripts/test-install.sh`, `scripts/test-all.sh`, `docs/MODULES.md`, `update-classes.json`, `CHANGELOG.md`, `template/.claude/skills/foreman-dispatch-run/`. Nur ergänzen, nie umbauen. Vor dem Merge `dev` einmergen und Konflikte lösen.
 
 ## Surface
-Keine UI (Skript, Installer, Doku). Die Notion-Struktur prüft Andreas im UAT.
+Keine UI (Skript, Installer, Doku). Die Notion-Struktur prüft der Mensch im UAT.
 
 ## Accessibility
 Nicht gefordert (foreman hat keine eigene UI).
@@ -50,8 +50,8 @@ Neue Dateien: Spiegel-Skript mit Bibliothek und Test in `template/scripts/` (Tes
 - Wiki, Zielgruppen, Veröffentlichung nach außen (M010).
 - Dritter Spiegel im Claude-Projekt.
 - Rückweg Notion → Repo, Notion als Tracker.
-- Echter Lauf gegen Notion durch den Agent: kein Token in der Cloud; den echten Lauf macht Andreas im UAT.
-- Änderungen an Guildora, Kasev oder Office.
+- Echter Lauf gegen Notion durch den Agent: kein Token in der Cloud; den echten Lauf macht der Mensch im UAT.
+- Änderungen an anderen Projekten (Abnahme nur gegen ein Wegwerf-Testprojekt).
 
 ## Success criteria
 1. `install.sh --modules docs-notion` listet das Modul in `.foreman.json` und installiert das Skript samt Standardwerten. Ohne das Flag fehlt beides, und kein installiertes File enthält „notion“. Der alte Ablehnungstest ist ersetzt; `bash scripts/test-install.sh` ist grün.

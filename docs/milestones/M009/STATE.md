@@ -1,4 +1,4 @@
-Status: slice · since 2026-11-21T19:55Z · S2 läuft
+Status: slice · since 2026-11-21T19:55Z · S4 läuft
 Target: dev
 Batch-branch: batch/m009
 Lock: free
@@ -14,8 +14,8 @@ Start commit: 7f8c84c (Basis dev 7d806f4)
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
 | S1 | Modul `docs-notion` im Installer (Sperre fällt, Install mit/ohne Modul, MODULES.md, Standardwerte, update-classes) | done | M009 S1 | install.sh, scripts/update.py, scripts/test-install.sh, scripts/test-all.sh, docs/MODULES.md, CHANGELOG.md, template/scripts/docs-notion.mjs (Stub), template/scripts/lib/docs-notion.mjs (Stub), template/scripts/test-docs-notion.mjs (Stub) | update.py ebenfalls gegated (Brief nannte es nicht) |
-| S2 | Spiegel-Skript (Markdown→Blöcke, Seitenbaum, idempotent, archivieren, --dry-run, lokaler Notion-Ersatz im Test) | open | | | |
-| S3 | Auslöser im Batch-Lauf (generischer Nach-Merge-Schritt, nur mit Modul installiert) | open | | | |
+| S2 | Spiegel-Skript (Markdown→Blöcke, Seitenbaum, idempotent, archivieren, --dry-run, lokaler Notion-Ersatz im Test) | done | M009 S2 | template/scripts/docs-notion.mjs, lib/docs-notion.mjs, lib/docs-notion-md.mjs, test-docs-notion.mjs, install.sh, scripts/update.py, scripts/test-install.sh | lib-Datei docs-notion-md.mjs kam dazu (Zeilenlimit), ebenfalls gegated |
+| S3 | Auslöser im Batch-Lauf (generischer Nach-Merge-Schritt, nur mit Modul installiert) | done | M009 S3 | batch-run.md (Schritt 3), template/scripts/post-merge.d/docs-notion.sh, install.sh, scripts/update.py, scripts/test-install.sh, docs/MODULES.md | Hook liegt in `scripts/post-merge.d/`; Wrapper-Exit 1 (Worker ließ das Exec-Bit weg), Bit von der Sitzung gesetzt |
 | S4 | Sicherheit und Limits (429, Blockgrenzen, Token-Leck, Pfadgrenzen, Privacy-Scan) | open | | | |
 
 ## Check plan per slice
@@ -45,3 +45,6 @@ None recorded.
 - 2026-11-21T19:20Z · Brief M009-CONTEXT.md und Role Review geschrieben · -
 - 2026-11-21T19:55Z · S1 grün: test-install, test-update-classes, test-update, test-changelog, privacy-scan je Exit 0 · see commit M009 S1
 - Klarstellung Kriterium 2: dry-run ohne Token listet je Datei `sync`; mit Token und Wurzelseite klassifiziert er nur lesend (neu, aktualisiert, archiviert, unverändert).
+- 2026-11-21T20:20Z · S2 grün (test-docs-notion, test-install, test-update, test-update-classes, privacy-scan je Exit 0) · M009 S2
+- 2026-11-21T20:35Z · S3 grün (test-install, test-update, test-update-classes, test-plugin, test-rules, privacy-scan je Exit 0) · M009 S3
+- Abweichung vom Brief: Kriterium 8 nennt `batch-run.md`; der Aufruf dort ist ein genereller Hook-Schritt (`post-merge.d`), ohne das Wort notion.
