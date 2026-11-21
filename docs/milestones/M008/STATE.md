@@ -1,4 +1,4 @@
-Status: batch-pr · since 2026-11-21T19:45Z · Validierung pass (Runde 4), Batch-PR nach dev folgt
+Status: uat-ready · since 2026-11-21T19:55Z · Batch-PR #8 in dev gemergt (336de21), UAT durch Andreas steht aus
 Target: dev
 Batch-branch: batch/m008
 Lock: free
@@ -58,3 +58,4 @@ none (R3 von Andreas am 2026-11-21 erlaubt, Entscheidungskarte)
 - 2026-11-21T18:40Z · R1 · beide Tests rot (exit 1) vorher, grün (exit 0, 27 Tests) nachher, test-all exit 0 · siehe Commit
 - 2026-11-21T19:15Z · R2 · Test rot→grün (44), test-all exit 0 · Review Runde 3: needs-attention, Limit 2 Rework-Runden erreicht → needs-input · siehe Commit
 - 2026-11-21T19:45Z · R3 · Test rot→grün (51), test-all exit 0 · Review Runde 4: pass → batch-pr · siehe Commit
+- 2026-11-21T19:55Z · Batch-PR #8 gemergt (Merge-Commit 336de21), CI grün · uat-ready
