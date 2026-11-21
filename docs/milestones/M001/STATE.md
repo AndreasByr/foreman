@@ -1,4 +1,4 @@
-Status: slice · since 2026-11-21T16:05Z · S2 fertig, S3 offen
+Status: slice · since 2026-11-21T16:05Z · S3 fertig, S4 offen
 Target: dev
 Batch-branch: batch/m001
 Lock: free
@@ -15,7 +15,7 @@ Start commit: 28eab3e (Baseline: bash scripts/test-all.sh exit 0)
 |---|---|---|---|---|---|
 | S1 | Umgebung begrenzen | done | see Log | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
 | S2 | Webhook-Format | done | see Log | dispatcher/dispatch.mjs, config.example.json, dispatcher.env.example, tests | |
-| S3 | Regel für `main` | open | | template/scripts/lib/autopilot-check.mjs, autopilot-check.mjs, test-autopilot-check.mjs, foreman-fix skill, template .foreman.json | |
+| S3 | Regel für `main` | done | see Log | template/scripts/lib/autopilot-check.mjs, autopilot-check.mjs, test-autopilot-check.mjs, foreman-fix skill, template .foreman.json | |
 | S4 | `--no-fetch` überall | open | | template/scripts/autopilot-check.mjs, check-config.sh (scripts/ und template/scripts/), tests | |
 | S5 | Lokaler Lauf | open | | dispatcher/ (Startskript-Vorlage), docs/MODULES.md, tests | |
 | S6 | Doku und Learnings | open | | dispatcher/README.md, docs/MODULES.md, docs/learnings.md, CHANGELOG.md | |
@@ -57,3 +57,4 @@ One question, options, recommendation.
 - 2026-11-21T16:05Z · Plan · 6 Slices, Baseline test-all.sh grün (exit 0, 28eab3e) · -
 - 2026-11-21T16:20Z · S1 done · node dispatcher/tests/test-dispatch.mjs exit 0 (19 Tests), bash scripts/test-all.sh exit 0 · committed as M001 S1
 - 2026-11-21T16:30Z · S2 done · test-dispatch exit 0 (25 Tests), test-all exit 0 · committed as M001 S2
+- 2026-11-21T16:45Z · S3 done · test-autopilot-check exit 0 (26 Tests), test-all exit 0 · committed as M001 S3

@@ -118,6 +118,68 @@ t("batch: window, overdue, open PR, catch-up, main busy", () => {
   assert.ok(list[0].prompt.includes("Batch branch: batch/dev") && list[0].prompt.includes("Units: A"));
 });
 
+t("settings: mainAutoMerge is true only for the boolean true", () => {
+  assert.equal(S.mainAutoMerge, false);
+  assert.equal(settingsFrom({}, { autopilot: { mainAutoMerge: true } }).mainAutoMerge, true);
+  for (const v of [null, "true", "yes", 1, 0, "false", false, {}, []]) {
+    assert.equal(settingsFrom({}, { autopilot: { mainAutoMerge: v } }).mainAutoMerge, false, `value ${JSON.stringify(v)}`);
+  }
+});
+
+t("batch main: window and overdue start it only with mainAutoMerge true", () => {
+  const m = () => unit("M", "awaiting-merge", { target: "main", ref: "origin/batch/main", since: "2026-03-06T02:00:00Z" });
+  const at = (h) => new Date(`2026-03-06T${h}:10:00Z`);
+  const on = settingsFrom({}, { autopilot: { mainAutoMerge: true } });
+  const strOn = settingsFrom({}, { autopilot: { mainAutoMerge: "true" } });
+  const mainBatch = (list) => kinds(list).filter((k) => k.startsWith("batch:batch:main"));
+  assert.deepEqual(mainBatch(tasks({ units: [m()], now: at("07"), settings: S })), [], "default: no main batch in window");
+  assert.deepEqual(mainBatch(tasks({ units: [m()], now: at("08"), settings: S })), [], "default: no main batch when overdue");
+  assert.deepEqual(kinds(tasks({ units: [m()], now: at("07"), settings: on })), ["batch:batch:main"], "window");
+  assert.deepEqual(kinds(tasks({ units: [m()], now: at("08"), settings: on })), ["batch:batch:main"], "overdue");
+  assert.deepEqual(mainBatch(tasks({ units: [m()], now: at("07"), settings: strOn })), [], "string true is not enabled");
+  assert.deepEqual(mainBatch(tasks({ units: [m()], now: at("08"), settings: strOn })), [], "string true overdue is not enabled");
+});
+
+t("batch main: open PR starts it only with mainAutoMerge true", () => {
+  const at = (h) => new Date(`2026-03-06T${h}:10:00Z`);
+  const on = settingsFrom({}, { autopilot: { mainAutoMerge: true } });
+  const off = tasks({ units: [], now: at("08"), settings: S, openPrs: { main: 5 } });
+  assert.equal(off.filter((x) => x.kind === "batch" && x.unit === "batch:main").length, 0, "no main batch without mainAutoMerge");
+  const list = tasks({ units: [], now: at("08"), settings: on, openPrs: { main: 5 } });
+  const mainTask = list.find((x) => x.kind === "batch" && x.unit === "batch:main");
+  assert.ok(mainTask, "main batch with mainAutoMerge");
+  assert.ok(mainTask.info.includes("#5"), mainTask.info);
+});
+
+t("batch main: catch-up still starts it without mainAutoMerge", () => {
+  const at = (h) => new Date(`2026-03-06T${h}:10:00Z`);
+  const m = unit("M", "awaiting-merge", { target: "main", ref: "origin/batch/main", since: "2026-03-06T02:00:00Z" });
+  const list = tasks({ units: [m], now: at("08"), settings: S, catchUp: { main: ["M"] } });
+  const mainTask = list.find((x) => x.kind === "batch" && x.unit === "batch:main");
+  assert.ok(mainTask, "main catch-up batch without mainAutoMerge");
+  assert.ok(mainTask.info.includes("catch-up"), mainTask.info);
+});
+
+t("batch main: held without mainAutoMerge, catch-up task carries only the catch-up units", () => {
+  const at = (h) => new Date(`2026-03-06T${h}:10:00Z`);
+  const w = unit("W", "awaiting-merge", { target: "main", ref: "origin/batch/main", since: "2026-03-06T02:00:00Z" });
+  const list = tasks({ units: [w], now: at("08"), settings: S, catchUp: { main: ["C"] }, openPrs: { main: 5 } });
+  const mainTasks = list.filter((x) => x.kind === "batch" && x.unit === "batch:main");
+  assert.equal(mainTasks.length, 1, "exactly one main batch task");
+  assert.ok(mainTasks[0].info.includes("catch-up"), mainTasks[0].info);
+  assert.ok(!mainTasks[0].info.includes("#5"), mainTasks[0].info);
+  assert.ok(mainTasks[0].prompt.includes("Units: C"), mainTasks[0].prompt);
+  assert.ok(!mainTasks[0].prompt.includes("W"), mainTasks[0].prompt);
+});
+
+t("batch dev: unaffected by mainAutoMerge", () => {
+  const at = (h) => new Date(`2026-03-06T${h}:10:00Z`);
+  const on = settingsFrom({}, { autopilot: { mainAutoMerge: true } });
+  const devUnits = () => [unit("A", "awaiting-merge", { target: "dev", ref: "origin/batch/dev", since: "2026-03-06T07:00:00Z" })];
+  assert.deepEqual(kinds(tasks({ units: devUnits(), now: at("07"), settings: S })), ["batch:batch:dev"], "dev in window, default");
+  assert.deepEqual(kinds(tasks({ units: devUnits(), now: at("07"), settings: on })), ["batch:batch:dev"], "dev in window, mainAutoMerge");
+});
+
 t("release reminder: weekday and hour in the zone, once per day", () => {
   const ready = [unit("R1", "release-ready", { target: "main" }), unit("R2", "release-ready", { target: "main" })];
   const fri9 = new Date("2026-03-06T09:05:00Z");
