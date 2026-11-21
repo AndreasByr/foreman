@@ -14,7 +14,7 @@ Start commit: 2e5bc22
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
 | S1 | Bestandsaufnahme: Fragenkatalog | done | 9028645 | plugins/foreman/skills/foreman-setup/SKILL.md, references/question-catalog.md, scripts/test-setup-catalog.py, scripts/test-all.sh | |
-| S2 | workspace.json: Schema, Beispiel, Prüfung, infra-Block | done | S2c | docs/workspace.schema.json, docs/workspace.example.json, scripts/check-workspace.py, scripts/test-workspace.py, install.sh (--workspace), references/workspace-format.md | |
+| S2 | workspace.json: Schema, Beispiel, Prüfung, infra-Block | done | 12ec325 | docs/workspace.schema.json, docs/workspace.example.json, scripts/check-workspace.py, scripts/test-workspace.py, install.sh (--workspace), references/workspace-format.md | |
 | S3 | Gateway erkennen: Preset im Installer, optionaler Einrichtungsblock | open | | install.sh, scripts/test-install.sh, gateway/README.md, references/gateway-block.md | |
 | S4 | Zusammenfassung vor der Empfehlung | open | | scripts/setup-summary.py, scripts/test-setup-summary.py, SKILL.md | |
 
@@ -51,4 +51,4 @@ One question, options, recommendation.
 - <UTC time> · <step> · <result> · <commit>
 
 - 2026-11-21T16:35Z · S1 fertig, test-all.sh grün (Exit 0) · 9028645
-- 2026-11-21T16:55Z · S2 fertig, test-all.sh grün (Exit 0) · S2c
+- 2026-11-21T16:55Z · S2 fertig, test-all.sh grün (Exit 0) · 12ec325
