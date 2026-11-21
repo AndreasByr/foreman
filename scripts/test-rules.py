@@ -3,6 +3,7 @@
 Run: python3 scripts/test-rules.py
 """
 import os
+import re
 import sys
 import tempfile
 
@@ -16,11 +17,28 @@ LEARNINGS_SECTION = "## From foreman itself"
 
 SETS = [("repo skills", REPO_SKILLS), ("chat skills", CHAT_SKILLS)]
 
-# (rule name, label, words the labeled line must contain, words that make an unlabeled duplicate)
+MODEL_ID_DUPLICATE = re.compile(r"exact\s+(?:model\s+)?ids?\b", re.IGNORECASE)
+KEY_FILE_DUPLICATE = re.compile(r"key\s+files?|never\s+read\s+\S*\.env", re.IGNORECASE)
+
+
+def model_id_duplicate(line):
+    return MODEL_ID_DUPLICATE.search(line) is not None
+
+
+def key_file_duplicate(line):
+    return KEY_FILE_DUPLICATE.search(line) is not None
+
+
+def claude_dir_duplicate(line):
+    low = line.lower()
+    return all(w in low for w in (".claude/", "worker", "writ"))
+
+
+# (rule name, label, words the labeled line must contain, test that flags an unlabeled duplicate line)
 RULES = [
-    ("Model ID rule", "**Model ID rule:**", ["exact", "task-*"], ["exact", "task-*"]),
-    ("Claude-dir rule", "**Claude-dir rule:**", [".claude/", "worker"], [".claude/", "worker", "writ"]),
-    ("Key-file rule", "**Key-file rule:**", ["existence", "permissions"], ["existence", "permissions"]),
+    ("Model ID rule", "**Model ID rule:**", ["exact", "task-*"], model_id_duplicate),
+    ("Claude-dir rule", "**Claude-dir rule:**", [".claude/", "worker"], claude_dir_duplicate),
+    ("Key-file rule", "**Key-file rule:**", ["existence", "permissions"], key_file_duplicate),
 ]
 
 # (reason name in errors, word that must appear in a bullet of the learnings section)
@@ -56,7 +74,7 @@ def set_lines(root, rel_dir):
 
 def check_set(root, set_name, rel_dir, errors):
     lines = set_lines(root, rel_dir)
-    for rule_name, label, required, signature in RULES:
+    for rule_name, label, required, is_duplicate in RULES:
         labeled = [(f, n, t) for f, n, t in lines if label in t]
         if len(labeled) != 1:
             detail = ""
@@ -73,8 +91,7 @@ def check_set(root, set_name, rel_dir, errors):
         for f, n, t in lines:
             if label in t:
                 continue
-            low = t.lower()
-            if all(w.lower() in low for w in signature):
+            if is_duplicate(t):
                 errors.append(f"duplicate statement of {rule_name} in {f}:{n}")
 
 
@@ -257,6 +274,42 @@ def case_learnings_without_section():
     return run_case(files, lambda errors: any("missing section" in e for e in errors))
 
 
+def case_unlabeled_model_id_phrase():
+    files = good_files()
+    files["plugins/foreman/skills/demo/SKILL.md"] = RULE_LINES + (
+        "\nWrite exact IDs, no aliases.\n"
+    )
+    return run_case(
+        files,
+        lambda errors: any(
+            e.startswith("duplicate statement of Model ID rule in plugins/foreman/skills/demo/SKILL.md:")
+            for e in errors
+        ),
+    )
+
+
+def case_unlabeled_key_file_phrase():
+    files = good_files()
+    files["plugins/foreman/skills/demo/SKILL.md"] = RULE_LINES + (
+        "\nNever read .env files in a worker session.\n"
+    )
+    return run_case(
+        files,
+        lambda errors: any(
+            e.startswith("duplicate statement of Key-file rule in plugins/foreman/skills/demo/SKILL.md:")
+            for e in errors
+        ),
+    )
+
+
+def case_clean_tree_passes():
+    files = good_files()
+    files["plugins/foreman/skills/demo/SKILL.md"] = RULE_LINES + (
+        "\nRun the test suite before every push.\nKeep the changelog short.\n"
+    )
+    return run_case(files, lambda errors: errors == [])
+
+
 SELFTESTS = [
     ("correct tree gives no errors", case_correct),
     ("chat set missing a rule errors", case_chat_missing_rule),
@@ -265,6 +318,9 @@ SELFTESTS = [
     ("unlabeled Claude-dir duplicate errors", case_unlabeled_claude_dir_duplicate),
     ("differing rendered copy errors", case_rendered_differs),
     ("learnings without section errors", case_learnings_without_section),
+    ("unlabeled 'Write exact IDs, no aliases' errors", case_unlabeled_model_id_phrase),
+    ("unlabeled 'never read .env files' errors", case_unlabeled_key_file_phrase),
+    ("clean tree with unrelated lines still passes", case_clean_tree_passes),
 ]
 
 

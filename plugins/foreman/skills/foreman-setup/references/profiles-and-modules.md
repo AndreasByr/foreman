@@ -29,7 +29,7 @@ What each profile produces:
 | `tracker-linear` | the same mirror in Linear, one ticket per unit, no sub-issues | Linear account and team, `LINEAR_API_KEY` | optional; mutually exclusive with itsaplan |
 | (neither) | `none`: `STATE.md` and files only | nothing | fully supported, equal in function; answers and approvals are files |
 | `delegate` | worker roles via `tools/delegate/run_task.py` | `OLLAMA_API_KEY` for Ollama Cloud, or the gateway; otherwise Claude workers | saves Claude quota; optional |
-| `gateway` | LiteLLM proxy example for workers: Ollama and a ChatGPT subscription behind one endpoint, fallback to `claude -p` | a machine for the proxy, `FOREMAN_GATEWAY_URL`, `FOREMAN_GATEWAY_KEY` | documented, not required; avoid LiteLLM versions 1.82.7 and 1.82.8; virtual keys only for `task-*` roles; no prompt logging |
+| `gateway` | LiteLLM proxy example for workers: Ollama Cloud behind one endpoint, optionally a ChatGPT subscription (only with the human's informed consent), fallback to `claude -p` | a machine for the proxy, `FOREMAN_GATEWAY_URL`, `FOREMAN_GATEWAY_KEY` | documented, not required; avoid LiteLLM versions 1.82.7 and 1.82.8; virtual keys only for `task-*` roles; no prompt logging |
 | `autopilot` | dispatcher side in the project, work-run routine docs | GitHub, Claude Code routines, a machine for the dispatcher | implied by scope Autopilot |
 | `pretest` | browser pretest in the work run: Playwright, test login pattern, axe-core, role review | test login in the app, `TEST_LOGIN_SECRET`, non-production host | recommended for any product with a UI |
 
@@ -56,7 +56,7 @@ No always-on machine: Repo profile, started by hand. If the human still wants sc
   [--scope docs|repo|autopilot] \
   [--modules tracker-itsaplan|tracker-linear,delegate,gateway,autopilot,pretest] \
   [--agent claude-code|opencode|other] \
-  [--session-model <exact model id>] [--no-staging] [--force] [--dry-run] \
+  [--session-model <model id>] [--no-staging] [--force] [--dry-run] \
   [--recommended-skills all|none|<list>] [--skills-scope global|project]
 ```
 
@@ -65,7 +65,7 @@ Rules for the command you hand out:
 - `--project` is a lowercase slug. `--name` is optional.
 - `--modules` is a comma list without spaces. At most one tracker module.
 - `--agent` defaults to `claude-code`.
-- `--session-model` is an exact model ID, never `opusplan`.
+- `--session-model` is a concrete model ID, never `opusplan`.
 - `--no-staging` for projects without a separate staging environment (then `main` is production).
 - `--recommended-skills` and `--skills-scope`: leave out when the human decided in chat and you install the skills yourself or print the commands. Non-interactive without the flag means none.
 - Always propose `--dry-run` first for a beginner.
@@ -74,11 +74,11 @@ Examples:
 
 ```
 # Repo profile, Claude Code, workers on Ollama
-./install.sh ~/code/my-app --project my-app --scope repo --modules delegate --session-model <exact id>
+./install.sh ~/code/my-app --project my-app --scope repo --modules delegate --session-model <model id>
 
 # Autopilot, itsaplan, delegate, pretest
 ./install.sh ~/code/my-app --project my-app --scope autopilot \
-  --modules tracker-itsaplan,delegate,autopilot,pretest --session-model <exact id>
+  --modules tracker-itsaplan,delegate,autopilot,pretest --session-model <model id>
 
 # Autopilot with OpenCode, no tracker
 ./install.sh ~/code/my-app --project my-app --scope autopilot --modules autopilot,pretest --agent opencode

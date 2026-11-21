@@ -221,12 +221,17 @@ def validate_config(cfg, name="config"):
         errs.append(f'[gateway] chatgpt_via_gateway must be "accepted-risk" (or unset), got {consent!r}')
 
     def check_chatgpt(where, m):
-        if isinstance(m, str) and m.startswith("chatgpt/") and consent != "accepted-risk":
+        if isinstance(m, str) and re.search(r"(?:^|/)chatgpt/", m) and consent != "accepted-risk":
             errs.append(f'{where} uses a chatgpt/ model ({m}); this needs the human\'s informed consent: '
                         'set [gateway] chatgpt_via_gateway = "accepted-risk" (see README.md)')
 
+    def check_fallback_claude(where, m):
+        if isinstance(m, str) and m and "/" in m and m.split("/", 1)[0] not in ("claude", "chatgpt"):
+            errs.append(f"{where} fallback_model must be a Claude model (claude/<id>), got {m!r}")
+
     for k in ("defaults", "gateway"):
         check_chatgpt(f"[{k}] fallback_model", cfg.get(k, {}).get("fallback_model", ""))
+        check_fallback_claude(f"[{k}]", cfg.get(k, {}).get("fallback_model", ""))
     for k in ("timeout_seconds",):
         if k not in d:
             errs.append(f"[defaults] {k} missing")
@@ -253,6 +258,7 @@ def validate_config(cfg, name="config"):
             continue
         check_chatgpt(f"roles.{role}.model", m)
         check_chatgpt(f"roles.{role}.fallback_model", r.get("fallback_model", ""))
+        check_fallback_claude(f"roles.{role}", r.get("fallback_model", ""))
         if re.search(r"<[^>]*>", m):
             errs.append(f"roles.{role}.model is still a placeholder ({m}); fill in the exact model ID")
         p = provider_of(cfg, role)
@@ -589,6 +595,11 @@ class RunLimits:
         self.pauses.append((provider, pause))
         return pause
 
+    def drop_last_pause(self):
+        """Forget the last recorded pause (it was not slept)."""
+        if self.pauses:
+            self.pauses.pop()
+
     def success(self, provider):
         self.fails[provider] = 0
 
@@ -809,7 +820,7 @@ def main(argv=None):
             failed_models.add(res["model"])
         return res
 
-    def claude_attempt(r, body_r, fallback=None):
+    def claude_attempt(r, body_r, fallback=None, more=False):
         """One Claude attempt under the limits; None = skipped because Claude is locked."""
         if limits.is_locked("claude") or not limits.wait_for_slot("claude"):
             print(f"-> {r}: Claude is locked for this run ({limits.locks['claude']}), skipped.")
@@ -818,14 +829,23 @@ def main(argv=None):
         if res["ok"]:
             limits.success("claude")
         elif not res["login"] and not res["verify"] and INFRA_ERROR.search(f"{res['result']}\n{res['stderr']}"):
-            limits.failure("claude", res["cause"])  # no retry here: the next role is the retry
+            pause = limits.failure("claude", res["cause"])
+            if pause is not None:
+                if more:
+                    print(f"   claude unusable, next attempt in {pause:g}s", flush=True)
+                    limits.sleep(pause)
+                else:
+                    limits.drop_last_pause()
+        elif not res["login"]:
+            limits.success("claude")  # the provider answered (e.g. verify red)
         return res
 
     call_limit = None
     claude_login_failed = False
     try:
-        for r in chain:
+        for idx, r in enumerate(chain):
             prov = provider_of(cfg, r)
+            more = any(provider_of(cfg, x) == "claude" for x in chain[idx + 1:])
             if claude_login_failed and prov == "claude":
                 print(f"-> {r}: Claude workers cannot log in, skipped.")
                 continue
@@ -833,7 +853,7 @@ def main(argv=None):
                                             "and finish the task. Last message of the earlier attempt:\n" + prev)
             res, need_fallback = None, False
             if prov == "claude":
-                res = claude_attempt(r, body_r)
+                res = claude_attempt(r, body_r, more=more)
                 if res is None:
                     continue
             else:
@@ -846,7 +866,11 @@ def main(argv=None):
                             need_fallback = False
                             break
                         if not res["infra"]:  # e.g. verify red: not the provider's fault, no retry
+                            limits.success(prov)
                             need_fallback = False
+                            break
+                        if res["rc"] == 124:  # timeout: no retry, go to the fallback
+                            limits.failure(prov, res["cause"])
                             break
                         pause = limits.failure(prov, res["cause"])
                         if pause is None:
@@ -861,7 +885,7 @@ def main(argv=None):
                     print(f"-> {r}: fallback {fb} {'cannot log in' if claude_login_failed else 'already failed'}, skipped.")
                 else:
                     print(f"   provider {prov} unusable -> fallback {fb}", flush=True)
-                    res = claude_attempt(r, body_r, fb) or res
+                    res = claude_attempt(r, body_r, fb, more=more) or res
             if res is None:
                 continue
             if res.get("login"):

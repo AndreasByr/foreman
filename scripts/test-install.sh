@@ -166,10 +166,13 @@ grep -Eq '^[[:space:]]*(-[[:space:]]*)?model:[[:space:]]*chatgpt/' "$T/g2/tools/
 grep -Eq '^[[:space:]]*(-[[:space:]]*)?model:[[:space:]]*chatgpt/' "$T/g2/tools/gateway/litellm.config.example.yaml" && fail "neutral gateway config contains chatgpt model with option"
 
 mkdir "$T/g3" && git -C "$T/g3" init -q
-inst "$T/g3" --project g --modules delegate,gateway --chatgpt-via-gateway yes >/dev/null 2>&1 && fail "chatgpt option value 'yes' accepted" || true
+rc=0; inst "$T/g3" --project g --modules delegate,gateway --chatgpt-via-gateway yes >/dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] || fail "chatgpt option value 'yes': expected exit 2, got $rc"
 mkdir "$T/g4" && git -C "$T/g4" init -q
-inst "$T/g4" --project g --modules delegate,gateway --chatgpt-via-gateway "" >/dev/null 2>&1 && fail "empty chatgpt option value accepted" || true
+rc=0; inst "$T/g4" --project g --modules delegate,gateway --chatgpt-via-gateway "" >/dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] || fail "empty chatgpt option value: expected exit 2, got $rc"
 mkdir "$T/g5" && git -C "$T/g5" init -q
-inst "$T/g5" --project g --modules delegate --chatgpt-via-gateway accepted-risk >/dev/null 2>&1 && fail "chatgpt option accepted without module gateway" || true
+rc=0; inst "$T/g5" --project g --modules delegate --chatgpt-via-gateway accepted-risk >/dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] || fail "chatgpt option without module gateway: expected exit 2, got $rc"
 
 echo "install tests: ok"

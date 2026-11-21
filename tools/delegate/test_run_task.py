@@ -35,8 +35,17 @@ allowed_tools = ["Read"]
 """
 
 
+def _base_env():
+    """Outer environment without the gateway variables, so tests do not depend on the outer shell."""
+    env = dict(os.environ)
+    for k in ("ANTHROPIC_BASE_URL", "FOREMAN_GATEWAY_URL"):
+        env.pop(k, None)
+    return env
+
+
 def run(args, tmp):
-    return subprocess.run([sys.executable, str(HERE / "run_task.py"), *args], capture_output=True, text=True, cwd=tmp)
+    return subprocess.run([sys.executable, str(HERE / "run_task.py"), *args], capture_output=True, text=True, cwd=tmp,
+                          env=_base_env())
 
 
 def setup(tmp, task):
@@ -159,7 +168,9 @@ def test_scope_check():
 def _fake_claude(tmp, script):
     b = tmp / "bin"; b.mkdir(exist_ok=True)
     f = b / "claude"; f.write_text("#!/bin/sh\n" + script); f.chmod(0o755)
-    return {**os.environ, "PATH": f"{b}:{os.environ['PATH']}"}
+    env = _base_env()
+    env["PATH"] = f"{b}:{env['PATH']}"
+    return env
 
 
 def test_claude_worker_not_logged_in_exit_5():
@@ -221,16 +232,16 @@ def test_gateway_base_url_from_env():
         dry = ["t.md", "--config", "config.toml", "--dry-run"]
         (t / "config.toml").write_text(cfg_no_url)
         # (a) variable supplies the gateway URL
-        env = {**os.environ, "FOREMAN_GATEWAY_URL": "https://gw.example"}
+        env = {**_base_env(), "FOREMAN_GATEWAY_URL": "https://gw.example"}
         p = subprocess.run([sys.executable, str(HERE / "run_task.py"), *dry], capture_output=True, text=True, cwd=t, env=env)
         assert p.returncode == 0 and "provider: gateway" in p.stdout, p
         # (b) no variable, no base_url: config error
-        env = {k: v for k, v in os.environ.items() if k != "FOREMAN_GATEWAY_URL"}
+        env = _base_env()
         p = subprocess.run([sys.executable, str(HERE / "run_task.py"), *dry], capture_output=True, text=True, cwd=t, env=env)
         assert p.returncode == 2 and "[gateway] base_url" in p.stderr, p
         # config base_url wins over the variable
         (t / "config.toml").write_text(GATEWAY_CONFIG.replace("https://gw.example", "https://from-config.example"))
-        env = {**os.environ, "FOREMAN_GATEWAY_URL": "https://from-env.example"}
+        env = {**_base_env(), "FOREMAN_GATEWAY_URL": "https://from-env.example"}
         p = subprocess.run([sys.executable, str(HERE / "run_task.py"), *dry], capture_output=True, text=True, cwd=t, env=env)
         assert p.returncode == 0, p
 
@@ -534,7 +545,7 @@ def test_timeout_config_validation():
     for bad in (0, -3, "10", True):
         errs = timeout_errs(_timeout_cfg(role_value=bad))
         assert errs, ("role timeout must be rejected", bad)
-    for bad in (0, -1):
+    for bad in (0, -1, "10", True):
         errs = timeout_errs(_timeout_cfg(defaults_value=bad))
         assert errs, ("[defaults] timeout_seconds must be rejected", bad)
     for good in (5, 0.5):
@@ -617,6 +628,173 @@ def test_chatgpt_target_needs_consent():
         assert "chatgpt/" not in str(role.get("fallback_model", "")), (name, role)
     for table in ("defaults", "gateway"):
         assert "chatgpt/" not in str(shipped.get(table, {}).get("fallback_model", "")), table
+
+
+# ---------------------------------------------------------------- review rework
+
+def _claude_only_cfg(t, limits_extra="pause_seconds = 0.2\nmax_pause_seconds = 1\n"):
+    return ('[defaults]\ntimeout_seconds = 60\n'
+            '[roles.execution_simple]\nwho = "worker"\nmodel = "claude/small-x"\n'
+            '[roles.execution]\nwho = "worker"\nmodel = "claude/mid-z"\n'
+            '[roles.completion]\nwho = "worker"\nmodel = "claude/small-x"\n'
+            '[escalation]\nexecution_simple = ["execution", "completion"]\n'
+            f'[limits]\nledger_file = "{t}/ledger.json"\n[limits.claude]\n{limits_extra}')
+
+
+def test_limits_claude_failure_sleeps_and_locks():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        script = 'echo x >> "$(dirname "$0")/calls"; echo "429 Too Many Requests" >&2; exit 1\n'
+        t0 = time.monotonic()
+        p = _gw_run(t, _claude_only_cfg(t), script)
+        elapsed = time.monotonic() - t0
+        assert _lines(t / "bin" / "calls") == 3, (_lines(t / "bin" / "calls"), p.stdout, p.stderr)
+        assert elapsed >= 0.5, elapsed
+        assert p.returncode == 1, (p.returncode, p.stdout, p.stderr)
+        lines = (t / "t.result.md").read_text().splitlines()
+        assert any(l.startswith("- claude: locked for this run") for l in lines), lines
+        assert "- claude: paused 0.2s before retry" in lines, lines
+        assert "- claude: paused 0.4s before retry" in lines, lines
+        paused = [l for l in lines if "paused" in l]
+        assert len(paused) == 2, paused
+
+
+def test_limits_gateway_pauses_really_slept_and_in_both_reports():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        cfg = (GATEWAY_CONFIG + f'\n[limits]\nledger_file = "{t}/ledger.json"\n'
+               '[limits.gateway]\npause_seconds = 0.2\nmax_pause_seconds = 1\n')
+        t0 = time.monotonic()
+        p = _gw_run(t, cfg, _gw_script())
+        elapsed = time.monotonic() - t0
+        assert p.returncode == 0, (p.returncode, p.stdout, p.stderr)
+        assert elapsed >= 0.5, elapsed
+        for name in ("t.result.md", "t.report.md"):
+            text = (t / name).read_text()
+            for needle in ("- gateway: locked for this run", "paused 0.2s before retry", "paused 0.4s before retry"):
+                assert needle in text, (name, needle, text)
+
+
+def test_limits_gateway_timeout_goes_straight_to_fallback():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        cfg = GATEWAY_CONFIG.replace('model = "gateway/task-simple"\n', 'model = "gateway/task-simple"\ntimeout = 1\n', 1)
+        assert "timeout = 1" in cfg
+        cfg += _gw_limits(t)
+        script = ('d="$(dirname "$0")"\n'
+                  'if [ -n "$ANTHROPIC_BASE_URL" ]; then echo x >> "$d/gw_calls"; sleep 5; exit 0; fi\n'
+                  'echo x >> "$d/claude_calls"; echo \'{"result":"ok","is_error":false}\'\n')
+        t0 = time.monotonic()
+        p = _gw_run(t, cfg, script)
+        elapsed = time.monotonic() - t0
+        assert p.returncode == 0, (p.returncode, p.stdout, p.stderr)
+        assert _lines(t / "bin" / "gw_calls") == 1, (_lines(t / "bin" / "gw_calls"), p.stdout, p.stderr)
+        assert _lines(t / "bin" / "claude_calls") == 1, (_lines(t / "bin" / "claude_calls"), p.stdout, p.stderr)
+        assert elapsed < 4, elapsed
+
+
+def test_limits_counter_resets_after_reached_provider():
+    cfg = GATEWAY_CONFIG.replace('[roles.execution]\nwho = "worker"\nmodel = "claude/mid-z"\n',
+                                 '[roles.execution]\nwho = "worker"\nprovider = "gateway"\nmodel = "gateway/task-normal"\n')
+    assert "task-normal" in cfg
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        script = ('d="$(dirname "$0")"\n'
+                  'if [ -n "$ANTHROPIC_BASE_URL" ]; then\n'
+                  '  echo x >> "$d/gw_calls"; n=$(wc -l < "$d/gw_calls")\n'
+                  '  if [ "$n" -eq 2 ]; then echo \'{"result":"ok","is_error":false}\'; exit 0; fi\n'
+                  '  echo "429 Too Many Requests" >&2; exit 1\n'
+                  'fi\n'
+                  'echo x >> "$d/claude_calls"; echo \'{"result":"ok","is_error":false}\'\n')
+        p = _gw_run(t, cfg + _gw_limits(t), script, task="---\nrole: execution_simple\nverify: false\n---\nx\n")
+        assert _lines(t / "bin" / "gw_calls") == 5, (_lines(t / "bin" / "gw_calls"), p.returncode, p.stdout, p.stderr)
+
+
+def test_config_fallback_must_be_claude():
+    def fb_errs(cfg):
+        return [e for e in rt.validate_config(cfg) if "fallback" in e]
+
+    def cfg_with(gw=None, df=None):
+        cfg = rt.tomllib.loads(GATEWAY_CONFIG)
+        for k in ("env", "mcp", "claude", "limits"):
+            cfg.setdefault(k, {})
+        if gw is not None:
+            cfg["gateway"]["fallback_model"] = gw
+        if df is not None:
+            cfg["defaults"]["fallback_model"] = df
+        return cfg
+
+    assert fb_errs(cfg_with(gw="gateway/task-simple")), "gateway fallback must be a Claude model"
+    assert fb_errs(cfg_with(df="ollama/x")), "defaults fallback must be a Claude model"
+    for good in ("claude/small-x", "small-x"):
+        assert fb_errs(cfg_with(gw=good)) == [], good
+        assert fb_errs(cfg_with(df=good)) == [], good
+
+
+def test_chatgpt_consent_covers_prefixed_and_all_fallbacks():
+    def chatgpt_errs(cfg):
+        return [e for e in rt.validate_config(cfg) if "chatgpt" in e]
+
+    def variants(consent):
+        out = {}
+        for model in ("gateway/chatgpt/x", "ollama/chatgpt/x"):
+            cfg = rt.tomllib.loads(GATEWAY_CONFIG)
+            cfg["roles"]["execution"]["model"] = model
+            out["role model " + model] = cfg
+        cfg = rt.tomllib.loads(GATEWAY_CONFIG)
+        cfg["roles"]["execution_simple"]["fallback_model"] = "chatgpt/x"
+        out["role fallback_model"] = cfg
+        cfg = rt.tomllib.loads(GATEWAY_CONFIG)
+        cfg["defaults"]["fallback_model"] = "chatgpt/x"
+        out["defaults fallback_model"] = cfg
+        cfg = rt.tomllib.loads(GATEWAY_CONFIG)
+        cfg["gateway"]["fallback_model"] = "chatgpt/x"
+        out["gateway fallback_model"] = cfg
+        for cfg in out.values():
+            for k in ("env", "mcp", "claude", "limits"):
+                cfg.setdefault(k, {})
+            if consent:
+                cfg["gateway"]["chatgpt_via_gateway"] = consent
+        return out
+
+    for label, cfg in variants(None).items():
+        errs = chatgpt_errs(cfg)
+        assert any("accepted-risk" in e for e in errs), (label, errs)
+    for label, cfg in variants("accepted-risk").items():
+        assert chatgpt_errs(cfg) == [], (label, chatgpt_errs(cfg))
+
+
+def test_gateway_key_under_custom_name_not_in_claude_env():
+    cfg = GATEWAY_CONFIG.replace("TEST_GATEWAY_KEY", "MY_CUSTOM_GW_KEY")
+    cfg += '[roles.research]\nwho = "worker"\nmodel = "claude/small-x"\nreadonly = true\n'
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        (t / "config.toml").write_text(cfg)
+        (t / "t.md").write_text("---\nrole: research\n---\nx\n")
+        env = _fake_claude(t, 'env > "$(dirname "$0")/env.txt"; echo \'{"result":"ok","is_error":false}\'\n')
+        env["MY_CUSTOM_GW_KEY"] = "custom-marker-123"
+        env["CLAUDE_SESSION_MARKER"] = "keep-me"
+        p = subprocess.run([sys.executable, str(HERE / "run_task.py"), "t.md", "--config", "config.toml"],
+                           capture_output=True, text=True, cwd=t, env=env)
+        assert p.returncode == 0, (p.returncode, p.stdout, p.stderr)
+        seen = (t / "bin" / "env.txt").read_text()
+        assert "custom-marker-123" not in seen, "gateway key leaked into the Claude worker env"
+        assert "CLAUDE_SESSION_MARKER=keep-me" in seen, seen
+
+
+def test_limits_missing_key_lock_in_both_reports():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        (t / "config.toml").write_text(GATEWAY_CONFIG + f'\n[limits]\nledger_file = "{t}/ledger.json"\n')
+        (t / "t.md").write_text("---\nrole: execution_simple\n---\nx\n")
+        env = _fake_claude(t, _gw_script())
+        env.pop("TEST_GATEWAY_KEY", None)
+        p = subprocess.run([sys.executable, str(HERE / "run_task.py"), "t.md", "--config", "config.toml"],
+                           capture_output=True, text=True, cwd=t, env=env)
+        assert p.returncode == 0, (p.returncode, p.stdout, p.stderr)
+        for name in ("t.result.md", "t.report.md"):
+            text = (t / name).read_text()
+            assert "- gateway: locked for this run: TEST_GATEWAY_KEY not set" in text, (name, text)
 
 
 if __name__ == "__main__":
