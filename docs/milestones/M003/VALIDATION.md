@@ -28,4 +28,4 @@ Nach Runde 3 kam `origin/dev` (M002) mit derselben Option `--chatgpt-via-gateway
 - Meldung „Preset geschrieben“ und manuelle Befehle zitieren Pfade ohne Anführungszeichen.
 
 ## Grenzen
-UAT bleibt bei Andreas: echter Chat-Durchlauf, echtes LiteLLM, echte Modell-IDs. Kein Reviewer und keine Session hat das als bestanden markiert.
+UAT bleibt bei Maintainer: echter Chat-Durchlauf, echtes LiteLLM, echte Modell-IDs. Kein Reviewer und keine Session hat das als bestanden markiert.

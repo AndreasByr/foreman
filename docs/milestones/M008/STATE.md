@@ -1,4 +1,4 @@
-Status: done · since 2026-11-21T18:57Z · UAT durch Andreas abgenommen, Batch-PR #8 in dev gemergt
+Status: done · since 2026-11-21T18:57Z · UAT durch Maintainer abgenommen, Batch-PR #8 in dev gemergt
 Target: dev
 Batch-branch: batch/m008
 Lock: free
@@ -27,7 +27,7 @@ Start commit: c6b3149 (Baseline: bash scripts/test-all.sh exit 0)
 |---|---|---|---|---|
 | S1 | Regeldatei liegt in `template/docs/`, nennt je Dokumentart Ort, Schreiber und Zeitpunkt; keine Überschrift der Regeldatei steht auch in `docs/CONVENTIONS.md` | `bash scripts/test-docs-rules.sh` | automatic | n/a, keine UI |
 | S2 | Regel enthält Übersicht + gleichnamigen Ordner, Tabelle „Datei, Inhalt, Lesen bei“, Konfliktreihenfolge, Schwelle als Zahl (5000), Stand-Zeilen-Regel | `bash scripts/test-docs-rules.sh` | automatic | n/a |
-| S3 | `docs-check` gibt Exit 1 bei Versionsbereich, Versionsliste, mehreren „Version N“, fehlender und doppelter Stand-Zeile; Exit 0 bei einer Version mit Datum und Ziffern in der Notiz und auf `docs/roadmap-0.2.x.md`; Kasev-Beispiel rot | `node template/scripts/test-docs-check.mjs`, `node template/scripts/docs-check.mjs docs/roadmap-0.2.x.md` | automatic | n/a |
+| S3 | `docs-check` gibt Exit 1 bei Versionsbereich, Versionsliste, mehreren „Version N“, fehlender und doppelter Stand-Zeile; Exit 0 bei einer Version mit Datum und Ziffern in der Notiz und auf `docs/roadmap-0.2.x.md`; Projekt B-Beispiel rot | `node template/scripts/test-docs-check.mjs`, `node template/scripts/docs-check.mjs docs/roadmap-0.2.x.md` | automatic | n/a |
 | S4 | `foreman-roast` und `foreman-roadmap` nennen die Regeldatei; beide `SKILL.md` unter 8 KB; Plugin-Validierung grün; Begründung in `docs/learnings.md` | `bash scripts/test-plugin.sh`, `bash scripts/test-all.sh` | automatic | n/a |
 
 ## Mandatory questions per slice
@@ -47,7 +47,7 @@ Failures that existed before this milestone, each with the run on the start comm
 
 ## Open question (when `needs-input`)
 
-none (R3 von Andreas am 2026-11-21 erlaubt, Entscheidungskarte)
+none (R3 vom Maintainer am 2026-11-21 erlaubt, Entscheidungskarte)
 
 ## Log
 
@@ -58,4 +58,4 @@ none (R3 von Andreas am 2026-11-21 erlaubt, Entscheidungskarte)
 - 2026-11-21T18:40Z · R1 · beide Tests rot (exit 1) vorher, grün (exit 0, 27 Tests) nachher, test-all exit 0 · siehe Commit
 - 2026-11-21T19:15Z · R2 · Test rot→grün (44), test-all exit 0 · Review Runde 3: needs-attention, Limit 2 Rework-Runden erreicht → needs-input · siehe Commit
 - 2026-11-21T19:45Z · R3 · Test rot→grün (51), test-all exit 0 · Review Runde 4: pass → batch-pr · siehe Commit
-- 2026-11-21T18:57Z · UAT approved (Andreas, im Chat: „8 und 6 okayy“, Schwelle 5000 Wörter passt) · docs/uat/M008.md abgehakt · Status done, kein Release nach main · -
+- 2026-11-21T18:57Z · UAT approved (Maintainer, im Chat: „8 und 6 okayy“, Schwelle 5000 Wörter passt) · docs/uat/M008.md abgehakt · Status done, kein Release nach main · -

@@ -1,4 +1,4 @@
-Status: done · since 2026-11-21T16:51Z · UAT durch Andreas abgenommen, Batch-PR #4 in dev gemergt
+Status: done · since 2026-11-21T16:51Z · UAT durch Maintainer abgenommen, Batch-PR #4 in dev gemergt
 Target: dev
 Batch-branch: batch/m001
 Lock: free
@@ -82,4 +82,4 @@ One question, options, recommendation.
 - 2026-11-21T19:05Z · Validierung Runde 3 · A pass, B pass, C pass (nur niedrig) · -
 - 2026-11-21T19:10Z · Abschlusslauf · `bash scripts/test-all.sh` exit 0, `bash scripts/check-config.sh` exit 0 · 68acb77
 - 2026-11-21T19:15Z · Batch-PR batch/m001 nach dev · UAT-Datei docs/uat/M001.md · -
-- 2026-11-21T16:51Z · UAT approved (Andreas, im Chat) · docs/uat/M001.md abgehakt · Status done, kein Release nach main · -
+- 2026-11-21T16:51Z · UAT approved (Maintainer, im Chat) · docs/uat/M001.md abgehakt · Status done, kein Release nach main · -

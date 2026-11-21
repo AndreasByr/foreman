@@ -35,7 +35,7 @@ Nicht gefordert.
 ## Fixed decisions
 - Nichts wird erschlossen: Fehlt `workspace.json`, wird genau einmal gefragt, nie geraten. Ausgelassene Antworten bleiben leer oder Default, nicht erfunden.
 - `workspace.json` und `.foreman.json` enthalten nie Secrets.
-- Ablageort der Chat-Kopie von `workspace.json`: Doku im Claude-Projekt „foreman“ (Vorschlag der Roadmap, Entscheidung Andreas); `foreman-project` liest dort und fällt auf `infra` der `.foreman.json` zurück. Wer die Kopie aktuell hält: `foreman-setup` bei jeder Änderung der Umgebung (Hinweis im Skill).
+- Ablageort der Chat-Kopie von `workspace.json`: Doku im Claude-Projekt „foreman“ (Vorschlag der Roadmap, Entscheidung Maintainer); `foreman-project` liest dort und fällt auf `infra` der `.foreman.json` zurück. Wer die Kopie aktuell hält: `foreman-setup` bei jeder Änderung der Umgebung (Hinweis im Skill).
 - Wartezeit: neuer Schlüssel `autopilot.waitHours` (Stunden, Zahl > 0); `FOREMAN_WAIT_SECONDS` bleibt und schlägt die Datei.
 - `mainAutoMerge` ist nur der boolesche Wert `true`; Default `false`. `main` wird nie ohne Go gemergt, wenn die Antwort „nein“ ist.
 - Zeitzone muss ein gültiger IANA-Name sein, Stunden 0 bis 23; ungültig → Installer bricht ab, nichts wird geschrieben.
@@ -47,8 +47,8 @@ Nicht gefordert.
 ## Out of scope
 - itsaplan-Vorlage und englische Namen (M005).
 - Dispatcher-Eintrag selbst und Routine anlegen (bleibt im Skill-Schritt 7, nur Hinweise).
-- Echter Chat-Lauf; Routing im Chat prüft Andreas im UAT.
-- Änderungen an Guildora, Kasev, Office.
+- Echter Chat-Lauf; Routing im Chat prüft Maintainer im UAT.
+- Änderungen an Projekt A, B, C.
 
 ## Success criteria
 1. `foreman-project` enthält keine Regel „nicht installiert → Setup“ mehr, beschreibt Erkennung über `workspace.json` und die eine Rückfrage; `bash scripts/test-plugin.sh` grün.

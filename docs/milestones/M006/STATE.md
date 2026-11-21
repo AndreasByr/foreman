@@ -1,4 +1,4 @@
-Status: done · since 2026-11-21T18:56Z · UAT von Andreas abgenommen, PR #11 in dev
+Status: done · since 2026-11-21T18:56Z · UAT vom Maintainer abgenommen, PR #11 in dev
 Target: dev
 Batch-branch: batch/m006
 Lock: free
@@ -41,7 +41,7 @@ Start commit: c6b3149 (dev, Baseline: bash scripts/test-all.sh exit 0)
 |---|---|---|---|---|
 | S1 | Kein Mandanten-Konzept. Falsche Klasse `foreman` würde Projektdateien überschreiben: Test fixiert die Klassen der Projektdateien (config.toml, learnings.md, release-path.md) | Datei ohne Regel, Regel ohne Datei, zwei Regeln auf eine Datei, unbekannte Klasse | `update-classes.json` fehlt oder ist kaputt: Test rot | Neue Template-Dateien paralleler Milestones brauchen eine Klasse (Brief, Risks) |
 | S2 | Not applicable, because reiner Text | Version ohne Abschnitt; Abschnitt leer | Not applicable, because kein Laufzeitverhalten | CHANGELOG ist geteilte Datei: nur ergänzen |
-| S3 | Schreiben nur im Zielordner (Symlink, `..`); keine Schlüsseldateien; `context`/`mirror` unverändert | Kaputte oder fehlende `.foreman.json`, neuere Projektversion, Modul aus, Zieldatei ist Verzeichnis, unbekannte Option | Abbruch beim Schreiben: `version` unverändert, erneuter Lauf stellt fertig | Bestehende Projekte (Guildora, Kasev, Office) nur nach Release über den Skill; Dry-Run zuerst |
+| S3 | Schreiben nur im Zielordner (Symlink, `..`); keine Schlüsseldateien; `context`/`mirror` unverändert | Kaputte oder fehlende `.foreman.json`, neuere Projektversion, Modul aus, Zieldatei ist Verzeichnis, unbekannte Option | Abbruch beim Schreiben: `version` unverändert, erneuter Lauf stellt fertig | Bestehende Projekte (Projekt A, B, C) nur nach Release über den Skill; Dry-Run zuerst |
 | S4 | Der Skill schreibt nie in Zielrepos und kennt keine Schlüssel; Checkliste nennt nur Variablennamen | Gleiche Version: „aktuell“; Projekt neuer als foreman: Abbruch mit Hinweis | Repo nicht erreichbar: Skill nennt den Auftrag als Text für Claude Code | Plugin-Version und `VERSION` müssen zusammenpassen (Test besteht) |
 | S5 | Block ändert keine Rechte; Skript liest nur Text | Leerer Text, nur Marker ohne Version, Version höher als bekannt, zwei Blöcke | Referenzdatei nicht lesbar: definierter Fehler | Neuer Block-Stand: Version in beiden Markerzeilen erhöhen (Hinweis steht schon) |
 | S6 | Not applicable, because Doku | Doku nennt `--update` nicht: Test rot | Not applicable, because kein Laufzeitverhalten | Geteilte Dateien: nur ergänzen |
@@ -66,4 +66,4 @@ Keine.
 - 2026-11-21T17:21Z · R1 done · green · b0c4d16
 - 2026-11-21T17:29Z · R2 done · green · 98c0435
 - 2026-11-21T18:25Z · Validierung Runde 3 pass, dev (M002/M003/M011) eingemergt, Abschlusslauf test-all Exit 0 · a2ef578
-- 2026-11-21T18:56Z · UAT approved (Andreas: "8 und 6 okayy" auf die Testliste des Koordinators), Release 0.2.2 vorher: nein · e9fb74e
+- 2026-11-21T18:56Z · UAT approved (Maintainer: "8 und 6 okayy" auf die Testliste des Koordinators), Release 0.2.2 vorher: nein · e9fb74e
