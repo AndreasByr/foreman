@@ -15,7 +15,7 @@
 // "Open question" section of STATE.md and `--check` fails while it is missing.
 // Wiki: with `wiki.enabled` in .foreman.json, a milestone from batch-pr on needs a `Wiki:` line in STATE.md (pages or
 // "no change"). Without --unit a missing or placeholder line is printed as WARN and does not change the exit code.
-// With --unit that unit is printed as PROBLEM and the script exits 1 in every mode.
+// With --unit (or --unit=<id>) that unit, in every status except done, is printed as PROBLEM and the script exits 1 in every mode.
 // Models never set tracker statuses by hand; they run this script.
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -70,13 +70,13 @@ export function interventionProblems(units) {
 
 const WIKI_STATUSES = ["batch-pr", "awaiting-merge", "pretest-waiting", "pretest-running", "uat-ready", "release-ready"];
 
-/** With wiki on: a milestone from batch-pr on needs its `Wiki:` line in STATE.md (pages affected or "no change").
- *  onlyId (optional) restricts the check to that one unit. */
+/** With wiki on: a milestone needs its `Wiki:` line in STATE.md (pages affected or "no change").
+ *  Without onlyId: only the closing statuses (from batch-pr on). With onlyId: that one unit in every status except done. */
 export function wikiProblems(units, conf, onlyId = null) {
   if (conf?.wiki?.enabled !== true) return [];
   return units
-    .filter((u) => !onlyId || u.id === onlyId)
-    .filter((u) => u.kind === "milestone" && WIKI_STATUSES.includes(u.status))
+    .filter((u) => u.kind === "milestone")
+    .filter((u) => (onlyId ? u.id === onlyId && u.status !== "done" : WIKI_STATUSES.includes(u.status)))
     .filter((u) => {
       const wiki = parseState(u.stateText).wiki;
       return !wiki || wiki === "-" || wiki.startsWith("<");
@@ -226,8 +226,8 @@ async function main() {
   }`);
     return;
   }
-  const unitAt = args.indexOf("--unit");
-  const onlyId = unitAt < 0 ? null : args[unitAt + 1];
+  const unitAt = args.findIndex((a) => a === "--unit" || a.startsWith("--unit="));
+  const onlyId = unitAt < 0 ? null : args[unitAt].startsWith("--unit=") ? args[unitAt].slice("--unit=".length) : args[unitAt + 1];
   if (unitAt >= 0 && (!onlyId || onlyId.startsWith("--"))) {
     console.error("--unit needs a unit id, for example --unit M001");
     process.exit(2);

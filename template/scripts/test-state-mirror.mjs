@@ -319,6 +319,15 @@ t("wiki: only milestones in the wiki statuses are checked", () => {
   }
 });
 
+t("wiki: with onlyId every milestone status except done needs the Wiki line", () => {
+  for (const s of ["validation", "slice", "planning", "rework", "batch-pr", "uat-ready"]) {
+    assert.deepEqual(mirror.wikiProblems([wu(s)], wikiOn, "M001"), ["M001: Wiki line missing in STATE.md (wiki is on)"], s);
+    assert.equal(mirror.wikiProblems([wu(s, "Wiki: no change")], wikiOn, "M001").length, 0, s);
+  }
+  assert.equal(mirror.wikiProblems([wu("done")], wikiOn, "M001").length, 0, "done is exempt");
+  assert.equal(mirror.wikiProblems([wu("slice")], wikiOn).length, 0, "without onlyId only the closing statuses are checked");
+});
+
 t("wiki: onlyId restricts the check to one unit", () => {
   const units = [wu("batch-pr", "Wiki: no change", "milestone", "M001"), wu("batch-pr", "Status: batch-pr", "milestone", "M002")];
   assert.deepEqual(mirror.wikiProblems(units, wikiOn, "M001"), []);
@@ -410,6 +419,35 @@ t("wiki: CLI without --unit only warns on a missing Wiki line; --unit M001 makes
     r = run(["--local", "--unit", "M001"]);
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.ok(!hasWarn(r), r.stdout);
+
+    // with --unit the Wiki line is required in every status except done; without --unit only the closing statuses warn
+    cfg({ enabled: true, language: "de", audiences: [{ name: "Tester" }], rootPageId: "x" });
+    for (const s of ["validation", "slice", "planning", "rework"]) {
+      const at = `Status: ${s} · since 2026-01-01T00:00Z\nTarget: dev\n`;
+      writeFileSync(statePath, `${at}\n# M001: x\n`);
+      r = run(["--local"]);
+      assert.equal(r.status, 0, `${s}: ${r.stdout + r.stderr}`);
+      assert.ok(!hasWarn(r), `${s}: ${r.stdout}`);
+      r = run(["--local", "--unit", "M001"]);
+      assert.equal(r.status, 1, `${s}: ${r.stdout + r.stderr}`);
+      assert.ok(hasProblem(r), `${s}: ${r.stdout}`);
+      writeFileSync(statePath, `${at}Wiki: no change\n\n# M001: x\n`);
+      r = run(["--local", "--unit", "M001"]);
+      assert.equal(r.status, 0, `${s}: ${r.stdout + r.stderr}`);
+      assert.ok(!hasWarn(r) && !hasProblem(r), `${s}: ${r.stdout}`);
+    }
+
+    // equals form works like --unit M001; --unit without a value is exit 2
+    writeFileSync(statePath, `${head}\n# M001: x\n`);
+    r = run(["--local", "--unit=M001"]);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok(hasProblem(r), r.stdout);
+    writeFileSync(statePath, `${head}Wiki: no change\n\n# M001: x\n`);
+    r = run(["--local", "--unit=M001"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(!hasWarn(r) && !hasProblem(r), r.stdout);
+    r = run(["--local", "--unit"]);
+    assert.equal(r.status, 2, r.stdout + r.stderr);
 
     // wiki off: exit 0 and no WARN, also with --unit
     cfg({ enabled: false });

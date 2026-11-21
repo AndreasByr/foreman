@@ -42,6 +42,21 @@ export async function publishWiki({ wiki, pages, token, base, out, err }) {
     const plan = buildPlan(tmp, buildTree(files).map((e) => ({ ...e, title: titles.get(e.path) })), existing);
     for (const b of plan.blocked) err(`docs-notion: ${b.page.title} (has foreign child pages: ${b.foreign.map((f) => f.title).join(", ")})`);
     for (const f of plan.foreign) err(`docs-notion: ${f.title} (not mirrored, left alone)`);
+    // No pages and nothing mirrored before: nothing to do, nothing written. With no pages the sync archives mirrored pages.
+    if (!plan.items.length && !plan.archives.length && !plan.moved.length) {
+      out("nothing to publish");
+      return 0;
+    }
+    if (!plan.items.length) {
+      // Empty tree: only archives. Each mirrored page gets its own request, children before their parents.
+      const depth = (p) => {
+        let n = 0;
+        for (let q = plan.parents.get(p.id); q; q = plan.parents.get(q)) n++;
+        return n;
+      };
+      plan.archives.sort((a, b) => depth(b) - depth(a));
+      plan.parents = new Map();
+    }
     const { counts, errors } = await runSync(client, wiki.rootPageId, plan, out);
     for (const e of errors) err(e);
     out(`created ${counts.created}, updated ${counts.updated}, archived ${counts.archived}, unchanged ${counts.unchanged}`);

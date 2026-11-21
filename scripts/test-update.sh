@@ -287,4 +287,16 @@ upd "$d"
 need_line "16b" "  update  tools/gateway/litellm.chatgpt.example.yaml"
 cmp -s "$d/tools/gateway/litellm.chatgpt.example.yaml" "$HERE/gateway/litellm.chatgpt.example.yaml" || fail "16b: optional file differs from the repo's file after update"
 
+# 17. docs-notion module installed: wiki files are present, and a deleted one comes back on update
+WIKI_FILES="scripts/lib/docs-wiki.mjs scripts/lib/docs-wiki-scan.mjs scripts/lib/docs-wiki-publish.mjs scripts/test-docs-wiki.mjs .claude/skills/foreman-wiki/SKILL.md"
+d="$T/dnw"; mkdir "$d"
+inst "$d" --project dnw --modules docs-notion --session-model test-model-id >/dev/null 2>&1 || fail "17: install failed"
+for f in $WIKI_FILES; do [ -f "$d/$f" ] || fail "17: $f missing after install"; done
+as_old "$d"
+rm "$d/scripts/lib/docs-wiki-scan.mjs"
+upd "$d"
+[ "$RC" = 0 ] || fail "17: update exit $RC: $ERR"
+for f in $WIKI_FILES; do [ -f "$d/$f" ] || fail "17: $f missing after update"; done
+cmp -s "$d/scripts/lib/docs-wiki-scan.mjs" "$HERE/template/scripts/lib/docs-wiki-scan.mjs" || fail "17: restored docs-wiki-scan.mjs differs from the template"
+
 echo "update tests: ok"

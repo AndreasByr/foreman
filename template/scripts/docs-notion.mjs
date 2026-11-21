@@ -50,9 +50,16 @@ function docsRootPageId(root) {
 
 // Page ids compare without dashes and case.
 const sameId = (a, b) => a.replace(/-/g, "").toLowerCase() === b.replace(/-/g, "").toLowerCase();
-// A name that holds a secret shape is never printed: the label shows a mask instead.
-const maskPath = (s) => (!hasSecret(s) ? s : s.startsWith("audience ") ? "audience <hidden: secret in name>" : "docs/wiki/<hidden: secret in name>");
-const maskText = (s) => (hasSecret(s) ? "<hidden: secret in name>" : s);
+// A name that holds a secret shape is never printed: the label shows a mask instead. The slug form of a secret-shaped
+// audience name (the folder name) is masked too, so every message with a path, folder or audience name goes through here.
+function makeMasks(wiki) {
+  const slugs = wiki.audiences.filter((a) => hasSecret(a.name) || hasSecret(a.slug)).flatMap((a) => [a.slug, a.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")]).filter(Boolean);
+  const secret = (s) => hasSecret(s) || slugs.some((x) => String(s).toLowerCase().includes(x));
+  return {
+    maskPath: (s) => (!secret(s) ? s : s.startsWith("audience ") ? "audience <hidden: secret in name>" : "docs/wiki/<hidden: secret in name>"),
+    maskText: (s) => (secret(s) ? "<hidden: secret in name>" : s),
+  };
+}
 
 function checkSameRoot(wiki, docsRoot) {
   if (wiki.enabled && wiki.rootPageId && docsRoot && sameId(wiki.rootPageId, docsRoot)) {
@@ -71,9 +78,10 @@ async function runWiki(root, dryRun, token) {
     if (!wiki.rootPageId) missing.push("wiki.rootPageId (in .foreman.json)");
     if (missing.length) throw new CliError(`docs-notion: missing ${missing.join(" and ")}`, 3);
   }
+  const { maskPath, maskText } = makeMasks(wiki);
   const { pages, skipped } = collectWikiPages(root);
   for (const s of skipped) err(`docs-notion: skipped ${maskPath(s)}`);
-  if (!pages.length) {
+  if (!pages.length && dryRun) {
     out("nothing to publish");
     return 0;
   }
@@ -93,7 +101,7 @@ async function runWiki(root, dryRun, token) {
     return 4;
   }
   if (dryRun) {
-    for (const p of pages) out(`sync ${p.path} (audience: ${p.head?.audience || "none"})`);
+    for (const p of pages) out(`sync ${maskPath(p.path)} (audience: ${maskText(p.head?.audience || "none")})`);
     return 0;
   }
   return publishWiki({ wiki, pages, token, base: process.env.NOTION_API_BASE, out, err });

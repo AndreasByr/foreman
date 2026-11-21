@@ -5,7 +5,7 @@ import { pageTitles } from "./docs-wiki.mjs";
 // Internal terms, case-insensitive, with plural and inflected endings. \p{L} lookarounds because \b is ASCII-only.
 const L = "a-zäöüß";
 const INTERNAL = new RegExp(
-  `(?<![\\p{L}])(roast|roadmap|fix[ -]?pack|fix[ -]?paket|agent[ -]?report|offene[nrms]?[ -]?frage[nr]?|open[ -]question|logik[ -]?l(ü|ue)cke|logic[ -]gap|needs[ -]?input|milestone[ -]brief)[${L}]*` +
+  `(?<![\\p{L}])(roast|roadmap|fix[ \\-_]?pack|fix[ \\-_]?paket|agent[ \\-_]?report|offene[nrms]?[ \\-_]?frage[nr]?|open[ \\-_]question|logik[ \\-_]?l(ü|ue)cke|logic[ \\-_]gap|needs[ \\-_]?input|milestone[ \\-_]brief)[${L}]*` +
     "|(?<![\\p{L}])(STATE|CONTEXT)\\.md(?![\\p{L}])" +
     "|docs/(agent-reports|fixpacks|answers|role-reviews|milestones|uat)(?![\\p{L}-])",
   "iu",
@@ -35,23 +35,39 @@ const SECRET = [
   /\bNOTION_API_KEY\s*[=:]\s*\S+/,
 ];
 
-// Cleaning. Zero-width characters are removed and NBSP counts as a space; markdown backslash escapes are resolved.
-const ZERO = /[​-‏⁠﻿]/g;
+// Normalization before every match: NFKC (fullwidth forms, NBSP, U+2011 and other lookalikes fold), the soft hyphen is
+// removed, zero-width characters are removed (or become a gap in the second forbidden pass), dash variants and minus become "-".
+const ZERO = /[​-‏‪-‮⁠-⁤᠎﻿]/g;
+const fold = (s, gap = "") => String(s).replace(/­/g, "").replace(ZERO, gap).normalize("NFKC").replace(/­/g, "").replace(/[‐-―−]/g, "-");
 const ESCAPED = /\\([\\`*_{}[\]()#+\-.!|~<>])/g;
-const LINK = /!?\[([^\]]*)\]\(\s*<?([^)\s>]*)>?[^)]*\)/g;
-const plain = (s) => String(s).replace(ZERO, "").replace(/ /g, " ");
+const LINK = /!?\[([^\]]*)\]\(\s*(?:<([^>]*)>|([^)\s]*))[^)]*\)/g;
+const plain = (s) => fold(s);
 const unescape = (s) => plain(s).replace(ESCAPED, "$1");
 // Cleaned copy: links become their text, brackets and markup marks go. urls holds the link targets for a separate scan.
 function cleaned(s) {
   const urls = [];
   const text = unescape(s)
-    .replace(LINK, (_, t, u) => (urls.push(u), t))
+    .replace(LINK, (_, t, a, b) => (urls.push(a ?? b ?? ""), t))
     .replace(/[[\]*_`~]/g, "");
   return { text, urls };
 }
-// Forbidden terms: lowercase, runs of whitespace, hyphens and NBSP become one space. A zero-width character is a gap or nothing.
-const norm = (s) => s.toLowerCase().replace(/[\s‐-―−-]+/g, " ").trim();
-const variants = (s) => [norm(cleaned(String(s).replace(ZERO, "")).text), norm(cleaned(String(s).replace(ZERO, " ")).text)];
+// Forbidden terms: lowercase; whitespace and the separators - _ / . collapse to one space (for this match only).
+const norm = (s) => s.toLowerCase().replace(/[\s\-_/.]+/g, " ").trim();
+// Percent-decoding that never throws: a broken sequence stays as it is.
+const decode = (u) =>
+  u.replace(/(%[0-9a-f]{2})+/gi, (m) => {
+    try {
+      return decodeURIComponent(m);
+    } catch {
+      return m;
+    }
+  });
+// Text and link targets of a string, once with zero-width characters removed and once with them as a gap.
+const variants = (s) =>
+  [fold(s, ""), fold(s, " ")].flatMap((f) => {
+    const c = cleaned(f);
+    return [norm(c.text), ...c.urls.map((u) => norm(decode(u)))];
+  });
 const termRe = (t) => new RegExp(`(?<![\\p{L}\\p{N}])${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:s|n|en|es)?(?![\\p{L}\\p{N}])`, "u");
 
 const hostSecret = (texts) => ({
@@ -91,6 +107,13 @@ export function validatePages(wiki, pages) {
   for (const p of pages) {
     const problem = pageProblem(wiki, p);
     if (problem) problems.push({ path: p.path, problem });
+  }
+  // File names that differ only in case (a.md / a.MD) clash in one folder.
+  const byName = new Map();
+  for (const p of pages) byName.set(p.path.toLowerCase(), [...(byName.get(p.path.toLowerCase()) ?? []), p.path]);
+  for (const group of byName.values()) {
+    if (group.length < 2) continue;
+    for (const path of group) if (!problems.some((x) => x.path === path)) problems.push({ path, problem: "duplicate file name (differs only in case)" });
   }
   // Titles are unique over the whole wiki (case-insensitive), audience page titles included.
   const bad = new Set(problems.map((x) => x.path));

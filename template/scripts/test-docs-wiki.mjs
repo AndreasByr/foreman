@@ -695,12 +695,49 @@ await check("lib scanText forbidden: whole words only; 'Projekt B' inside 'Das P
     const f = scanText(`Erste Zeile\nDas gilt für ${v} heute.\n`, ["Projekt B"]);
     assert.ok(f.some((x) => x.rule === "forbidden"), `${JSON.stringify(v)}: ${JSON.stringify(f)}`);
   }
-  const o = scanText("Erste Zeile\nEin officer kommt.\n", ["Office"]);
-  assert.ok(!o.some((x) => x.rule === "forbidden"), `officer: ${JSON.stringify(o)}`);
-  for (const v of ["Office", "Offices"]) {
-    const f = scanText(`Erste Zeile\nIm ${v} hier.\n`, ["Office"]);
+  const o = scanText("Erste Zeile\nEin Projekt Quelle kommt.\n", ["Projekt Q"]);
+  assert.ok(!o.some((x) => x.rule === "forbidden"), `Projekt Quelle: ${JSON.stringify(o)}`);
+  for (const v of ["Projekt Q", "Projekt Qs"]) {
+    const f = scanText(`Erste Zeile\nIm ${v} hier.\n`, ["Projekt Q"]);
     assert.ok(f.some((x) => x.rule === "forbidden"), `${v}: ${JSON.stringify(f)}`);
   }
+});
+
+await check("lib scanText forbidden: a term in a link or image target, or percent-encoded, is a hit; 'projektbuero' in a URL is not", async () => {
+  const { scanText } = await loadScan();
+  for (const v of ["![Start](img/projekt-b-start.png)", "[Code](https://example.com/owner/projekt-b)", "[x](https://example.com/projekt%20b)", "[x](<projekt b>)"]) {
+    const f = scanText(`Erste Zeile\nText mit ${v} hier\nDritte Zeile\n`, ["Projekt B"]);
+    assert.ok(f.some((x) => x.line === 2 && x.rule === "forbidden"), `${v}: ${JSON.stringify(f)}`);
+  }
+  const n = scanText("Erste Zeile\nSiehe [x](https://example.com/projektbuero) hier.\n", ["Projekt B"]);
+  assert.ok(!n.some((x) => x.rule === "forbidden"), `projektbuero: ${JSON.stringify(n)}`);
+});
+
+await check("lib scanText unicode: non-breaking, soft, minus and dash variants, fullwidth and invisible characters are internal-term hits", async () => {
+  const { scanText } = await loadScan();
+  const cases = [
+    "Fix‑Paket", // non-breaking hyphen
+    "needs‑input", // non-breaking hyphen
+    "Agent‐Report", // Unicode hyphen
+    "Road­map", // soft hyphen
+    "Fix−Pakete", // minus sign
+    "STATE．md", // fullwidth full stop, NFKC -> STATE.md
+    "ｒｏａｄｍａｐ", // fullwidth letters, NFKC -> roadmap
+  ];
+  for (const v of cases) {
+    const f = scanText(`Erste Zeile\nText mit ${v} hier\nDritte Zeile\n`, []);
+    assert.ok(f.some((x) => x.line === 2 && x.rule === "internal-term"), `${JSON.stringify(v)}: ${JSON.stringify(f)}`);
+  }
+});
+
+await check("lib scanText forbidden: 'Projekt Z' with a soft hyphen or U+2011 inside is a hit; a soft hyphen inside 'Spieler' is no hit", async () => {
+  const { scanText } = await loadScan();
+  for (const v of ["Pro­jekt Z", "Projekt‑Z"]) {
+    const f = scanText(`Erste Zeile\nDas gilt für ${v} heute.\n`, ["Projekt Z"]);
+    assert.ok(f.some((x) => x.line === 2 && x.rule === "forbidden"), `${JSON.stringify(v)}: ${JSON.stringify(f)}`);
+  }
+  const clean = scanText("Erste Zeile\nEin Spie­ler kommt.\n", []);
+  assert.deepEqual(clean, [], JSON.stringify(clean));
 });
 
 await check("lib scanText internal-term: 'offen' + word is no hit ('Offenbar fragen', 'offensichtlich'); offene/offenen/offener Frage(n) is", async () => {
@@ -1215,6 +1252,10 @@ for (const dry of [false, true]) {
       assert.equal(fake.writes(mark).length, 0, "writes sent");
       assert.ok(r.stderr.includes("text check missing"), `problem not named\n${info(r)}`);
       assert.ok(!r.stdout.includes(name) && !r.stderr.includes(name), `audience name printed\n${info(r)}`);
+      const dashed = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      for (const form of new Set([slug, dashed])) {
+        assert.ok(!r.stdout.includes(form) && !r.stderr.includes(form), `audience slug form ${form} printed\n${info(r)}`);
+      }
       noToken(r);
     } finally {
       await fake.close();
@@ -1266,6 +1307,78 @@ for (const dry of [false, true]) {
     }
   });
 }
+
+for (const dry of [false, true]) {
+  await check(`cli --wiki validation: pages a.md and a.MD in one audience folder -> 'duplicate file name', exit 4, no writes${dry ? " (--dry-run)" : ""}`, async () => {
+    const root = pubProject({
+      "docs/wiki/spieler-und-tester/a.md": HEAD + "# A\n\nInvented text.\n",
+      "docs/wiki/spieler-und-tester/a.MD": HEAD + "# A2\n\nInvented text.\n",
+    });
+    const fake = await startWikiFake();
+    try {
+      const args = ["--wiki", "--root", root];
+      if (dry) args.push("--dry-run");
+      const mark = fake.requests.length;
+      const r = await runCliAsync({ cwd: root, args, base: fake.base });
+      assert.equal(r.status, 4, info(r));
+      assert.equal(fake.writes(mark).length, 0, "writes sent");
+      assert.ok(r.stderr.includes("duplicate file name"), `problem not named\n${info(r)}`);
+      noToken(r);
+    } finally {
+      await fake.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+await check("cli --wiki publish: last page deleted -> audience page and page archived by PATCH, summary 'archived 2', exit 0", async () => {
+  const root = pubProject();
+  rmSync(join(root, "docs/wiki/spieler-und-tester/spielen.md"));
+  const fake = await startWikiFake();
+  try {
+    const first = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(first.status, 0, info(first));
+    assert.equal(lastLine(first.stdout), "created 2, updated 0, archived 0, unchanged 0", info(first));
+
+    rmSync(join(root, "docs/wiki/spieler-und-tester/start.md"));
+    const mark = fake.requests.length;
+    const second = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(second.status, 0, info(second));
+    assert.equal(lastLine(second.stdout), "created 0, updated 0, archived 2, unchanged 0", info(second));
+    const archives = fake.since(mark).filter((q) => q.method === "PATCH" && q.path.startsWith("/v1/pages/"));
+    assert.equal(archives.length, 2, `PATCH archived requests\n${info(second)}`);
+    assert.ok(fake.archivedPage("Start"), "page not archived");
+    assert.ok(fake.archivedPage("Spieler und Tester"), "audience page not archived");
+    assert.equal(fake.page("Start"), undefined, "page still live");
+    assert.equal(fake.page("Spieler und Tester"), undefined, "audience page still live");
+    noToken(second);
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+await check("cli --wiki publish: no pages and nothing published before -> 'nothing to publish', exit 0, no write requests; dry run the same", async () => {
+  const root = pubProject();
+  rmSync(join(root, "docs/wiki/spieler-und-tester/start.md"));
+  rmSync(join(root, "docs/wiki/spieler-und-tester/spielen.md"));
+  const fake = await startWikiFake();
+  try {
+    const mark = fake.requests.length;
+    const r = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(r.status, 0, info(r));
+    assert.ok(r.stdout.includes("nothing to publish"), info(r));
+    assert.equal(fake.writes(mark).length, 0, "write requests sent");
+    const d = await runCliAsync({ cwd: root, args: ["--wiki", "--dry-run", "--root", root], base: fake.base });
+    assert.equal(d.status, 0, info(d));
+    assert.ok(d.stdout.includes("nothing to publish"), info(d));
+    assert.equal(fake.writes(mark).length, 0, "dry run sent write requests");
+    noToken(r);
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 // ---- CLI: validation failures
 
