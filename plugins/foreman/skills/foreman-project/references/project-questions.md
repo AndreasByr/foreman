@@ -63,7 +63,10 @@ Ask whether the project has a staging environment, separate from production, tha
 
 | Question | Installer flag | `.foreman.json` key | Value |
 |---|---|---|---|
-| P1 name and slug | none | `context.name` | the slug from P1 |
+| P1 name and slug | `--project <slug>` (required), `--name "<Display Name>"` (optional) | `project` and `name` | the slug from P1 goes to `project`, the display name to `name` |
+| P2 profile | `--scope docs\|repo\|autopilot` | `scope` | `repo` for Repo, `autopilot` for Autopilot (Autopilot also needs module autopilot in P3) |
+| P3 modules | `--modules a,b` | `modules` | the modules from P3, comma list |
+| P5 staging | `--no-staging` | `staging` | `no` passes the flag and writes `false`; `yes` omits the flag |
 | P6 time zone | `--tz <IANA name>`, e.g. `Europe/Berlin` | `context.timeZone` | the zone from P6 |
 | P7 batch hours | `--batch-hours <h,h,...>`, hours 0 to 23, no spaces | `autopilot.batchHours` | the hours from P7 |
 | P8 wait | `--wait-hours <number>`, greater than 0, at most 168 | `autopilot.waitHours` | the hours from P8 |

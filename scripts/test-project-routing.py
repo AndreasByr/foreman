@@ -103,13 +103,32 @@ QUESTION_KEYWORDS = {
 AUTOPILOT_ONLY_IDS = {"P7", "P8", "P9"}
 TRACKER_OPTIONS = {"itsaplan", "linear"}
 AUTOPILOT_ONLY = "autopilot only"
-QUESTION_FLAGS = ["--tz", "--batch-hours", "--wait-hours", "--main-auto-merge"]
+QUESTION_FLAGS = [
+    "--project",
+    "--name",
+    "--scope",
+    "--modules",
+    "--no-staging",
+    "--tz",
+    "--batch-hours",
+    "--wait-hours",
+    "--main-auto-merge",
+]
 QUESTION_KEYS = [
     "context.timeZone",
     "autopilot.batchHours",
     "autopilot.waitHours",
     "autopilot.mainAutoMerge",
 ]
+# The installer writes top-level "project" and "name", never "context.name".
+WRONG_NAME_KEY = "context.name"
+# Table rows of the answers section: the row prefix and the words it must contain.
+ANSWER_ROWS = {
+    "| P1": ["--project", "project", "name"],
+    "| P2": ["--scope"],
+    "| P3": ["--modules"],
+    "| P5": ["--no-staging"],
+}
 # Topics that may appear only in the "Do not ask" list, never in a question P1 to P9.
 FORBIDDEN_TOPICS = [
     "machine",
@@ -375,6 +394,17 @@ def check_questions_file(text, failures):
     for key in QUESTION_KEYS:
         if key not in text:
             failures.append(f"questions: the file does not mention the .foreman.json key {key}")
+    if WRONG_NAME_KEY in text:
+        failures.append(f"questions: the file mentions {WRONG_NAME_KEY!r}; the installer writes top-level 'name'")
+    lines = text.splitlines()
+    for prefix, words in ANSWER_ROWS.items():
+        rows = [line for line in lines if line.startswith(prefix)]
+        if not rows:
+            failures.append(f"questions: no table row starting with {prefix!r} in {QUESTIONS_LABEL}")
+            continue
+        for word in words:
+            if not any(word in row for row in rows):
+                failures.append(f"questions: the {prefix!r} row does not contain {word!r}")
 
     questions_only = "\n".join(blocks.get(qid, "") for qid in QUESTION_KEYWORDS).lower()
     for topic in FORBIDDEN_TOPICS:
