@@ -22,7 +22,7 @@ Reihenfolge: S1, S4, S2, S3.
 
 | R1 | Rework Runde 1: Fund 1 bis 9 aus VALIDATION.md | done | 6c27c0d | scripts/check-config.sh, template/scripts/check-config.sh, scripts/lib/itsaplan-template.mjs, Tests, docs/trackers.md, template/docs/trackers.md | Funde 10 bis 12 offen (low) |
 | R2 | Rework Runde 2: Fund aus Validierung 2 (deutsch aussehende Namen, Proxy, Kopien-Test, CLI-Meldung, Wortliste, Doku) | done | 540c1c5 | scripts/check-config.sh, template/scripts/check-config.sh, scripts/lib/itsaplan-template.mjs, scripts/check-itsaplan-template.mjs, Tests, Doku | |
-| R3 | Rework Runde 3 (vom Menschen freigegeben, nur Fund 20): `art` und `mit` aus der Wortliste der Namensprüfung | done | R3COMMIT | scripts/check-config.sh, template/scripts/check-config.sh, scripts/test-check-config.sh | Funde 21 bis 25 offen (low) |
+| R3 | Rework Runde 3 (vom Menschen freigegeben, nur Fund 20): `art` und `mit` aus der Wortliste der Namensprüfung | done | 74866e2 | scripts/check-config.sh, template/scripts/check-config.sh, scripts/test-check-config.sh | Funde 21 bis 25 offen (low) |
 
 ## Check plan per slice
 
@@ -65,4 +65,4 @@ Frage an den Menschen: dritte Reworkrunde zulassen (nur dieser Fund, Test zuerst
 - 2026-11-21T20:30Z · Koordinator: kein Merge nach dev, bis die Historie umgeschrieben ist; danach batch/m005 auf neues dev aufsetzen
 - 2026-11-21T20:55Z · Validierung Runde 2: A needs-attention (1 medium: requirements verlangt, dass übersetzte Namen Fehler sind), B pass, C needs-attention (gleicher medium-Fund); R2 rot vor der Änderung ddfdd86; grün danach: test-check-config.sh, test-itsaplan-template.mjs Exit 0, dev eingemergt (4479319), `bash scripts/test-all.sh` Exit 0 · 540c1c5
 - 2026-11-21T21:10Z · Validierung Runde 3: A/C needs-attention, B needs-attention; 1 medium (art/mit in der Wortliste von check-config.sh, nur Heuristik), Rest low; keine dritte Runde ohne Freigabe des Menschen
-- 2026-11-21T21:30Z · R3 rot vor der Änderung: `bash scripts/test-check-config.sh` Exit 1 (k-english-art-mit) auf f90673d + Test; grün danach: Exit 0; dev eingemergt; `bash scripts/test-all.sh` Exit 0 · R3COMMIT
+- 2026-11-21T21:30Z · R3 rot vor der Änderung: `bash scripts/test-check-config.sh` Exit 1 (k-english-art-mit) auf f90673d + Test; grün danach: Exit 0; dev eingemergt; `bash scripts/test-all.sh` Exit 0 · 74866e2
