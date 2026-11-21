@@ -1,4 +1,4 @@
-Status: batch-pr · since 2026-11-21T17:16Z · Validierung pass, Batch-PR nach dev
+Status: done · since 2026-11-21T17:38Z · UAT durch Andreas abgenommen, Batch-PR #6 in dev gemergt
 Target: dev
 Batch-branch: batch/m011
 Lock: free
@@ -51,3 +51,4 @@ One question, options, recommendation.
 - 2026-11-21T17:16Z · S3 done: CLI, Doku, 54 Tests grün; dev (M002) eingemergt beea95a · d3a3036
 - 2026-11-21T17:16Z · Validierung 1: needs-remediation (1 hoch, 2 mittel) -> R1 · efa3167
 - 2026-11-21T17:16Z · Validierung 2: pass (nur low); Abschlusslauf test-all Exit 0, check-config Exit 0 · Abschlussbericht docs/agent-reports/2026-11-21-M011.md, UAT docs/uat/M011.md
+- 2026-11-21T17:38Z · UAT approved (Andreas, im Chat: "passt"), niedrige Funde nachgezogen (Wartezeit nur bei Ereignisfeld needs-input, Dateinamen in Lücken bereinigt) · Status done, kein Release nach main
