@@ -10,6 +10,21 @@ Section 2 (routing, the two frontmatter descriptions): sample questions for a
 new project and for a first setup must reach the right skill by trigger
 keyword, and each description names the other skill as the one that takes over.
 
+Section 3 (project questions, references/project-questions.md): nine headed
+questions P1 to P9 with their keywords, the Autopilot-only split, a suggestion
+per question, the installer flags and .foreman.json keys they map to, no
+machine, gateway, billing or infrastructure topics outside a "Do not ask"
+list, and PROJECT SKILL.md says where the questions come from, that
+workspace.json values are shown and not asked again, and that the Autopilot
+questions are asked only for the Autopilot profile. A block runs from its
+"### P<n>" heading to the next heading of any level, or to a "Do not ask" line.
+
+Section 4 (summary and docs): PROJECT SKILL.md shows a summary of the answers
+before the install command and asks the human to confirm, and says the install
+command holds only values from answers or workspace.json. README.md,
+docs/MODULES.md and docs/CONVENTIONS.md name the autopilot keys, and
+profiles-and-modules.md names --tz and foreman-project.
+
 Python stdlib only. Exit 0 when every check passes; exit 1 and one
 "FAIL:" line per problem otherwise.
 """
@@ -66,6 +81,59 @@ TRIGGERS = {
         "first time",
     ],
 }
+
+# Section 3: the project questions file and the SKILL.md text that must point to it.
+QUESTIONS = SKILLS / "foreman-project" / "references" / "project-questions.md"
+QUESTIONS_REF = "references/project-questions.md"
+QUESTIONS_LABEL = "project-questions"
+QUESTION_KEYWORDS = {
+    "P1": ["name", "slug"],
+    "P2": ["Quick", "Repo", "Autopilot"],
+    "P3": ["module"],
+    "P4": ["cloud", "local"],
+    "P5": ["staging"],
+    "P6": ["time zone", "workspace.json"],
+    "P7": ["batch hours", "3, 7, 11, 15, 19, 23"],
+    "P8": ["wait", "4 hours"],
+    "P9": ["mainAutoMerge", "Batch PR main"],
+}
+AUTOPILOT_ONLY_IDS = {"P6", "P7", "P8", "P9"}
+AUTOPILOT_ONLY = "autopilot only"
+QUESTION_FLAGS = ["--tz", "--batch-hours", "--wait-hours", "--main-auto-merge"]
+QUESTION_KEYS = [
+    "context.timeZone",
+    "autopilot.batchHours",
+    "autopilot.waitHours",
+    "autopilot.mainAutoMerge",
+]
+# Topics that may appear only in the "Do not ask" list, never in a question P1 to P9.
+FORBIDDEN_TOPICS = [
+    "machine",
+    "gateway",
+    "subscription",
+    "docker",
+    "litellm",
+    "dispatcher host",
+    "notification",
+    "tracker server",
+]
+DO_NOT_ASK = "do not ask"
+DO_NOT_ASK_NAMES = ["machines", "gateway", "plans", "tracker server"]
+NOT_ASKED = re.compile(r"\bnot (?:be )?ask")
+HEADING_LINE = re.compile(r"^#{1,6}\s")
+QUESTION_HEADING = re.compile(r"^###\s+(P\d+)\b")
+
+# Section 4: summary step and documentation.
+SUMMARY_WORDS = ["summary", "install command", "confirm"]
+BEFORE_WORD = re.compile(r"\bbefore\b")
+ONLY_VALUES = re.compile(r"\bonly values\b", re.I)
+AUTOPILOT_KEYS = ["autopilot.waitHours", "autopilot.batchHours"]
+MERGE_KEY = "mainAutoMerge"
+README = ROOT / "README.md"
+MODULES = ROOT / "docs" / "MODULES.md"
+CONVENTIONS = ROOT / "docs" / "CONVENTIONS.md"
+PROFILES = SKILLS / "foreman-setup" / "references" / "profiles-and-modules.md"
+PROFILE_NEEDLES = ["--tz", PROJECT_NAME]
 
 # "not for ..." runs up to the next ";" or "." and only points away; it is cut out.
 NOT_FOR_PATTERN = re.compile(r"not for[^;.]*")
@@ -206,12 +274,167 @@ def check_cross_reference(descriptions, failures):
         failures.append(f"{PROJECT_NAME}: description does not say that {SETUP_NAME} takes over")
 
 
+def is_block_end(line):
+    """True for a heading line or a 'Do not ask' line, which both end a question block."""
+    stripped = line.strip().lstrip("*#_ ").lower()
+    return bool(HEADING_LINE.match(line)) or stripped.startswith(DO_NOT_ASK)
+
+
+def question_blocks(text):
+    """Map each P<n> id to its block: from its '### P<n>' line up to the next heading or 'Do not ask' line."""
+    blocks = {}
+    current = None
+    for line in text.splitlines():
+        if is_block_end(line):
+            match = QUESTION_HEADING.match(line)
+            current = match.group(1) if match else None
+            if current is not None:
+                blocks.setdefault(current, [])
+        if current is not None:
+            blocks[current].append(line)
+    return {qid: "\n".join(lines) for qid, lines in blocks.items()}
+
+
+def do_not_ask_text(text):
+    """Return the 'Do not ask' line and the lines after it up to the next heading, or None."""
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if DO_NOT_ASK in line.lower():
+            collected = [line]
+            for later in lines[index + 1:]:
+                if is_block_end(later):
+                    break
+                collected.append(later)
+            return "\n".join(collected)
+    return None
+
+
+def check_questions_file(text, failures):
+    blocks = question_blocks(text)
+    for qid in QUESTION_KEYWORDS:
+        if qid not in blocks:
+            failures.append(f"questions: no heading '### {qid}' in {QUESTIONS_LABEL}")
+            continue
+        block = blocks[qid].lower()
+        for keyword in QUESTION_KEYWORDS[qid]:
+            if keyword.lower() not in block:
+                failures.append(f"questions: {qid} lacks the keyword {keyword!r}")
+        has_autopilot_only = AUTOPILOT_ONLY in block
+        if qid in AUTOPILOT_ONLY_IDS and not has_autopilot_only:
+            failures.append(f"questions: {qid} lacks 'Autopilot only'")
+        if qid not in AUTOPILOT_ONLY_IDS and has_autopilot_only:
+            failures.append(f"questions: {qid} must not contain 'Autopilot only'")
+        if "suggestion" not in block:
+            failures.append(f"questions: {qid} has no 'Suggestion' line")
+
+    for flag in QUESTION_FLAGS:
+        if flag not in text:
+            failures.append(f"questions: the file does not mention the installer flag {flag}")
+    for key in QUESTION_KEYS:
+        if key not in text:
+            failures.append(f"questions: the file does not mention the .foreman.json key {key}")
+
+    questions_only = "\n".join(blocks.get(qid, "") for qid in QUESTION_KEYWORDS).lower()
+    for topic in FORBIDDEN_TOPICS:
+        if topic in questions_only:
+            failures.append(f"questions: P1 to P9 mention the forbidden topic {topic!r}")
+
+    not_ask = do_not_ask_text(text)
+    if not_ask is None:
+        failures.append("questions: no 'Do not ask' heading or line")
+        return
+    not_ask_lower = not_ask.lower()
+    for name in DO_NOT_ASK_NAMES:
+        if name not in not_ask_lower:
+            failures.append(f"questions: the 'Do not ask' list does not name {name!r}")
+
+
+def questions_section(body):
+    """Return the first heading section whose heading mentions 'question', or None."""
+    lines = body.splitlines()
+    start = None
+    level = None
+    for index, line in enumerate(lines):
+        match = re.match(r"(#{1,6})\s+(.*)", line)
+        if start is None:
+            if match and "project question" in match.group(2).lower():
+                start = index
+                level = len(match.group(1))
+            continue
+        if match and len(match.group(1)) <= level:
+            return "\n".join(lines[start:index])
+    return None if start is None else "\n".join(lines[start:])
+
+
+def check_project_questions_section(body, failures):
+    if QUESTIONS_REF not in body:
+        failures.append(f"questions: {PROJECT_NAME} body does not mention '{QUESTIONS_REF}'")
+    section = questions_section(body)
+    if section is None:
+        failures.append(f"questions: {PROJECT_NAME} has no section about project questions (no heading with 'question')")
+        return
+    section_sentences = [s.lower() for s in sentences(section)]
+    if not any("project-questions.md" in s and re.search(r"\bfrom\b", s) for s in section_sentences):
+        failures.append(f"questions: the project questions section does not say the questions come from {QUESTIONS_REF}")
+    if not any("workspace.json" in s and "shown" in s and NOT_ASKED.search(s) for s in section_sentences):
+        failures.append(
+            "questions: the project questions section does not say that workspace.json values "
+            "are taken over and shown, not asked again"
+        )
+    if not any("autopilot" in s and "profile" in s and re.search(r"\bonly\b", s) and re.search(r"\bask", s)
+               for s in section_sentences):
+        failures.append(
+            "questions: the project questions section does not say that the Autopilot questions "
+            "are asked only for profile Autopilot"
+        )
+
+
+def units(text):
+    """Split into paragraphs and list items."""
+    return [u for u in re.split(r"\n\s*\n|\n(?=\s*(?:[-*+]|\d+[.)])\s)", text) if u.strip()]
+
+
+def check_summary_step(body, failures):
+    for unit in units(body):
+        lower = unit.lower()
+        if all(word in lower for word in SUMMARY_WORDS) and BEFORE_WORD.search(lower):
+            break
+    else:
+        failures.append(
+            f"summary: no step (paragraph or list item) shows a summary before the install command "
+            f"and asks the human to confirm (needs 'summary', 'before', 'install command', 'confirm')"
+        )
+    if not any("install command" in s.lower() and ONLY_VALUES.search(s) for s in sentences(body)):
+        failures.append(
+            f"summary: no sentence says the install command contains only values from answers or workspace.json"
+        )
+
+
+def check_docs(failures):
+    for path, label, keys in [
+        (README, "README.md", AUTOPILOT_KEYS + [MERGE_KEY]),
+        (MODULES, "docs/MODULES.md", AUTOPILOT_KEYS + [MERGE_KEY]),
+        (CONVENTIONS, "docs/CONVENTIONS.md", AUTOPILOT_KEYS),
+    ]:
+        text = read_text(path, failures)
+        if text is None:
+            continue
+        for key in keys:
+            if key not in text:
+                failures.append(f"docs: {label} does not mention {key}")
+    text = read_text(PROFILES, failures)
+    if text is not None:
+        for needle in PROFILE_NEEDLES:
+            if needle not in text:
+                failures.append(f"docs: profiles-and-modules.md does not mention {needle}")
+
+
 def main():
-    failures = []
+    load_failures = []
     descriptions = {}
 
-    project_description, project_body = load_skill(PROJECT, PROJECT_NAME, failures)
-    setup_description, _setup_body = load_skill(SETUP, SETUP_NAME, failures)
+    project_description, project_body = load_skill(PROJECT, PROJECT_NAME, load_failures)
+    setup_description, _setup_body = load_skill(SETUP, SETUP_NAME, load_failures)
     if project_description is not None:
         descriptions[PROJECT_NAME] = project_description
     if setup_description is not None:
@@ -220,22 +443,41 @@ def main():
     detection_failures = []
     if project_body is not None:
         check_detection(project_body, detection_failures)
-    failures.extend(detection_failures)
 
     routing_failures = []
+    cross_failures = []
     if len(descriptions) == 2:
         check_routing(descriptions, routing_failures)
-        check_cross_reference(descriptions, routing_failures)
-    failures.extend(routing_failures)
+        check_cross_reference(descriptions, cross_failures)
 
-    if failures:
-        for failure in failures:
-            print(f"FAIL: {failure}", file=sys.stderr)
-        return 1
-    print("ok: detection (workspace.json check, one question, yes/no handover)")
-    print(f"ok: routing ({len(NEW_PROJECT)} new-project and {len(FIRST_SETUP)} first-setup questions)")
-    print("ok: cross-reference (each description names the other skill)")
-    return 0
+    questions_failures = []
+    questions_text = read_text(QUESTIONS, questions_failures)
+    if questions_text is not None:
+        check_questions_file(questions_text, questions_failures)
+    if project_body is not None:
+        check_project_questions_section(project_body, questions_failures)
+
+    summary_failures = []
+    if project_body is not None:
+        check_summary_step(project_body, summary_failures)
+    check_docs(summary_failures)
+
+    failures = load_failures + detection_failures + routing_failures + cross_failures
+    failures += questions_failures + summary_failures
+    for failure in failures:
+        print(f"FAIL: {failure}", file=sys.stderr)
+
+    if project_body is not None and not detection_failures:
+        print("ok: detection (workspace.json check, one question, yes/no handover)")
+    if len(descriptions) == 2 and not routing_failures:
+        print(f"ok: routing ({len(NEW_PROJECT)} new-project and {len(FIRST_SETUP)} first-setup questions)")
+    if len(descriptions) == 2 and not cross_failures:
+        print("ok: cross-reference (each description names the other skill)")
+    if project_body is not None and not questions_failures:
+        print(f"ok: project questions (P1 to P9, Autopilot split, flags, Do not ask list, {QUESTIONS_REF})")
+    if project_body is not None and not summary_failures:
+        print("ok: summary and docs (confirm step, install command, README, MODULES, CONVENTIONS, profiles)")
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

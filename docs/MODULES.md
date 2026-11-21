@@ -21,6 +21,8 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 - `pass_env`: per project in `dispatcher/config.json`. Only these variables plus `PATH`, `HOME` and `LANG` reach the check script and the command.
 - `fire_command`: per project. Local run with Claude Code; template `dispatcher/fire-claude.example.sh`, details in `dispatcher/README.md`.
 - `autopilot.mainAutoMerge`: in `.foreman.json`, default `false`. Only the boolean `true` lets the check start a batch for `main` on its own.
+- `autopilot.batchHours`: in `.foreman.json`, the local hours (in `context.timeZone`) of the merge window in which the check starts the batch PR. Default 3, 7, 11, 15, 19, 23.
+- `autopilot.waitHours`: in `.foreman.json`, the wait time in hours after which the check starts the batch PR outside the merge window. Default 4. `FOREMAN_WAIT_SECONDS` still overrides the wait time.
 
 Upgrade note: before this version a check script inherited the whole environment, and `main` started in the merge window. Now variables must be listed in `pass_env`, and `main` needs `mainAutoMerge: true`. `FOREMAN_*` overrides (for example `FOREMAN_TZ`) set in `dispatcher.env` no longer reach the check script unless listed in `pass_env`; move them to `.foreman.json` or to `pass_env`. Proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`) are not passed either. The check script also loses `GITHUB_TOKEN` unless the project lists it in `pass_env`; without it open batch PRs are not seen, so a `main` PR started by the human is not continued.
 

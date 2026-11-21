@@ -77,6 +77,7 @@ Rules for the command you hand out:
 - `--fallback-model <id>`: exact `claude/<id>` fallback model; required with a gateway URL.
 - `--chatgpt-via-gateway accepted-risk|declined`: the human's consent for ChatGPT via the gateway; `declined` keeps it off.
 - Always propose `--dry-run` first for a beginner.
+- Merge window: setup does not ask it; `foreman-project` asks it per project and the installer takes it as `--tz`, `--batch-hours`, `--wait-hours` and `--main-auto-merge yes|no`.
 
 Examples:
 

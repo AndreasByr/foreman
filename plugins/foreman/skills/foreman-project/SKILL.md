@@ -39,15 +39,20 @@ Mixed signals: recommend Quick and say that the same repo can move to full later
 
 ### Project questions
 
-Read `.foreman.json` in the repo (if the repo exists), the chat project's files and `docs/`. Ask only what is missing, one round of at most 3:
+The questions come from `references/project-questions.md` (read it first): P1 to P9, each with a suggestion. Values from `workspace.json` are taken over and shown, not asked again. The Autopilot-only questions (time zone, batch hours, wait, mainAutoMerge) are asked only for profile Autopilot.
 
-- project name and slug, one-sentence goal
+Read `.foreman.json` in the repo (if the repo exists), the chat project's files and `docs/`. Ask only what is missing, at most 3 per round, beyond P1 to P9:
+
+- one-sentence goal
 - repo (or "none yet"), stack, hosting
 - who tests and approves; test environment URL and test tenant or account; what is off limits (production data, other tenants)
-- release day, time zone, document language
-- tracker: itsaplan, linear or none (from `.foreman.json` modules)
+- release day, document language
 
 Offer to record the answers under `context` in `.foreman.json` (keys: `name`, `goal`, `stagingUrl`, `devUrl`, `testTenant`, `offLimits`, `language`, `timeZone`, `releaseDay`, `workRun`). Never store tokens or secrets there.
+
+### Summary before the install
+
+Before the install, show a summary of all answers as one list: each answer given, and each value taken over from `workspace.json`, shown once. Ask the human to confirm the summary. Only after the confirmation show the install command. The install command contains only values from answers or `workspace.json`, never a guessed one.
 
 ## 3. Check what exists
 
