@@ -22,7 +22,7 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 - `fire_command`: per project. Local run with Claude Code; template `dispatcher/fire-claude.example.sh`, details in `dispatcher/README.md`.
 - `autopilot.mainAutoMerge`: in `.foreman.json`, default `false`. Only the boolean `true` lets the check start a batch for `main` on its own.
 
-Upgrade note: before this version a check script inherited the whole environment, and `main` started in the merge window. Now variables must be listed in `pass_env`, and `main` needs `mainAutoMerge: true`.
+Upgrade note: before this version a check script inherited the whole environment, and `main` started in the merge window. Now variables must be listed in `pass_env`, and `main` needs `mainAutoMerge: true`. `FOREMAN_*` overrides (for example `FOREMAN_TZ`) set in `dispatcher.env` no longer reach the check script unless listed in `pass_env`; move them to `.foreman.json` or to `pass_env`. Proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`) are not passed either.
 
 ## Choosing
 

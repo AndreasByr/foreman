@@ -120,6 +120,16 @@ function fireCommand(project, task, repoDir, logDir, env) {
   return `command started (pid ${child.pid}, log ${logFile})`;
 }
 
+/**
+ * The environment for git: the dispatcher's environment (SSH agent, proxy, GIT_* settings), no credential prompts,
+ * and GIT_SSH_COMMAND with the deploy key when a key is given.
+ */
+export function gitEnv(env, key) {
+  const e = { ...env, GIT_TERMINAL_PROMPT: "0" };
+  if (key) e.GIT_SSH_COMMAND = `ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=yes`;
+  return e;
+}
+
 function git(args, cwd, env) {
   const r = spawnSync("git", args, { cwd, env, encoding: "utf8", timeout: 120000 });
   return { status: r.status ?? 1, out: `${r.stdout ?? ""}${r.stderr ?? ""}`.trim() };
@@ -128,9 +138,8 @@ function git(args, cwd, env) {
 function updateRepo(project, workdir, env, log) {
   const dir = join(workdir, "repos", project.name);
   const key = project.deploy_key_env ? env[project.deploy_key_env] : expandHome(project.deploy_key);
-  // git gets only the base variables, so no other project's tokens leak into git's environment
-  const e = { ...safeEnv(env, {}), GIT_TERMINAL_PROMPT: "0" };
-  if (key) e.GIT_SSH_COMMAND = `ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=yes`;
+  // git is not a project script: it gets the dispatcher environment (see gitEnv)
+  const e = gitEnv(env, key);
   if (!existsSync(join(dir, ".git"))) {
     mkdirSync(join(workdir, "repos"), { recursive: true });
     const r = git(["clone", "-q", project.repo, dir], workdir, e);
@@ -202,7 +211,8 @@ async function notify(config, env, message, fetchImpl, log) {
   try { req = webhookRequest(config, env, message); } catch (e) { log(`webhook not used: ${e.message}`); return; }
   if (!req) return;
   try {
-    await fetchImpl(req.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: req.body, signal: AbortSignal.timeout(15000) });
+    // redirect: "error" keeps the request on the host that was checked
+    await fetchImpl(req.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: req.body, redirect: "error", signal: AbortSignal.timeout(15000) });
   } catch (e) { log(`webhook failed: ${redact(e.message, [req.url])}`); }
 }
 

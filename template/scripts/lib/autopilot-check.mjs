@@ -132,14 +132,15 @@ export function tasks({ units = [], now = new Date(), settings, verdicts = {}, s
     const window = s.batchHours.includes(local.hour);
     const oldest = waiting.map((u) => ({ u, t: stamp(u.since) })).filter((x) => x.t !== null).sort((a, b) => a.t - b.t)[0];
     const overdue = oldest && now.getTime() - oldest.t > s.waitMs;
-    // Merging to main is outward-facing: by default only the human's "Batch PR main" starts it; catch-up still runs.
+    // Merging to main is outward-facing: window and overdue start it only with mainAutoMerge; an open PR (the human's
+    // "Batch PR main") and catch-up always run.
     const auto = target !== "main" || s.mainAutoMerge;
-    const trigger = auto && (open || (waiting.length > 0 && (window || overdue)));
+    const trigger = open || (auto && waiting.length > 0 && (window || overdue));
     if (!trigger && !late.length) continue;
-    // Held main without mainAutoMerge: only the catch-up runs, so the task names only the catch-up units.
-    const held = target === "main" && !s.mainAutoMerge;
+    // Held main (no mainAutoMerge, no open PR): only the catch-up runs, so the task names only the catch-up units.
+    const held = target === "main" && !s.mainAutoMerge && !open;
     const why = [];
-    if (open && !held) why.push(`batch PR #${pr} open`);
+    if (open) why.push(`batch PR #${pr} open`);
     if (late.length) why.push(`catch-up: ${late.join(", ")} already in ${target}`);
     if (!open && !late.length) why.push(window ? `${waiting.length} awaiting-merge (window ${local.hour}:00)` : `${oldest.u.id} awaiting-merge for over ${Math.round(s.waitMs / 3600000)} hours`);
     out.push(mk("batch", `batch:${target}`, why.join("; "), { target, units: held ? late : waiting.map((u) => u.id) }));

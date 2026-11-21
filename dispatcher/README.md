@@ -28,6 +28,7 @@ If you have no cloud routine, `fire_command` can start Claude Code on your own m
 Know before you rely on it:
 
 - Environment variables do not cross `ssh`. The start script on the server holds the project's values.
+- The command gets no `SSH_AUTH_SOCK`, so `ssh` uses the key files in `~/.ssh` of the dispatcher's user (a systemd timer has no agent anyway). Add `SSH_AUTH_SOCK` to `pass_env` only if you need an agent.
 - The dispatcher does not watch the run. The lock in `STATE.md` protects the unit for 3 hours; measuring comes with a later milestone.
 - Unattended `claude -p` needs the project's `.claude/settings.json` to allow the commands it needs.
 

@@ -433,6 +433,57 @@ t("run --dry-run with fire_command says 'would start ... via command' and leaks 
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+// ---- git environment and webhook redirects: dispatchModule.gitEnv is not implemented yet, so the first test must fail ----
+t("gitEnv: keeps the dispatcher environment, sets GIT_TERMINAL_PROMPT, GIT_SSH_COMMAND only when a key is given", () => {
+  const env = { PATH: "/usr/bin", HOME: "/home/u", SSH_AUTH_SOCK: "/tmp/agent.sock", HTTPS_PROXY: "http://proxy.example:3128", GIT_CONFIG_GLOBAL: "/etc/gitconfig-x", OTHER_FIRE_TOKEN: OTHER_SECRET };
+  const noKey = dispatchModule.gitEnv(env, null);
+  assert.equal(noKey.SSH_AUTH_SOCK, "/tmp/agent.sock", "ssh agent socket kept");
+  assert.equal(noKey.HTTPS_PROXY, "http://proxy.example:3128", "proxy kept");
+  assert.equal(noKey.GIT_CONFIG_GLOBAL, "/etc/gitconfig-x", "GIT_* settings kept");
+  assert.equal(noKey.PATH, "/usr/bin");
+  assert.equal(noKey.GIT_TERMINAL_PROMPT, "0");
+  assert.ok(!("GIT_SSH_COMMAND" in noKey), "no key, no GIT_SSH_COMMAND");
+  const withKey = dispatchModule.gitEnv(env, "/keys/p_ed25519");
+  assert.match(withKey.GIT_SSH_COMMAND, /^ssh -i \/keys\/p_ed25519 /);
+  assert.equal(withKey.GIT_TERMINAL_PROMPT, "0");
+  assert.equal(withKey.SSH_AUTH_SOCK, "/tmp/agent.sock");
+  assert.equal(env.GIT_TERMINAL_PROMPT, undefined, "the input env is not mutated");
+});
+
+t("run: update true clones and checks out the local origin with the dispatcher environment", async () => {
+  const { dir, cfg, env } = setup(SAMPLE);
+  try {
+    const fetch = async () => ({ ok: true, status: 200, text: async () => "{}" });
+    const code = await run({ config: cfg, env: { ...env, FOREMAN_TEST_MARKER: "1" }, fetch, log: () => {} });
+    assert.equal(code, 0);
+    assert.ok(existsSync(join(cfg.workdir, "repos", "p", ".git")), "clone exists");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("run: the failure webhook fetch refuses redirects (redirect: error)", async () => {
+  const { dir, cfg, env } = setup(SAMPLE, { code: 3, config: { webhook_format: "discord" } });
+  try {
+    const opts = [];
+    const fetch = async (url, o) => { opts.push({ url, o }); return { ok: true, status: 200, text: async () => "" }; };
+    await run({ config: cfg, env: { ...env, DISPATCHER_ERROR_WEBHOOK_URL: HOOK_DISCORD }, fetch, log: () => {} });
+    assert.equal(opts.length, 1, "one webhook call");
+    assert.equal(opts[0].url, HOOK_DISCORD);
+    assert.equal(opts[0].o.redirect, "error", "a redirect would leave the checked host");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("run: a failed webhook request is logged without the webhook URL", async () => {
+  const { dir, cfg, env } = setup(SAMPLE, { code: 3, config: { webhook_format: "discord" } });
+  try {
+    const logs = [];
+    const fetch = async (url) => { throw new Error(`redirect mode is set to error: ${url}`); };
+    const code = await run({ config: cfg, env: { ...env, DISPATCHER_ERROR_WEBHOOK_URL: HOOK_DISCORD }, fetch, log: (m) => logs.push(m) });
+    assert.equal(code, 1);
+    assert.ok(logs.some((l) => l.includes("webhook failed:")), "failure is logged");
+    assert.ok(!logs.join("\n").includes(HOOK_DISCORD), "log must not contain the URL");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 let n = 0;
 for (const [name, fn] of queue) { await fn(); n++; console.log(`ok ${name}`); }
 console.log(`${n} tests passed`);

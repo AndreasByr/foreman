@@ -42,4 +42,27 @@ forbid plugins/foreman/skills/foreman-fix/SKILL.md outward-facing
 # dispatcher env example
 need dispatcher/dispatcher.env.example webhook_format
 
+# dispatcher env example: the old global FOREMAN_TZ override must not be an active or commented-out default line
+[ -f dispatcher/dispatcher.env.example ] || fail "missing file dispatcher/dispatcher.env.example"
+if grep -q -E '^# FOREMAN_TZ=' dispatcher/dispatcher.env.example; then
+  fail "dispatcher/dispatcher.env.example must not contain a line starting with '# FOREMAN_TZ='"
+fi
+echo "ok dispatcher/dispatcher.env.example has no line starting with '# FOREMAN_TZ='"
+
+# foreman-setup references: Claude Code without a routine can run through fire_command
+need plugins/foreman/skills/foreman-setup/references/prerequisites.md fire-claude.example.sh
+need plugins/foreman/skills/foreman-setup/references/profiles-and-modules.md fire-claude.example.sh
+
+# dispatcher/README.md: local run details
+need dispatcher/README.md claude_login
+need dispatcher/README.md SSH_AUTH_SOCK
+
+# docs/MODULES.md: FOREMAN_* override upgrade note
+need docs/MODULES.md FOREMAN_TZ
+
+# skills and template: no jargon the rule does not need
+forbid plugins/foreman/skills/foreman-fix/SKILL.md "reaches the outside"
+forbid template/.claude/skills/foreman-dispatch-run/references/batch-run.md outward-facing
+forbid template/.claude/skills/foreman-dispatch-run/references/batch-run.md "reaches the outside"
+
 echo "dispatcher docs tests: ok"

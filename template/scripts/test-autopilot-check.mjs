@@ -140,15 +140,25 @@ t("batch main: window and overdue start it only with mainAutoMerge true", () => 
   assert.deepEqual(mainBatch(tasks({ units: [m()], now: at("08"), settings: strOn })), [], "string true overdue is not enabled");
 });
 
-t("batch main: open PR starts it only with mainAutoMerge true", () => {
+t("batch main: an open PR is continued with default settings, with and without a waiting unit", () => {
   const at = (h) => new Date(`2026-03-06T${h}:10:00Z`);
-  const on = settingsFrom({}, { autopilot: { mainAutoMerge: true } });
-  const off = tasks({ units: [], now: at("08"), settings: S, openPrs: { main: 5 } });
-  assert.equal(off.filter((x) => x.kind === "batch" && x.unit === "batch:main").length, 0, "no main batch without mainAutoMerge");
-  const list = tasks({ units: [], now: at("08"), settings: on, openPrs: { main: 5 } });
-  const mainTask = list.find((x) => x.kind === "batch" && x.unit === "batch:main");
-  assert.ok(mainTask, "main batch with mainAutoMerge");
-  assert.ok(mainTask.info.includes("#5"), mainTask.info);
+  const m = unit("M", "awaiting-merge", { target: "main", ref: "origin/batch/main", since: "2026-03-06T07:00:00Z" });
+  const withW = tasks({ units: [m], now: at("08"), settings: S, openPrs: { main: 5 } });
+  const mainWithW = withW.filter((x) => x.kind === "batch" && x.unit === "batch:main");
+  assert.equal(mainWithW.length, 1, "one main batch task with a waiting unit");
+  assert.ok(mainWithW[0].info.includes("#5"), mainWithW[0].info);
+  assert.ok(mainWithW[0].prompt.includes("Units: M"), mainWithW[0].prompt);
+  const noW = tasks({ units: [], now: at("08"), settings: S, openPrs: { main: 5 } });
+  const mainNoW = noW.filter((x) => x.kind === "batch" && x.unit === "batch:main");
+  assert.equal(mainNoW.length, 1, "one main batch task without a waiting unit");
+  assert.ok(mainNoW[0].info.includes("#5"), mainNoW[0].info);
+});
+
+t("batch main: window and overdue without an open PR or catch-up do not start it by default", () => {
+  const at = (h) => new Date(`2026-03-06T${h}:10:00Z`);
+  const m = unit("M", "awaiting-merge", { target: "main", ref: "origin/batch/main", since: "2026-03-06T02:00:00Z" });
+  assert.deepEqual(kinds(tasks({ units: [m], now: at("07"), settings: S })).filter((k) => k.startsWith("batch:")), [], "window, default");
+  assert.deepEqual(kinds(tasks({ units: [m], now: at("08"), settings: S })).filter((k) => k.startsWith("batch:")), [], "overdue, default");
 });
 
 t("batch main: catch-up still starts it without mainAutoMerge", () => {
@@ -163,11 +173,10 @@ t("batch main: catch-up still starts it without mainAutoMerge", () => {
 t("batch main: held without mainAutoMerge, catch-up task carries only the catch-up units", () => {
   const at = (h) => new Date(`2026-03-06T${h}:10:00Z`);
   const w = unit("W", "awaiting-merge", { target: "main", ref: "origin/batch/main", since: "2026-03-06T02:00:00Z" });
-  const list = tasks({ units: [w], now: at("08"), settings: S, catchUp: { main: ["C"] }, openPrs: { main: 5 } });
+  const list = tasks({ units: [w], now: at("08"), settings: S, catchUp: { main: ["C"] } });
   const mainTasks = list.filter((x) => x.kind === "batch" && x.unit === "batch:main");
   assert.equal(mainTasks.length, 1, "exactly one main batch task");
   assert.ok(mainTasks[0].info.includes("catch-up"), mainTasks[0].info);
-  assert.ok(!mainTasks[0].info.includes("#5"), mainTasks[0].info);
   assert.ok(mainTasks[0].prompt.includes("Units: C"), mainTasks[0].prompt);
   assert.ok(!mainTasks[0].prompt.includes("W"), mainTasks[0].prompt);
 });

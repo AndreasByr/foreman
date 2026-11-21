@@ -43,6 +43,8 @@ What each profile produces:
 | OpenCode | supported | `AGENTS.md` carries the rules; skills are referenced from `.claude/skills/*`; the dispatcher fires a command (`fire_command`, prompt on stdin, for example `opencode run`) on the same machine; resuming and parallel runs are yours to manage |
 | other | supported | like OpenCode |
 
+Claude Code without a cloud routine can also run through `fire_command` with the start script `dispatcher/fire-claude.example.sh` over ssh on your own machine (details in `dispatcher/README.md`).
+
 The git push guard also exists as a git hook (`.githooks/pre-push`), so it works without Claude hooks.
 
 ## Plan B without a machine
