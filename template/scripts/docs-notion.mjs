@@ -6,7 +6,8 @@
 //              With both: reads Notion (GET only) and lists new / update / archive / unchanged.
 //
 // Config: "docsNotion" {rootPageId, include, exclude} in <root>/.foreman.json.
-// Env: NOTION_API_KEY (token), NOTION_API_BASE (default https://api.notion.com/v1).
+// Env: NOTION_API_KEY (token), NOTION_API_BASE (default https://api.notion.com/v1),
+//      NOTION_MAX_RUN_S (run time budget in seconds, default 600).
 // Exit codes: 0 ok, 1 sync error, 2 usage or config error, 3 missing NOTION_API_KEY or rootPageId.
 import { resolve } from "node:path";
 import { buildPlan, buildTree, CliError, collectFiles, createClient, HttpError, loadConfig, readExisting, runSync } from "./lib/docs-notion.mjs";
@@ -55,11 +56,12 @@ async function main() {
   const client = token && cfg.rootPageId ? createClient({ token, base: process.env.NOTION_API_BASE }) : null;
   const existing = client ? await readExisting(client, cfg.rootPageId) : null;
   const plan = buildPlan(root, buildTree(files), existing);
+  for (const b of plan.blocked) err(`docs-notion: ${b.page.title} (has foreign child pages: ${b.foreign.map((f) => f.title).join(", ")})`);
   for (const p of plan.foreign) err(`docs-notion: ${p.title} (not mirrored, left alone)`);
 
   if (opts.dryRun) {
     for (const it of plan.items) out(`${it.action} ${it.path}${it.parent && it.action !== "unchanged" ? ` (under ${it.parent})` : ""}`);
-    for (const p of plan.archives) out(`archive ${p.title}`);
+    for (const p of [...plan.archives, ...plan.moved]) out(`archive ${p.title}`);
     return 0;
   }
 

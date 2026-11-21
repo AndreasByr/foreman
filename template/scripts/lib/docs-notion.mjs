@@ -127,11 +127,15 @@ export function createClient({ token, base }) {
   let last = 0;
   let waited = 0; // seconds spent on 429 waits in this run
   let exhausted = false;
+  const started = Date.now();
+  const runEnv = parseFloat(process.env.NOTION_MAX_RUN_S);
+  const maxRunMs = (runEnv >= 0 ? runEnv : 600) * 1000;
   const budgetEnv = parseFloat(process.env.NOTION_MAX_TOTAL_WAIT_S);
   const budget = budgetEnv >= 0 ? budgetEnv : 300;
   async function call(method, path, body) {
     for (let attempt = 0; ; attempt++) {
       if (exhausted) throw new HttpError("wait budget exhausted (NOTION_MAX_TOTAL_WAIT_S)");
+      if (Date.now() - started > maxRunMs) throw new HttpError("run time budget exceeded (NOTION_MAX_RUN_S)");
       const wait = last + MIN_GAP_MS - Date.now();
       if (wait > 0) await sleep(wait);
       last = Date.now();
@@ -208,7 +212,7 @@ export async function readExisting(client, rootId) {
     }
   };
   await walkPage(rootId, null);
-  return { all, byTitle };
+  return { all, byTitle, rootId };
 }
 
 const textOf = (b) => (b?.paragraph?.rich_text ?? []).map((r) => r.text?.content ?? r.plain_text ?? "").join("");
@@ -244,29 +248,56 @@ const pageBlocks = (item) => {
 };
 
 // action: sync (offline dry-run) | new | update | unchanged. archives: existing pages without a file.
+// A page whose current parent differs from the tree is re-created under the right parent (action new);
+// its old page goes to `moved` and is archived after all writes. blocked: file-less mirror pages that hold foreign child pages.
 export function buildPlan(root, entries, existing) {
   const used = new Set();
+  const byPath = new Map();
+  const moved = [];
   const items = entries.map((e) => {
     const buf = readFileSync(join(root, e.path));
     const hash = sha16(buf);
-    const ex = existing?.byTitle.get(e.path);
+    let ex = existing?.byTitle.get(e.path);
     if (ex) used.add(ex.id);
-    const item = { ...e, buf, hash, existing: ex };
+    const item = { ...e, buf, hash };
+    byPath.set(e.path, item);
+    if (ex) {
+      const par = e.parent ? byPath.get(e.parent) : null;
+      const want = e.parent ? (par.action === "new" ? null : par.existing.id) : existing.rootId;
+      if (ex.parent !== want) {
+        moved.push(ex);
+        item.old = ex;
+        ex = undefined;
+      }
+    }
+    item.existing = ex;
     if (ex && markerHash(ex) === hash) item.blocks = pageBlocks(item);
     item.action = !existing ? "sync" : !ex ? "new" : item.blocks && sameContent(ex.blocks, item.blocks) ? "unchanged" : "update";
     return item;
   });
-  const unused = existing ? existing.all.filter((p) => !used.has(p.id)) : [];
-  const archives = unused.filter(isMirrored);
+  const all = existing?.all ?? [];
+  const unused = existing ? all.filter((p) => !used.has(p.id)) : [];
+  const kids = new Map();
+  for (const p of all) kids.set(p.parent, [...(kids.get(p.parent) ?? []), p]);
+  // Foreign (unmarked) pages below a page, reached through pages that have no file.
+  const foreignBelow = (p) => (kids.get(p.id) ?? []).filter((k) => !used.has(k.id)).flatMap((k) => (isMirrored(k) ? foreignBelow(k) : [k]));
+  const blocked = [];
+  const archives = [];
+  for (const p of unused.filter(isMirrored)) {
+    const f = foreignBelow(p);
+    if (f.length) blocked.push({ page: p, foreign: f });
+    else archives.push(p);
+  }
   // A page below an archived page goes with it; only pages that stay are reported as left alone.
-  const gone = new Set(archives.map((p) => p.id));
-  const parents = new Map((existing?.all ?? []).map((p) => [p.id, p.parent]));
+  const gone = new Set([...archives, ...moved].map((p) => p.id));
+  const parents = new Map(all.map((p) => [p.id, p.parent]));
   const cascaded = (p) => {
     for (let q = parents.get(p.id); q; q = parents.get(q)) if (gone.has(q)) return true;
     return false;
   };
-  const foreign = unused.filter((p) => !isMirrored(p) && !cascaded(p));
-  return { items, archives, foreign };
+  const named = new Set(blocked.flatMap((b) => b.foreign.map((p) => p.id)));
+  const foreign = unused.filter((p) => !isMirrored(p) && !cascaded(p) && !named.has(p.id));
+  return { items, archives, foreign, blocked, moved, parents };
 }
 
 // ---------------------------------------------------------------- writing
@@ -349,10 +380,12 @@ async function updatePage(client, page, item) {
 }
 
 // Returns { counts, errors }. A failed file does not stop the others; children of a failed parent are skipped.
+// Archiving comes last, so nothing is archived while it still has to be kept or re-created.
 export async function runSync(client, rootId, plan, log = () => {}) {
   const counts = { created: 0, updated: 0, archived: 0, unchanged: 0 };
   const errors = [];
   const ids = new Map();
+  const failedOld = new Set(); // old pages of failed files: they and their ancestors stay
   const fail = (path, e) => errors.push(`docs-notion: ${path}: ${e instanceof HttpError ? e.message : (e?.message ?? "error")}`);
   for (const item of plan.items) {
     try {
@@ -372,13 +405,27 @@ export async function runSync(client, rootId, plan, log = () => {}) {
         log(`created ${item.path}`);
       }
     } catch (e) {
+      const old = item.existing ?? item.old;
+      if (old) failedOld.add(old.id);
       fail(item.path, e);
     }
   }
+  const keep = new Set();
+  for (const id of failedOld) for (let q = id; q; q = plan.parents.get(q)) keep.add(q);
+  const depth = (p) => {
+    let n = 0;
+    for (let q = plan.parents.get(p.id); q; q = plan.parents.get(q)) n++;
+    return n;
+  };
   const gone = new Set();
-  for (const page of plan.archives) {
+  const dead = (p) => {
+    for (let q = plan.parents.get(p.id); q; q = plan.parents.get(q)) if (gone.has(q)) return true;
+    return false;
+  };
+  for (const page of [...plan.archives, ...plan.moved].sort((a, b) => depth(a) - depth(b))) {
+    if (keep.has(page.id)) continue;
     try {
-      if (!gone.has(page.parent)) await client.call("PATCH", `/pages/${page.id}`, { archived: true }); // else Notion cascades
+      if (!dead(page)) await client.call("PATCH", `/pages/${page.id}`, { archived: true }); // else Notion cascades
       gone.add(page.id);
       counts.archived++;
       log(`archived ${page.title}`);
