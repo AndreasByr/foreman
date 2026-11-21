@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installer smoke test: fresh repo, module combinations, agents, notion refused, existing files, idempotence, skills.
+# Installer smoke test: fresh repo, module combinations, agents, docs-notion module, existing files, idempotence, skills.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 T=$(mktemp -d); trap '[ -z "${GW_PID:-}" ] || kill "$GW_PID" 2>/dev/null || true; [ -z "${EXTRA_PIDS:-}" ] || kill $EXTRA_PIDS 2>/dev/null || true; rm -rf "$T"' EXIT
@@ -72,15 +72,129 @@ for tr in "" tracker-itsaplan tracker-linear; do
   done
 done
 
-# 4. notion refused, exclusive trackers, unknown module, bad agent
+# 4. exclusive trackers, unknown module, bad agent
 mkdir "$T/n"
-err=$(inst "$T/n" --project x --modules notion 2>&1 >/dev/null) && fail "notion accepted" || true
-echo "$err" | grep -q "notion was removed in 0.2" || fail "notion message: $err"
 inst "$T/n" --project x --modules tracker-itsaplan,tracker-linear >/dev/null 2>&1 && fail "both trackers accepted" || true
 inst "$T/n" --project x --modules bogus >/dev/null 2>&1 && fail "unknown module accepted" || true
 inst "$T/n" --project x --agent nope >/dev/null 2>&1 && fail "bad agent accepted" || true
 inst "$T/n" --project x --modules autopilot --scope docs >/dev/null 2>&1 && fail "autopilot with scope docs accepted" || true
 inst "$T/n" --project x --recommended-skills all --skills-scope nowhere >/dev/null 2>&1 && fail "bad skills scope accepted" || true
+
+# 4b. docs-notion module: installs with its config block; old name refused with a hint to the new name
+mkdir "$T/dn1" && git -C "$T/dn1" init -q
+inst "$T/dn1" --project p --modules docs-notion >/dev/null 2>&1 || fail "docs-notion install failed"
+python3 - "$T/dn1/.foreman.json" <<'PY' || fail "docs-notion: modules or docsNotion block wrong"
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert "docs-notion" in d["modules"], d["modules"]
+dn = d.get("docsNotion")
+assert isinstance(dn, dict), "no docsNotion object"
+assert dn.get("rootPageId") == "", dn
+assert dn.get("include") == ["docs/**/*.md"], dn
+assert isinstance(dn.get("exclude"), list), dn
+PY
+[ -f "$T/dn1/scripts/docs-notion.mjs" ] || fail "docs-notion: scripts/docs-notion.mjs missing"
+(cd "$T/dn1" && bash scripts/check-config.sh >/dev/null) || fail "docs-notion: check-config failed"
+
+# docs-notion absent by default: no module files, no docsNotion key
+mkdir "$T/dn0" && git -C "$T/dn0" init -q
+inst "$T/dn0" --project p >/dev/null 2>&1 || fail "default install failed"
+[ -e "$T/dn0/scripts/docs-notion.mjs" ] && fail "docs-notion.mjs installed without its module" || true
+[ -e "$T/dn0/scripts/lib/docs-notion.mjs" ] && fail "lib/docs-notion.mjs installed without its module" || true
+[ -e "$T/dn0/scripts/lib/docs-notion-md.mjs" ] && fail "lib/docs-notion-md.mjs installed without its module" || true
+python3 - "$T/dn0/.foreman.json" <<'PY' || fail "docsNotion key written without the module"
+import json, sys
+assert "docsNotion" not in json.load(open(sys.argv[1]))
+PY
+
+# docs-notion combined with other modules installs fine
+for mods in docs-notion,delegate docs-notion,tracker-itsaplan; do
+  d="$T/dnc-$(echo "$mods" | tr ',' '_')"; mkdir "$d" && git -C "$d" init -q
+  inst "$d" --project p --modules "$mods" >/dev/null 2>&1 || fail "combination '$mods' failed"
+done
+
+# unknown module still refused
+mkdir "$T/dnu" && git -C "$T/dnu" init -q
+inst "$T/dnu" --project p --modules docs-notion,bogus >/dev/null 2>&1 && fail "unknown module with docs-notion accepted" || true
+
+# old name refused with exit nonzero and a hint to docs-notion
+mkdir "$T/dno" && git -C "$T/dno" init -q; rc=0
+err=$(inst "$T/dno" --project p --modules notion 2>&1) || rc=$?
+[ "$rc" != 0 ] || fail "old module name 'notion' accepted"
+echo "$err" | grep -q 'docs-notion' || fail "old module name 'notion': message lacks docs-notion: $err"
+
+# 4c. docs-notion post-merge hook: installed with the module, dry run works without a key, absent by default; the batch-run step is generic
+mkdir "$T/pm1" && git -C "$T/pm1" init -q
+inst "$T/pm1" --project p --modules docs-notion >/dev/null 2>&1 || fail "post-merge: docs-notion install failed"
+[ -f "$T/pm1/scripts/post-merge.d/docs-notion.sh" ] || fail "post-merge: scripts/post-merge.d/docs-notion.sh missing"
+[ -x "$T/pm1/scripts/post-merge.d/docs-notion.sh" ] || fail "post-merge: docs-notion.sh not executable"
+out=$(cd "$T/pm1" && env -u NOTION_API_KEY bash scripts/post-merge.d/docs-notion.sh --dry-run 2>&1) || fail "post-merge: dry run exited nonzero: $out"
+echo "$out" | grep -q '^sync docs/' || fail "post-merge: dry run prints no line starting with 'sync docs/': $out"
+
+# default install (no docs-notion): no post-merge.d folder
+[ -e "$T/dn0/scripts/post-merge.d" ] && fail "post-merge.d installed without docs-notion" || true
+
+# autopilot + docs-notion: batch-run.md names the post-merge step and says it never blocks
+mkdir "$T/pm2" && git -C "$T/pm2" init -q
+inst "$T/pm2" --project p --scope autopilot --modules autopilot,docs-notion >/dev/null 2>&1 || fail "post-merge: autopilot,docs-notion install failed"
+br="$T/pm2/.claude/skills/foreman-dispatch-run/references/batch-run.md"
+[ -f "$br" ] || fail "post-merge: batch-run.md missing with autopilot"
+grep -q 'post-merge.d' "$br" || fail "post-merge: batch-run.md lacks the post-merge.d step"
+grep -q 'never blocks' "$br" || fail "post-merge: batch-run.md lacks 'never blocks'"
+
+# autopilot without docs-notion: the step stays generic, nothing about notion
+mkdir "$T/pm3" && git -C "$T/pm3" init -q
+inst "$T/pm3" --project p --modules autopilot >/dev/null 2>&1 || fail "post-merge: autopilot install failed"
+br3="$T/pm3/.claude/skills/foreman-dispatch-run/references/batch-run.md"
+[ -f "$br3" ] || fail "post-merge: batch-run.md missing with autopilot only"
+grep -q 'post-merge.d' "$br3" || fail "post-merge: batch-run.md lacks post-merge.d without docs-notion"
+grep -qi 'notion' "$br3" && fail "post-merge: batch-run.md mentions notion without docs-notion" || true
+
+# 4d. enabling docs-notion in an existing foreman project (red until the install-into-existing-target task lands)
+mkdir "$T/dnr" && git -C "$T/dnr" init -q
+inst "$T/dnr" --project p >/dev/null 2>&1 || fail "enable docs-notion: default install failed"
+cp "$T/dnr/.foreman.json" "$T/dnr-before.json"
+inst "$T/dnr" --project p --modules docs-notion >/dev/null 2>&1 || fail "enable docs-notion: re-run with --modules docs-notion exited nonzero"
+python3 - "$T/dnr-before.json" "$T/dnr/.foreman.json" "$T/dn1/.foreman.json" <<'PY' || fail "enable docs-notion: .foreman.json wrong or other keys changed"
+import json, sys
+old = json.load(open(sys.argv[1])); new = json.load(open(sys.argv[2])); fresh = json.load(open(sys.argv[3]))
+assert "docs-notion" in new.get("modules", []), new.get("modules")
+dn = new.get("docsNotion")
+assert isinstance(dn, dict), "no docsNotion object"
+assert dn == fresh["docsNotion"], (dn, fresh["docsNotion"])
+for k in old:
+    if k in ("modules", "docsNotion"): continue
+    assert new.get(k) == old[k], f"key changed: {k}"
+PY
+[ -f "$T/dnr/scripts/docs-notion.mjs" ] || fail "enable docs-notion: scripts/docs-notion.mjs missing"
+[ -f "$T/dnr/scripts/post-merge.d/docs-notion.sh" ] || fail "enable docs-notion: scripts/post-merge.d/docs-notion.sh missing"
+
+# re-run keeps an existing rootPageId and lists the module once
+python3 - "$T/dnr/.foreman.json" <<'PY' || fail "enable docs-notion: could not set rootPageId"
+import json, sys
+p = sys.argv[1]; d = json.load(open(p)); d["docsNotion"]["rootPageId"] = "abc123"
+open(p, "w").write(json.dumps(d, indent=2) + "\n")
+PY
+inst "$T/dnr" --project p --modules docs-notion >/dev/null 2>&1 || fail "enable docs-notion: second re-run exited nonzero"
+python3 - "$T/dnr/.foreman.json" <<'PY' || fail "enable docs-notion: rootPageId lost or module listed twice"
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["docsNotion"]["rootPageId"] == "abc123", d["docsNotion"]
+assert d["modules"].count("docs-notion") == 1, d["modules"]
+PY
+(cd "$T/dnr" && bash scripts/check-config.sh >/dev/null) || fail "enable docs-notion: check-config failed in the enabled target"
+
+# static: the batch skill holds the full post-merge step, the run reference only points to it
+TPL_BATCH="$HERE/template/.claude/skills/foreman-batch/SKILL.md"
+grep -q 'post-merge.d' "$TPL_BATCH" || fail "enable docs-notion: template foreman-batch lacks post-merge.d"
+grep -q 'target checked out' "$TPL_BATCH" || fail "enable docs-notion: template foreman-batch lacks 'target checked out'"
+grep -qi 'notion' "$TPL_BATCH" && fail "enable docs-notion: template foreman-batch mentions notion" || true
+cmp -s "$TPL_BATCH" "$HERE/.claude/skills/foreman-batch/SKILL.md" || fail "enable docs-notion: repo foreman-batch SKILL.md differs from the template"
+TPL_RUN="$HERE/template/.claude/skills/foreman-dispatch-run/references/batch-run.md"
+grep -q 'post-merge.d' "$TPL_RUN" || fail "enable docs-notion: batch-run.md lacks post-merge.d"
+grep -q 'never blocks' "$TPL_RUN" || fail "enable docs-notion: batch-run.md lacks 'never blocks'"
+n=$(grep -c 'every executable' "$TPL_RUN" || true)
+[ "$n" = 0 ] || fail "enable docs-notion: batch-run.md still describes every hook ('every executable' x$n); the full step lives in foreman-batch"
 
 # 5. agents: opencode and other get AGENTS.md and the git guard
 for ag in opencode other; do

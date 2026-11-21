@@ -12,8 +12,20 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 | `gateway` | optional LiteLLM proxy in front of Ollama Cloud and, optionally, a ChatGPT subscription (Codex OAuth, needs `--chatgpt-via-gateway accepted-risk`) as a second worker backend; falls back to `claude -p` on your Claude subscription | a small server, `FOREMAN_GATEWAY_KEY` (virtual key); `gateway/` docs are copied to `tools/gateway/` |
 | `autopilot` | `scripts/autopilot-check.sh` (the dispatcher's check), the work-run routine docs, `foreman-dispatch-run`; the central dispatcher in this repo's `dispatcher/` runs on your server | GitHub or similar, Claude Code routines (API trigger), a machine that is on for the dispatcher (or Plan B, see below) |
 | `pretest` | `foreman-pretest`, the headless pretest runner, UAT checklist script, test-login pattern doc | a test login in your app (`docs/test-login.md`), dev or staging environment, Playwright and axe-core installed in the worktree at run time |
+| `docs-notion` | one-way mirror of repo docs to Notion, one page per file, the overview as parent page; run by the batch run, never by a model; it runs after each merge in the batch run via `scripts/post-merge.d` | Notion integration token in `NOTION_API_KEY`, a root page id in `.foreman.json` `docsNotion.rootPageId`, Node 20 |
 
 `tracker-itsaplan` and `tracker-linear` exclude each other. itsaplan projects are created from the template file `itsaplan-project-template.json` (imported into itsaplan under the name `foreman`); only the bot account is added by hand, and `check-config.sh` reports names that are not English.
+
+**docs-notion** (module `docs-notion`):
+
+- Setup: create an internal Notion integration, share the root page with it, put the root page id into `.foreman.json` `docsNotion.rootPageId`, export `NOTION_API_KEY` (the token stays out of the repo).
+- Existing project: run `./install.sh <repo> --project <slug> --modules docs-notion`; it adds the module and the `docsNotion` block to `.foreman.json` without touching other keys. Set `docsNotion.rootPageId` afterwards.
+- Pages the mirror created (they carry the marker) are overwritten from their repo file, moved under the right parent when the file layout changes (old page archived, new page created), and archived when the file is gone. Pages without marker are never changed or archived; they are listed on stderr.
+- Known limit: a page without marker that sits below a mirror page which moves to a new parent is archived by Notion together with that page and not reported. Do not put your own pages below mirrored pages.
+- Run time: the script stops after `NOTION_MAX_RUN_S` seconds (default 600) and exits 1; a rerun continues.
+- Defaults: `include` `docs/**/*.md`; `exclude` `docs/agent-reports/**`, `docs/answers/**`, `docs/uat/**`, `docs/wiki/**`, `**/STATE.md`.
+- Limits: at most 3 requests per second; on 429 it waits for `Retry-After` and retries at most 5 times; 100 blocks per request; 2000 characters per text.
+- Trigger: the batch run (module `autopilot`) and the manual batch PR flow run `scripts/post-merge.d/*.sh` after each merge; without either, run `node scripts/docs-notion.mjs` by hand or from your own CI.
 
 **Dispatcher settings** (module `autopilot`, see `dispatcher/README.md`):
 
@@ -36,6 +48,7 @@ Upgrade note: before this version a check script inherited the whole environment
 - Claude quota is tight: add `delegate` (and `gateway` if you have a ChatGPT subscription and a server). Cheap roles move off Claude, Claude keeps planning and validation.
 - You want to see progress on your phone: add `tracker-itsaplan` (recommended) or `tracker-linear`. Both are mirrors; nothing breaks when they are down or at a plan limit.
 - You want it to run while you sleep: add `autopilot` (and `pretest`). It needs a GitHub repository and a machine for the dispatcher. Effort: repository 10 minutes, work-run routine 20 minutes, dispatcher 15 minutes, itsaplan 30 minutes, test login depends on your app. Without a server use Plan B (`docs/routines/delegation.md`, an hourly routine on the smallest model).
+- Your team reads the docs in Notion: add `docs-notion`. The repo stays the source; Notion only gets a read-only copy.
 
 ## Scopes
 

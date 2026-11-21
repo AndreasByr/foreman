@@ -24,6 +24,8 @@ AUTOPILOT_OFF = ("docs/routines/", "scripts/autopilot-check.", "scripts/test-aut
                  "scripts/lib/autopilot-check.mjs", ".claude/skills/foreman-dispatch-run/")
 PRETEST_OFF = (".claude/skills/foreman-pretest/", "scripts/pretest-run.mjs", "scripts/pretest-prepare.sh",
                "scripts/pretest/", "scripts/test-pretest.mjs", "scripts/lib/pretest-run.mjs", "docs/test-login.md")
+DOCS_NOTION_OFF = ("scripts/docs-notion.mjs", "scripts/lib/docs-notion.mjs", "scripts/lib/docs-notion-md.mjs", "scripts/test-docs-notion.mjs",
+                   "scripts/post-merge.d/docs-notion.sh")
 
 
 def die(code, msg):
@@ -37,6 +39,8 @@ def skip_file(rel, scope, modules, agent):
     if "autopilot" not in modules and rel.startswith(AUTOPILOT_OFF):
         return True
     if "pretest" not in modules and rel.startswith(PRETEST_OFF):
+        return True
+    if "docs-notion" not in modules and rel.startswith(DOCS_NOTION_OFF):
         return True
     if rel == "AGENTS.md" and agent == "claude-code":
         return True
