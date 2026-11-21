@@ -5,15 +5,15 @@
 **Ziel-Branch:** `dev`, je Milestone ein Sammelbranch `batch/mNNN`; Release nach `main` über `foreman-release`
 **Versionen:** Jeder abgenommene Milestone (oder eine Gruppe davon) erscheint als Patch-Version 0.2.2, 0.2.3 … Es gibt keine 0.3.0.
 **Agent:** Claude Code; Einrichtung des foreman-Repos über den normalen foreman-Projekt-Weg; Worker nach `tools/delegate/config.toml`
-**Testperson (UAT):** Andreas
+**Testperson (UAT):** Maintainer
 **Tracker:** none (`STATE.md`, Antworten in `docs/answers/<unit>.md`, UAT in `docs/uat/<unit>.md`)
 **Barrierefreiheit:** nicht gefordert (foreman hat keine eigene UI)
 
-Ziel: foreman 0.2.x so vereinfachen und belegen, dass Guildora, Kasev und Office Milestones ohne Eingriff bis zum PR durchlaufen, mit gemessenen Zahlen im Repo und im Portfolio. Neu dazu kommen nur das Modul `docs-notion` und der Skill `foreman-update`.
+Ziel: foreman 0.2.x so vereinfachen und belegen, dass Projekt A, B und C Milestones ohne Eingriff bis zum PR durchlaufen, mit gemessenen Zahlen im Repo und im Portfolio. Neu dazu kommen nur das Modul `docs-notion` und der Skill `foreman-update`.
 
 Konfliktreihenfolge: `docs/requirements.md` > diese Roadmap > Milestone-Brief > Fix-Paket.
 
-Schon erledigt und nicht Teil der Roadmap: Umstellung des Dispatchers auf myweby von `dispatcher.py` auf `dispatch.mjs` (Office-Umzug, 20.11.2026). Projektarbeit in Guildora und Kasev läuft als Fix-Pakete dort (englische Labels, `--no-fetch` in Kasev), nicht hier.
+Schon erledigt und nicht Teil der Roadmap: Umstellung des Dispatchers auf server-1 von `dispatcher.py` auf `dispatch.mjs` (Server-Umzug, 20.11.2026). Projektarbeit in Projekt A und Projekt B läuft als Fix-Pakete dort (englische Labels, `--no-fetch` in Projekt B), nicht hier.
 
 ---
 
@@ -39,7 +39,7 @@ Mehrere Milestones laufen parallel (je Milestone ein Sammelbranch). Die Dauer be
 | **+ 15 % Rework-Puffer** | **~32 AT ≈ 6,5 Wochen** |
 | Zum Vergleich, rein sequentiell | 77 AT, mit Puffer ~89 AT ≈ 18 Wochen |
 
-Engpass ist der UAT: Andreas nimmt jeden Milestone allein ab. Zum Start liegen bis zu sechs Stränge gleichzeitig an. Realistisch laufen höchstens drei Milestones zur selben Zeit, sonst stauen sich die Abnahmen. Empfohlene Startreihenfolge: M001, M002 und M003 zuerst (sie beheben Sicherheitslücken und den Setup-Fehler), danach M006, M008 und M011.
+Engpass ist der UAT: Maintainer nimmt jeden Milestone allein ab. Zum Start liegen bis zu sechs Stränge gleichzeitig an. Realistisch laufen höchstens drei Milestones zur selben Zeit, sonst stauen sich die Abnahmen. Empfohlene Startreihenfolge: M001, M002 und M003 zuerst (sie beheben Sicherheitslücken und den Setup-Fehler), danach M006, M008 und M011.
 
 ---
 
@@ -52,7 +52,7 @@ Engpass ist der UAT: Andreas nimmt jeden Milestone allein ab. Zum Start liegen b
 - Exakte Modell-IDs für Sitzung und direkte Anbieter, `task-*`-Aliase für Gateway-Rollen.
 - Agents lesen nie private Schlüsseldateien aus.
 - Alle bestehenden Tests bleiben grün (`scripts/test-all.sh`); jeder Fix bekommt zuerst einen Test, der fehlschlägt.
-- Abnahme gegen ein Testprojekt (Wegwerf-Repo mit `install.sh`), nie gegen Guildora, Kasev oder Office direkt. Erst nach dem Release kommen die Projekte über `foreman-update` auf den neuen Stand.
+- Abnahme gegen ein Testprojekt (Wegwerf-Repo mit `install.sh`), nie gegen Projekt A, B und C direkt. Erst nach dem Release kommen die Projekte über `foreman-update` auf den neuen Stand.
 
 ---
 
@@ -81,7 +81,7 @@ Engpass ist der UAT: Andreas nimmt jeden Milestone allein ab. Zum Start liegen b
 
 | # | Slice | Agent order (short) | Done when |
 |---|---|---|---|
-| S1 | Umgebung begrenzen | `dispatch.mjs` gibt dem Prüfskript nur `PATH`, `HOME`, `LANG` und `pass_env` mit (Patch von myweby übernehmen) | Test: Fire-Token eines anderen Projekts ist im Prüfskript nicht sichtbar |
+| S1 | Umgebung begrenzen | `dispatch.mjs` gibt dem Prüfskript nur `PATH`, `HOME`, `LANG` und `pass_env` mit (Patch von server-1 übernehmen) | Test: Fire-Token eines anderen Projekts ist im Prüfskript nicht sichtbar |
 | S2 | Webhook-Format | `webhook_format` (`discord`, `slack`, `auto`) in `config.json`, Doku und `dispatcher.env.example` nennen beide | Tests prüfen den Body für Discord und Slack |
 | S3 | Regel für `main` | Eine Regel für `batch/main` in `autopilot-check.mjs` und `foreman-fix`, gesteuert über `.foreman.json` (`autopilot.mainAutoMerge`, Standard `false`) | Test: Ohne Freigabe kein Batch für `main` im Fenster; mit `true` schon |
 | S4 | `--no-fetch` überall | Vorlage `scripts/autopilot-check.*` akzeptiert `--no-fetch`; `check-config.sh` meldet, wenn ein Projekt es nicht kann | Test mit und ohne Option, gleiche `TASK`-Zeilen |
@@ -98,7 +98,7 @@ Der Dispatcher verrät keine fremden Secrets, meldet in den Kanal der Wahl und m
 
 | Person / role | Focus | Available from |
 |---|---|---|
-| Andreas | Korrektheit, Betrieb auf myweby | nach Coding |
+| Maintainer | Korrektheit, Betrieb auf server-1 | nach Coding |
 
 #### Acceptance criteria
 
@@ -115,7 +115,7 @@ Go/no-go: Umgebung begrenzt (Test grün). Ohne das startet M007 nicht.
 #### Test flow checklist
 
 **Flow A: Testmeldung**
-- [ ] Schritt 1: Auf myweby `dispatch.sh --dry-run` mit einem absichtlich kaputten Testprojekt-Eintrag ausführen.
+- [ ] Schritt 1: Auf server-1 `dispatch.sh --dry-run` mit einem absichtlich kaputten Testprojekt-Eintrag ausführen.
 - [ ] Schritt 2: Erwartet: genau eine Fehlermeldung im Discord-Kanal, Text nennt das Projekt, kein Token im Text.
 
 **Flow B: main ohne Freigabe**
@@ -135,7 +135,7 @@ Go/no-go: Umgebung begrenzt (Test grün). Ohne das startet M007 nicht.
 4. Freigabe erst, wenn alle Kriterien erfüllt sind.
 
 #### Known risks in this milestone
-- Der lokale Patch auf myweby weicht vielleicht vom Repo-Stand ab; der Agent übernimmt das Verhalten, nicht den Patch wörtlich.
+- Der lokale Patch auf server-1 weicht vielleicht vom Repo-Stand ab; der Agent übernimmt das Verhalten, nicht den Patch wörtlich.
 - `autopilot-check.mjs` wird auch in M004 (Merge-Fenster) angefasst.
 
 ---
@@ -182,7 +182,7 @@ Ein Lauf mit Fehlversuchen erzeugt keine Anfrage-Schleife, und kein Key landet b
 
 | Person / role | Focus | Available from |
 |---|---|---|
-| Andreas | Betrieb mit echten Anbietern | nach Coding |
+| Maintainer | Betrieb mit echten Anbietern | nach Coding |
 
 #### Acceptance criteria
 
@@ -253,13 +253,13 @@ Go/no-go: Limits greifen (Tests grün). Ohne das bleibt der Gateway-Betrieb übe
 ### Human Testing
 
 #### Test goal
-Ein Setup mit dem eigenen Aufbau (myweby, alice, itsaplan, LiteLLM, Claude Max, Ollama Cloud, ChatGPT) endet mit einer `workspace.json`, die stimmt, ohne dass der Agent etwas annimmt.
+Ein Setup mit dem eigenen Aufbau (server-1, server-2, itsaplan, LiteLLM, Claude Max, Ollama Cloud, ChatGPT) endet mit einer `workspace.json`, die stimmt, ohne dass der Agent etwas annimmt.
 
 #### Testers and roles
 
 | Person / role | Focus | Available from |
 |---|---|---|
-| Andreas | Vollständigkeit der Fragen | nach Coding |
+| Maintainer | Vollständigkeit der Fragen | nach Coding |
 
 #### Acceptance criteria
 
@@ -275,7 +275,7 @@ Go/no-go: `workspace.json` wird geschrieben und enthält den eigenen Aufbau korr
 
 **Flow A: eigener Aufbau**
 - [ ] Schritt 1: Im Chat `foreman-setup` starten, eigene Infrastruktur angeben.
-- [ ] Schritt 2: Erwartet: Fragen zu myweby und alice, Gateway-URL, Plan-Stufen; Zusammenfassung vor der Empfehlung.
+- [ ] Schritt 2: Erwartet: Fragen zu server-1 und server-2, Gateway-URL, Plan-Stufen; Zusammenfassung vor der Empfehlung.
 - [ ] Schritt 3: Erwartet: `workspace.json` mit beiden Maschinen, Gateway, Abos, ohne Key.
 
 **Flow B: unbekannte Antwort**
@@ -336,7 +336,7 @@ Ein neues Testprojekt ist in unter 60 Minuten eingerichtet, ohne dass Dispatcher
 
 | Person / role | Focus | Available from |
 |---|---|---|
-| Andreas | Ablauf, Dauer | nach Coding |
+| Maintainer | Ablauf, Dauer | nach Coding |
 
 #### Acceptance criteria
 
@@ -385,7 +385,7 @@ Go/no-go: „Neues Projekt“ startet kein Setup mehr.
 
 ### Dependencies
 
-- **Blocked by:** M004 (approved); extern: Guildora-Labels umbenannt (Fix-Paket `2026-11-20-tracker-labels-en` in Guildora)
+- **Blocked by:** M004 (approved); extern: Projekt A-Labels umbenannt (Fix-Paket `2026-11-20-tracker-labels-en` in Projekt A)
 - **Blocks:** M012
 - **Parallel to:** M007, M010
 - **External risks:** itsaplan-API (Export-Format `itsaplan.project-template` Version 1); Export enthält keine Personen
@@ -397,7 +397,7 @@ Go/no-go: „Neues Projekt“ startet kein Setup mehr.
 
 | # | Slice | Agent order (short) | Done when |
 |---|---|---|---|
-| S1 | Vorlage im Repo | Vorlage aus dem umbenannten Guildora-Projekt exportieren, als Datei ins Repo; Issue-Vorlagen für Eingriff, UAT, Update-Meldung ergänzen | Datei validiert gegen das Exportformat; alle Namen Englisch |
+| S1 | Vorlage im Repo | Vorlage aus dem umbenannten Projekt A-Projekt exportieren, als Datei ins Repo; Issue-Vorlagen für Eingriff, UAT, Update-Meldung ergänzen | Datei validiert gegen das Exportformat; alle Namen Englisch |
 | S2 | Import im Setup | `foreman-setup` importiert die Vorlage einmal pro Workspace | Testlauf gegen itsaplan: Vorlage erscheint in `list_project_templates` |
 | S3 | Projekt aus Vorlage | `foreman-project` legt das Projekt aus der Vorlage an, nennt den einzigen Handschritt (Bot als Mitglied) | Testprojekt hat alle Spalten, Labels, Ansicht „UAT ready“ |
 | S4 | Namensprüfung | `check-config.sh` prüft Spalten und Labels gegen die englischen Namen | Test: deutscher Name ergibt Fehler |
@@ -413,7 +413,7 @@ Ein neues itsaplan-Projekt braucht keine Handarbeit mehr außer dem Bot-Mitglied
 
 | Person / role | Focus | Available from |
 |---|---|---|
-| Andreas | itsaplan-Projekt prüfen | nach Coding |
+| Maintainer | itsaplan-Projekt prüfen | nach Coding |
 
 #### Acceptance criteria
 
@@ -443,8 +443,8 @@ Go/no-go: Mirror-Trockenlauf gegen ein Projekt aus der Vorlage endet mit Exit 0.
 4. Freigabe erst, wenn alle Kriterien erfüllt sind.
 
 #### Known risks in this milestone
-- Ohne umbenannte Guildora-Labels entsteht die Vorlage mit deutschen Namen; S1 wartet darauf.
-- Kasev hat ein älteres Phasen-Modell; die Vorlage folgt dem Modell von foreman 0.2.
+- Ohne umbenannte Projekt A-Labels entsteht die Vorlage mit deutschen Namen; S1 wartet darauf.
+- Projekt B hat ein älteres Phasen-Modell; die Vorlage folgt dem Modell von foreman 0.2.
 
 ---
 
@@ -489,7 +489,7 @@ Ein Projekt auf 0.2.1 kommt per `foreman-update` auf den neuen Stand, und alles 
 
 | Person / role | Focus | Available from |
 |---|---|---|
-| Andreas | Update am Testprojekt | nach Coding |
+| Maintainer | Update am Testprojekt | nach Coding |
 
 #### Acceptance criteria
 
@@ -521,7 +521,7 @@ Go/no-go: Projekteigene Dateien bleiben beim Update unverändert.
 
 #### Known risks in this milestone
 - Gemischte Dateien (zum Beispiel `CLAUDE.md`) lassen sich nicht automatisch zusammenführen; der Skill zeigt sie nur.
-- Guildora und Kasev weichen stärker von 0.2.1 ab (Analysen F2/F3 der Fix-Pakete); ihre Ergebnisse fließen in die Dateiklassen ein.
+- Projekt A und Projekt B weichen stärker von 0.2.1 ab (Analysen F2/F3 der Fix-Pakete); ihre Ergebnisse fließen in die Dateiklassen ein.
 
 ---
 
@@ -565,7 +565,7 @@ Ein veraltetes Projekt erzeugt genau eine Meldung, und sie verschwindet nach dem
 
 | Person / role | Focus | Available from |
 |---|---|---|
-| Andreas | Meldung in itsaplan und Discord | nach Coding |
+| Maintainer | Meldung in itsaplan und Discord | nach Coding |
 
 #### Acceptance criteria
 
@@ -625,7 +625,7 @@ Go/no-go: keine doppelte Meldung bei zwei Läufen hintereinander.
 | # | Slice | Agent order (short) | Done when |
 |---|---|---|---|
 | S1 | Regeldatei | Welche Dokumente, wo, wer schreibt, wann; ergänzt `docs/CONVENTIONS.md` | Datei in `template/docs/`, keine doppelte Regel in `CONVENTIONS.md` |
-| S2 | Aufteilen | Muster aus Kasev (Übersicht + Ordner, Tabelle „Datei, Inhalt, Lesen bei“, Konfliktreihenfolge), Schwelle für das Aufteilen, Stand-Zeile nur mit aktueller Version und letzter Änderung | `foreman-roast` und `foreman-roadmap` verweisen darauf |
+| S2 | Aufteilen | Muster aus Projekt B (Übersicht + Ordner, Tabelle „Datei, Inhalt, Lesen bei“, Konfliktreihenfolge), Schwelle für das Aufteilen, Stand-Zeile nur mit aktueller Version und letzter Änderung | `foreman-roast` und `foreman-roadmap` verweisen darauf |
 | S3 | Prüfung | Test meldet eine Stand-Zeile mit mehr als einer Version | Test grün an Beispielen |
 
 ---
@@ -639,21 +639,21 @@ Ein Agent weiß ohne Rückfrage, wo ein Dokument hingehört und wann er es teilt
 
 | Person / role | Focus | Available from |
 |---|---|---|
-| Andreas | Verständlichkeit der Regel | nach Coding |
+| Maintainer | Verständlichkeit der Regel | nach Coding |
 
 #### Acceptance criteria
 
 - [ ] **Regeldatei** [agent]: vorhanden, keine Doppelung.
-- [ ] **Aufteilen** [human]: Regel passt auf die Kasev-Requirements (Übersicht + zehn Teile).
+- [ ] **Aufteilen** [human]: Regel passt auf die Projekt B-Requirements (Übersicht + zehn Teile).
 - [ ] **Stand-Zeile** [agent]: Test grün.
 
 Go/no-go: Regeldatei vorhanden und von Roast und Roadmap referenziert.
 
 #### Test flow checklist
 
-**Flow A: Regel gegen Kasev**
-- [ ] Schritt 1: Regel neben `docs/requirements.md` von Kasev legen.
-- [ ] Schritt 2: Erwartet: Kasevs Aufbau erfüllt die Regel, nur die Stand-Zeile verstößt.
+**Flow A: Regel gegen Projekt B**
+- [ ] Schritt 1: Regel neben `docs/requirements.md` von Projekt B legen.
+- [ ] Schritt 2: Erwartet: Projekt Bs Aufbau erfüllt die Regel, nur die Stand-Zeile verstößt.
 
 #### Feedback-loop protocol
 
@@ -708,7 +708,7 @@ Die Docs eines Testprojekts stehen nach einem Merge in Notion, mit derselben Str
 
 | Person / role | Focus | Available from |
 |---|---|---|
-| Andreas | Notion-Struktur | nach Coding |
+| Maintainer | Notion-Struktur | nach Coding |
 
 #### Acceptance criteria
 
@@ -722,7 +722,7 @@ Go/no-go: Struktur in Notion entspricht dem Repo.
 #### Test flow checklist
 
 **Flow A: Spiegel**
-- [ ] Schritt 1: Testprojekt mit `docs-notion`, Docs nach dem Kasev-Muster, Merge auf `dev`.
+- [ ] Schritt 1: Testprojekt mit `docs-notion`, Docs nach dem Projekt B-Muster, Merge auf `dev`.
 - [ ] Schritt 2: Erwartet: Seiten in Notion, Übersicht oben, eine Unterseite pro Teildatei.
 
 **Flow B: Änderung in Notion**
@@ -783,7 +783,7 @@ Spieler oder Nutzer lesen ein Wiki, das zu ihnen passt und nichts Internes zeigt
 
 | Person / role | Focus | Available from |
 |---|---|---|
-| Andreas | Inhalt und Ton für die Zielgruppe | nach Coding |
+| Maintainer | Inhalt und Ton für die Zielgruppe | nach Coding |
 
 #### Acceptance criteria
 
@@ -851,13 +851,13 @@ Go/no-go: Privacy-Scan blockiert interne Inhalte zuverlässig.
 ### Human Testing
 
 #### Test goal
-Die Zahlen für Guildora, Kasev und Office lassen sich ohne Handarbeit erzeugen.
+Die Zahlen für Projekt A, B und C lassen sich ohne Handarbeit erzeugen.
 
 #### Testers and roles
 
 | Person / role | Focus | Available from |
 |---|---|---|
-| Andreas | Plausibilität der Zahlen | nach Coding |
+| Maintainer | Plausibilität der Zahlen | nach Coding |
 
 #### Acceptance criteria
 
@@ -901,7 +901,7 @@ Go/no-go: Mess-Skript liefert für Beispieldaten die erwarteten Zahlen.
 - **Blocked by:** M001, M002, M005, M006, M007, M010, M011 (approved)
 - **Blocks:** none
 - **Parallel to:** -
-- **External risks:** Zahlen aus Guildora, Kasev und Office erst nach deren Update über `foreman-update`
+- **External risks:** Zahlen aus Projekt A, B und C erst nach deren Update über `foreman-update`
 - **Shared files:** alle Skills, `README.md`, `docs/learnings.md`
 
 ---
@@ -913,7 +913,7 @@ Go/no-go: Mess-Skript liefert für Beispieldaten die erwarteten Zahlen.
 | S1 | Doppelte Regeln | Regeln, die in Chat-Skills, Repo-Skills und `docs/` mehrfach stehen, an eine Stelle ziehen | Liste der Doppelungen leer; Lint-Test grün |
 | S2 | Lesemenge | Messen, was ein Work-Run liest; nicht mehr als vor 0.2.2 | Vorher- und Nachher-Zahl im Bericht |
 | S3 | README | Gemessene Zahlen, Verweis auf `docs/learnings.md`, Kombinationen ohne regelmäßigen Test gekennzeichnet | README zeigt Zahlen aus M011 |
-| S4 | Rollout | `foreman-update` für Guildora, Kasev, Office als Aufträge vorbereiten | drei Aufträge mit Checklisten |
+| S4 | Rollout | `foreman-update` für Projekt A, B, C als Aufträge vorbereiten | drei Aufträge mit Checklisten |
 
 ---
 
@@ -926,7 +926,7 @@ foreman ist schlanker als 0.2.1, und die Projekte kommen sauber auf den neuen St
 
 | Person / role | Focus | Available from |
 |---|---|---|
-| Andreas | Abnahme, Rollout | nach Coding |
+| Maintainer | Abnahme, Rollout | nach Coding |
 
 #### Acceptance criteria
 
@@ -940,8 +940,8 @@ Go/no-go: ein echtes Projekt per `foreman-update` aktualisiert, ohne verlorene A
 
 #### Test flow checklist
 
-**Flow A: Rollout Office**
-- [ ] Schritt 1: `foreman-update` für Office.
+**Flow A: Rollout Projekt C**
+- [ ] Schritt 1: `foreman-update` für Projekt C.
 - [ ] Schritt 2: Erwartet: Auftrag und Checkliste; nach Ausführung `version` neu, Anpassungen da, nächster Dispatcher-Lauf ohne Fehler.
 
 #### Feedback-loop protocol
@@ -964,7 +964,7 @@ Go/no-go: ein echtes Projekt per `foreman-update` aktualisiert, ohne verlorene A
 | M002: Delegate-Wrapper sicher und sparsam | B | 4 T | 3 T | — | M012 |
 | M003: Einrichtung fragt statt rät | C | 5 T | 3 T | — | M004 |
 | M004: Neues Projekt in bestehender Umgebung | C | 4 T | 3 T | M003 ✅ | M005 |
-| M005: itsaplan-Vorlage und englische Namen | C | 3 T | 3 T | M004 ✅, Guildora-Labels | M012 |
+| M005: itsaplan-Vorlage und englische Namen | C | 3 T | 3 T | M004 ✅, Projekt A-Labels | M012 |
 | M006: foreman-update | D | 5 T | 3 T | — | M007, M012 |
 | M007: Update-Meldung im Dispatcher | D | 3 T | 2 T | M006 ✅, M001 ✅ | M012 |
 | M008: Docs-Regeln und Aufteilen | E | 2 T | 2 T | — | M009 |
@@ -1007,12 +1007,12 @@ Die Spalte „Version“ ist ein Vorschlag. Erscheint ein Milestone früher als 
 
 ### Offene Risiken
 
-- UAT-Kapazität: Andreas testet allein; mehr als drei parallele Milestones stauen die Abnahme.
-- M005 hängt an den umbenannten Guildora-Labels (Fix-Paket in Guildora).
+- UAT-Kapazität: Maintainer testet allein; mehr als drei parallele Milestones stauen die Abnahme.
+- M005 hängt an den umbenannten Projekt A-Labels (Fix-Paket in Projekt A).
 - `install.sh` wird in M003, M004, M005, M006 und M009 erweitert; Merge-Konflikte sind wahrscheinlich.
 - Offene Fragen aus den Requirements blockieren einzelne Slices: `workspace.json`-Ablage (M004), Update-Ausführung und Versionsquelle (M006, M007), Spiegel-Zeitpunkt, Wiki-Modell und Veröffentlichung (M009, M010), Ablage der Messwerte (M011).
 - ChatGPT über den Gateway bleibt ein bewusstes Risiko (Sperre des Abos); M002 sorgt für Limits und Hinweis, nicht für eine Garantie.
-- Zahlen für die README entstehen erst, wenn Guildora, Kasev und Office auf dem neuen Stand laufen.
+- Zahlen für die README entstehen erst, wenn Projekt A, B und C auf dem neuen Stand laufen.
 
 ### Agent-Coding-Hinweise
 
