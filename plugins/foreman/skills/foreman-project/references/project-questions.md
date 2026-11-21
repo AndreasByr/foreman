@@ -19,7 +19,7 @@ Ask which profile fits the project. Quick was already decided in step 1 of the s
 
 ### P3 Modules
 
-Ask which modules to enable. Offer only the modules that fit the chosen profile. The tracker (itsaplan, linear or none) is asked when it is not in workspace.json.
+Ask which modules to enable. Offer only the modules that fit the chosen profile. The tracker is asked when it is not in workspace.json: the answer "itsaplan" maps to `tracker-itsaplan`, the answer "linear" maps to `tracker-linear`, and "none" means no tracker module.
 
 **Suggestion:** the modules that the profile recommends.
 
@@ -65,7 +65,7 @@ Ask whether the project has a staging environment, separate from production, tha
 |---|---|---|---|
 | P1 name and slug | `--project <slug>` (required), `--name "<Display Name>"` (optional) | `project` and `name` | the slug from P1 goes to `project`, the display name to `name` |
 | P2 profile | `--scope docs\|repo\|autopilot` | `scope` | `repo` for Repo, `autopilot` for Autopilot (Autopilot also needs module autopilot in P3) |
-| P3 modules | `--modules a,b` | `modules` | the modules from P3, comma list |
+| P3 modules | `--modules <comma list>` | `modules` | the modules from P3, comma list of the names `tracker-itsaplan`, `tracker-linear`, `delegate`, `gateway`, `autopilot`, `pretest`. `tracker-itsaplan` and `tracker-linear` are exclusive: they exclude each other. Tracker "none" means neither of them. |
 | P5 staging | `--no-staging` | `staging` | `no` passes the flag and writes `false`; `yes` omits the flag |
 | P6 time zone | `--tz <IANA name>`, e.g. `Europe/Berlin` | `context.timeZone` | the zone from P6 |
 | P7 batch hours | `--batch-hours <h,h,...>`, hours 0 to 23, no spaces | `autopilot.batchHours` | the hours from P7 |

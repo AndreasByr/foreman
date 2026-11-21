@@ -129,6 +129,9 @@ ANSWER_ROWS = {
     "| P3": ["--modules"],
     "| P5": ["--no-staging"],
 }
+# P3 row: the real installer module names, and a word that says the two tracker modules exclude each other.
+P3_ROW_MODULES = ["tracker-itsaplan", "tracker-linear", "delegate", "gateway", "autopilot", "pretest"]
+P3_EXCLUSIVE_WORDS = ["exclusive", "exclude"]
 # Topics that may appear only in the "Do not ask" list, never in a question P1 to P9.
 FORBIDDEN_TOPICS = [
     "machine",
@@ -405,6 +408,16 @@ def check_questions_file(text, failures):
         for word in words:
             if not any(word in row for row in rows):
                 failures.append(f"questions: the {prefix!r} row does not contain {word!r}")
+
+    p3_rows = [line for line in lines if line.startswith("| P3")]
+    for module in P3_ROW_MODULES:
+        if not any(module in row for row in p3_rows):
+            failures.append(f"questions: the '| P3' row does not name the module {module!r}")
+    if not any(word in row.lower() for row in p3_rows for word in P3_EXCLUSIVE_WORDS):
+        failures.append(
+            "questions: the '| P3' row does not say the two tracker modules exclude each other "
+            "(needs 'exclusive' or 'exclude')"
+        )
 
     questions_only = "\n".join(blocks.get(qid, "") for qid in QUESTION_KEYWORDS).lower()
     for topic in FORBIDDEN_TOPICS:
