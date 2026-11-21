@@ -492,6 +492,38 @@ err=$(inst "$T/r10" --project g --gateway-url "$GW_URL" --fallback-model nonsens
 echo "$err" | grep -qi fallback || fail "R10: no fallback message: $err"
 [ ! -e "$T/r10/tools" ] || fail "R10: wrote tools/"
 
+# R11: kept config.toml hint, --help range, existing .foreman.json with --workspace
+mkdir "$T/r11" && git -C "$T/r11" init -q
+inst "$T/r11" --project g --modules delegate --session-model m >/dev/null 2>&1 || fail "R11: first run failed"
+out=$(inst "$T/r11" --project g --modules delegate --session-model m --gateway-url "$GW_URL" $GWM --chatgpt-via-gateway accepted-risk 2>&1) || fail "R11: second run failed: $out"
+echo "$out" | grep -q 'config.toml kept' || fail "R11: no 'config.toml kept' hint: $out"
+echo "$out" | grep -q -- '--chatgpt' || fail "R11: kept hint lacks --chatgpt: $out"
+echo "$out" | grep -q 'from the target directory' || fail "R11: kept hint does not say to run it from the target directory: $out"
+echo "$out" | grep -qF "$HERE/scripts/gateway-preset.py" || fail "R11: kept hint lacks the script path: $out"
+mkdir "$T/r11b" && git -C "$T/r11b" init -q
+inst "$T/r11b" --project g --modules delegate --session-model m >/dev/null 2>&1 || fail "R11b: first run failed"
+out=$(inst "$T/r11b" --project g --modules delegate --session-model m --gateway-url "$GW_URL" $GWM 2>&1) || fail "R11b: second run failed: $out"
+echo "$out" | grep 'config.toml kept' | grep -q -- '--chatgpt' && fail "R11b: kept hint has --chatgpt without consent" || true
+
+help_out=$("$HERE/install.sh" --help) || fail "R11: --help failed"
+[ "$(printf '%s\n' "$help_out" | head -n 1)" = "foreman installer: copies the repo-side workflow into a target repo." ] || fail "R11: --help first line wrong"
+printf '%s\n' "$help_out" | grep -q 'set -euo pipefail' && fail "R11: --help prints 'set -euo pipefail'" || true
+printf '%s\n' "$help_out" | tail -n 1 | grep -q 'FOREMAN_GATEWAY_KEY' || fail "R11: --help does not end with the last header line: $(printf '%s\n' "$help_out" | tail -n 1)"
+
+mkdir "$T/r11c" && git -C "$T/r11c" init -q
+inst "$T/r11c" --project w --workspace "$T/ws-ok.json" >/dev/null 2>&1 || fail "R11c: first install failed"
+cp "$T/r11c/.foreman.json" "$T/r11c-orig.json"
+inst "$T/r11c" --project w --workspace "$T/ws-new.json" >/dev/null 2>&1 || fail "R11c: second install failed"
+cmp -s "$T/r11c-orig.json" "$T/r11c/.foreman.json.before-foreman" || fail "R11c: .foreman.json.before-foreman is not a copy of the old file"
+mkdir "$T/r11d" && git -C "$T/r11d" init -q
+echo '{"foreman": ' > "$T/r11d/.foreman.json"
+cp "$T/r11d/.foreman.json" "$T/r11d-orig.json"
+rc=0; err=$(inst "$T/r11d" --project w --workspace "$T/ws-ok.json" 2>&1) || rc=$?
+[ "$rc" = 2 ] || fail "R11d: broken .foreman.json: exit $rc, expected 2"
+echo "$err" | grep -qF 'workspace: existing .foreman.json is not valid JSON; nothing written' || fail "R11d: wrong message: $err"
+cmp -s "$T/r11d-orig.json" "$T/r11d/.foreman.json" || fail "R11d: .foreman.json changed"
+[ -z "$(ls -A "$T/r11d" | grep -vE '^(\.git|\.foreman\.json)$' || true)" ] || fail "R11d: wrote files: $(ls -A "$T/r11d")"
+
 # case 8: docs
 grep -qE 'accepted-risk|terms' "$HERE/gateway/README.md" || fail "gateway/README.md has neither accepted-risk nor terms"
 REF="$HERE/plugins/foreman/skills/foreman-setup/references/gateway-block.md"

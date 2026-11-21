@@ -23,7 +23,7 @@ Map them to wrapper roles in `tools/delegate/config.toml` (preset "gateway"): fo
 3. Put the proxy behind HTTPS. Do not expose the admin UI.
 4. Sign in the `chatgpt/` provider once (device login, subscription account). The token stays on the proxy.
 5. Create a virtual key limited to the five `task-*` aliases (command at the end of the example config). Only this key goes to workers, in the variable named by `[gateway] api_key_env` (default `FOREMAN_GATEWAY_KEY`), in the work run's environment. The master key never leaves the server.
-6. Fill `[gateway]` in `tools/delegate/config.toml` (`base_url`, `api_key_env`, `fallback_model`) and check: `python3 tools/delegate/run_task.py --dry-run --role execution_simple`.
+6. Fill `[gateway]` in `tools/delegate/config.toml` (`base_url`, `api_key_env`, `fallback_model`) and check: `python3 tools/delegate/run_task.py --dry-run --role execution_simple <task file>`.
 
 ## Rules
 

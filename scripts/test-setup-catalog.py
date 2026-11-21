@@ -3,8 +3,10 @@
 
 Covers block C (C1..C9: ids, keywords, block words, multi-select), block A
 (the "beginner answer" rule), the removed Result section, block D (no second
-notification question), the SKILL.md order and wording, and the banned
-gateway phrases under references/.
+notification question), the SKILL.md order and wording (including the quick
+prototype skip in steps 1 to 2b), the banned gateway phrases under references/,
+the gateway risk notice and the flags in the profile reference, and the dry-run
+line in gateway/README.md.
 
 Python stdlib only. Exit 0 when every check passes; exit 1 and one
 "FAIL:" line per problem otherwise.
@@ -18,6 +20,9 @@ SETUP_DIR = ROOT / "plugins" / "foreman" / "skills" / "foreman-setup"
 CATALOG = SETUP_DIR / "references" / "question-catalog.md"
 REFERENCES = SETUP_DIR / "references"
 SKILL = SETUP_DIR / "SKILL.md"
+PREREQUISITES = SETUP_DIR / "references" / "prerequisites.md"
+PROFILES = SETUP_DIR / "references" / "profiles-and-modules.md"
+GATEWAY_README = ROOT / "gateway" / "README.md"
 
 IDS = [f"C{n}" for n in range(1, 10)]
 
@@ -30,7 +35,7 @@ KEYWORDS = {
     "C4": ["Ollama", "ChatGPT", "API trigger", "Max", "Pro", "Team", "API", "tier"],
     "C5": ["Discord", "Slack"],
     "C6": ["itsaplan", "Linear"],
-    "C7": ["gateway", "URL"],
+    "C7": ["gateway", "URL", "variable", "FOREMAN_GATEWAY_KEY"],
     "C8": ["GitHub", "agent"],
     "C9": [
         "chatgptViaGateway",
@@ -211,11 +216,81 @@ def check_skill_description(text, failures):
         )
 
 
+def check_skill_quick_skip(text, failures):
+    """Block C is skipped only when the human itself asks for a quick prototype."""
+    orient = text.find("### 1.")
+    early = text.find("### 2b.")
+    gate = text.find("### 3.")
+    if orient < 0 or early < 0 or early <= orient:
+        failures.append("SKILL.md: steps '### 1.' and '### 2b.' must exist in this order")
+        return
+    steps_1_2 = text[orient:early].lower()
+    for phrase in ["quick prototype", "own statement"]:
+        if phrase not in steps_1_2:
+            failures.append(f"SKILL.md: steps 1 and 2 together lack the phrase '{phrase}'")
+
+    if gate < 0 or gate <= early:
+        failures.append("SKILL.md: heading '### 3.' must follow '### 2b.'")
+        return
+    section_2b = text[early:gate]
+    if not re.search(r"\bQuick\b", section_2b):
+        failures.append("SKILL.md: section '### 2b.' lacks the word 'Quick'")
+    quick_lines = [
+        line for line in section_2b.splitlines()
+        if re.search(r"\bQuick\b", line)
+        and "workspace.json" in line
+        and re.search(r"\b(no|not|never)\b", line, re.I)
+    ]
+    if not quick_lines:
+        failures.append(
+            "SKILL.md: section '### 2b.' must say in a Quick line that no workspace.json is written"
+        )
+
+
 def check_skill(text, failures):
     if "unbekannt" not in text.lower():
         failures.append("SKILL.md: does not contain 'unbekannt'")
     check_skill_order(text, failures)
     check_skill_description(text, failures)
+    check_skill_quick_skip(text, failures)
+
+
+def check_prerequisites(failures):
+    text = read_text(PREREQUISITES, failures)
+    if text is None:
+        return
+    match = re.search(r"^## Gateway with a ChatGPT subscription.*?(?=^## |\Z)", text, re.M | re.S)
+    if match is None:
+        failures.append("prerequisites.md: section '## Gateway with a ChatGPT subscription' not found")
+        return
+    if not has_phrase(match.group(0), "terms of use"):
+        failures.append("prerequisites.md: the gateway section lacks the risk notice 'terms of use'")
+
+
+def has_phrase(text, phrase):
+    return re.search(rf"\b{re.escape(phrase)}\b", text, re.I) is not None
+
+
+def check_profiles_flags(failures):
+    text = read_text(PROFILES, failures)
+    if text is None:
+        return
+    for flag in ["--workspace", "--gateway-url", "--fallback-model", "--chatgpt-via-gateway"]:
+        if flag not in text:
+            failures.append(f"profiles-and-modules.md: does not mention the flag '{flag}'")
+
+
+def check_gateway_readme(failures):
+    text = read_text(GATEWAY_README, failures)
+    if text is None:
+        return
+    for number, line in enumerate(text.splitlines(), start=1):
+        # The dry run needs a task file; a line that ends right after the role is incomplete.
+        if re.search(r"--dry-run --role execution_simple`?\.?\s*$", line):
+            failures.append(
+                f"gateway/README.md:{number}: the dry-run check names no task file "
+                "after '--dry-run --role execution_simple'"
+            )
 
 
 def check_references(failures):
@@ -242,6 +317,9 @@ def main():
     if skill is not None:
         check_skill(skill, failures)
     check_references(failures)
+    check_prerequisites(failures)
+    check_profiles_flags(failures)
+    check_gateway_readme(failures)
 
     if failures:
         for failure in failures:

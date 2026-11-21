@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Tests the workspace.json format (version 1) through scripts/check-workspace.py.
 
-Covers the shipped example, valid fixtures (minimal, all enums "unbekannt"),
-and rejected fixtures (schema, secret rule, unreadable input). Python stdlib
+Covers the shipped example, valid fixtures (minimal, all enums "unbekannt",
+gateway url rules: plain http only for localhost and 127.0.0.1), and rejected
+fixtures (schema, secret rule, unreadable input). Python stdlib
 only. Prints "workspace test: ok (N cases)" on success; otherwise one
 "FAIL: <case>" line per failed case and exit 1.
 """
@@ -218,6 +219,16 @@ def check_valid_fixtures(tmp, counter):
     gateway_v1["gateway"]["url"] = "https://gw.example.com/v1"
     expect_valid("gateway url with a /v1 path is valid", tmp, next(counter), json.dumps(gateway_v1))
 
+    # Plain http is allowed for localhost and 127.0.0.1 only; other hosts need https.
+    for url in ["http://127.0.0.1:4000", "http://localhost:4000", "https://gateway.example.com"]:
+        local_gateway = base_workspace()
+        local_gateway["gateway"]["url"] = url
+        expect_valid(f"gateway url {url} is valid", tmp, next(counter), json.dumps(local_gateway))
+
+    http_tracker = base_workspace()
+    http_tracker["tracker"]["url"] = "http://tracker.example.com"
+    expect_valid("tracker url with http is valid", tmp, next(counter), json.dumps(http_tracker))
+
 
 def check_rejected(tmp, counter):
     # Case 3: each mutation of the base fixture must be rejected.
@@ -262,6 +273,12 @@ def check_rejected(tmp, counter):
     def bad_purpose(data):
         data["machines"][0]["purposes"] = ["boss"]
 
+    def plain_http_single_label_gateway(data):
+        data["gateway"]["url"] = "http://alice:4000"
+
+    def plain_http_public_gateway(data):
+        data["gateway"]["url"] = "http://gateway.example.com"
+
     def key_like_env_name(data):
         # 40 uppercase letters pass the keyEnv pattern; only the secret rule rejects them.
         data["gateway"]["keyEnv"] = "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMN"
@@ -293,6 +310,8 @@ def check_rejected(tmp, counter):
     mutated("40 char base64-like string in ai.other is rejected", base64_in_other)
     mutated("Bearer token in ai.other is rejected", bearer_in_other)
     mutated("purpose outside the enum is rejected", bad_purpose)
+    mutated("gateway url http with a single-label host is rejected", plain_http_single_label_gateway)
+    mutated("gateway url http with a dotted public host is rejected", plain_http_public_gateway)
     key_env_data = base_workspace()
     key_like_env_name(key_env_data)
     key_env_path = write_text(tmp, next(counter), json.dumps(key_env_data))

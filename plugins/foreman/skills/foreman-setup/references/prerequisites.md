@@ -97,6 +97,8 @@ Why: pay only subscription costs, no API billing. LiteLLM proxy with Ollama and 
 3. Create virtual keys for the `task-*` roles only. Do not log prompts.
 4. Set `FOREMAN_GATEWAY_KEY` in the cloud environment. The URL is no variable; it lives in `tools/delegate/config.toml` under `[gateway] base_url`.
 
+Risk notice: this is not an official Codex client, and automatic use may violate the terms of use and get the subscription blocked. Alternatives: the official Codex CLI as worker, an API key with its own budget, or Ollama and Claude only; the human decides (see `gateway-block.md`).
+
 ## No deploy knowledge
 
 Why this matters: foreman never deploys from a cloud session. Production deploys are a separate, human-started step.

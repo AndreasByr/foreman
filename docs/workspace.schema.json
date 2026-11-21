@@ -156,9 +156,9 @@
           "enum": ["yes", "no", "unbekannt"]
         },
         "url": {
-          "description": "Base URL of the gateway. No userinfo, no query string, no fragment.",
+          "description": "Base URL of the gateway. https with a host that has dots, or http only for localhost or 127.0.0.1. No userinfo, no query string, no fragment.",
           "type": "string",
-          "pattern": "^https?://[^/?#@\\s]+(/[^?#\\s]*)?$"
+          "pattern": "^(https://[^/?#@:\\s.]+(\\.[^/?#@:\\s.]+)+(:[0-9]{1,5})?|http://(localhost|127\\.0\\.0\\.1)(:[0-9]{1,5})?)(/[^?#\\s]*)?$"
         },
         "keyEnv": {
           "description": "Name of the environment variable that holds the gateway key. The name only, never the key.",

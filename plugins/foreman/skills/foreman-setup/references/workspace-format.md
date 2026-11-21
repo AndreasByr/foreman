@@ -33,7 +33,7 @@ It holds **names and roles only, never a value**. No API keys, tokens, passwords
 | `tracker.type` | yes | `itsaplan`, `linear`, `none`, `unbekannt` |
 | `tracker.url` | no | `http(s)://host[/path]`; no userinfo, query or fragment |
 | `gateway.running` | yes | `yes`, `no`, `unbekannt` |
-| `gateway.url` | no | same pattern as `tracker.url` |
+| `gateway.url` | no | `https://` host with dots, or `http://` only for `localhost` or `127.0.0.1`; no userinfo, query or fragment |
 | `gateway.keyEnv` | no | name of an environment variable: uppercase letters, digits, underscore, starting with a letter |
 | `chatgptViaGateway` | no | `accepted-risk`, `declined`, `not-asked`, `unbekannt` |
 | `agent` | no | `claude-code`, `opencode`, `other`, `unbekannt` |

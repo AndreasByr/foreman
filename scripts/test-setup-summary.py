@@ -3,7 +3,9 @@
 
 Covers the shipped example, "I don't know" answers (unbekannt and the Gaps line),
 everything unbekannt, empty answers, absent optional fields, invalid files
-(schema and key-like values), and --write with and without --confirmed.
+(schema and key-like values), --write with and without --confirmed, the gateway
+key variable line and its gap, the ChatGPT consent gap by plan, machines without
+purposes, and the tracker url rule by tracker type.
 Python stdlib only. Prints "summary test: ok (N cases)" on success; otherwise one
 "FAIL: <case>" line per failed case and exit 1.
 """
@@ -106,6 +108,7 @@ def check_example(tmp):
         "Notification: discord-webhook",
         "Tracker: itsaplan (https://itsaplan.example.com)",
         "Gateway: running, https://gateway.example.com",
+        "Gateway key variable: FOREMAN_GATEWAY_KEY",
         "ChatGPT via gateway: accepted-risk",
         "Agent: claude-code",
         "GitHub: yes",
@@ -123,6 +126,10 @@ def check_example(tmp):
     check(
         "example: GitHub line directly follows the Agent line",
         follows(lines, "Agent: claude-code", "GitHub: yes"),
+    )
+    check(
+        "example: Gateway key variable line directly follows the Gateway line",
+        follows(lines, "Gateway: running, https://gateway.example.com", "Gateway key variable: FOREMAN_GATEWAY_KEY"),
     )
     check(
         "example: Agent line directly follows the ChatGPT via gateway line",
@@ -295,6 +302,10 @@ def check_absent_optional_fields(tmp):
     check("absent optional: tracker line has no url part", has_line(out, "Tracker: itsaplan"))
     check("absent optional: gateway line has no url part", has_line(out, "Gateway: running"))
     check(
+        "absent optional: no Gateway key variable line when keyEnv is absent",
+        not any(line.startswith("Gateway key variable") for line in lines_of(out)),
+    )
+    check(
         "absent optional: no ChatGPT via gateway line",
         not any(line.startswith("ChatGPT via gateway") for line in lines_of(out)),
     )
@@ -314,8 +325,99 @@ def check_absent_optional_fields(tmp):
         "machines[1].https (not answered)",
         "tracker.url (not answered)",
         "gateway.url (not answered)",
+        "chatgptViaGateway (not answered)",
+        "gateway.keyEnv (not answered)",
     ]:
         check(f"absent optional: Gaps line lists {path}", path in gaps, f"got: {gaps}")
+
+
+def check_chatgpt_consent_gap(tmp):
+    for plan in ["plus", "pro", "team", "enterprise"]:
+        data = load_example()
+        data["ai"]["chatgpt"]["plan"] = plan
+        del data["chatgptViaGateway"]
+        code, out, err = summarize(tmp, f"chatgpt-{plan}-unanswered.json", data)
+        check(f"chatgpt plan {plan} without chatgptViaGateway: exit 0", code == 0, f"exit {code}: {err.strip()[:300]}")
+        check(
+            f"chatgpt plan {plan} without chatgptViaGateway: Gaps line lists chatgptViaGateway (not answered)",
+            "chatgptViaGateway (not answered)" in (gaps_line(out) or ""),
+            f"got: {gaps_line(out)}",
+        )
+
+    data = load_example()
+    data["ai"]["chatgpt"]["plan"] = "none"
+    del data["chatgptViaGateway"]
+    code, out, err = summarize(tmp, "chatgpt-none-unanswered.json", data)
+    check("chatgpt plan none without chatgptViaGateway: exit 0", code == 0, f"exit {code}: {err.strip()[:300]}")
+    check(
+        "chatgpt plan none without chatgptViaGateway: no chatgptViaGateway gap",
+        "chatgptViaGateway" not in (gaps_line(out) or ""),
+        f"got: {gaps_line(out)}",
+    )
+
+
+def check_gateway_key_variable(tmp):
+    data = load_example()
+    del data["gateway"]["keyEnv"]
+    code, out, err = summarize(tmp, "keyenv-absent.json", data)
+    check("gateway running without keyEnv: exit 0", code == 0, f"exit {code}: {err.strip()[:300]}")
+    check(
+        "gateway running without keyEnv: Gaps line is exactly the keyEnv gap",
+        gaps_line(out) == "Gaps (unbekannt): gateway.keyEnv (not answered)",
+        f"got: {gaps_line(out)}",
+    )
+    check(
+        "gateway running without keyEnv: no Gateway key variable line",
+        not any(line.startswith("Gateway key variable") for line in lines_of(out)),
+    )
+
+    data = load_example()
+    data["gateway"] = {"running": "no"}
+    code, out, err = summarize(tmp, "gateway-not-running.json", data)
+    check("gateway not running without keyEnv: exit 0", code == 0, f"exit {code}: {err.strip()[:300]}")
+    check(
+        "gateway not running without keyEnv: no keyEnv gap",
+        gaps_line(out) == "Gaps (unbekannt): none",
+        f"got: {gaps_line(out)}",
+    )
+
+
+def check_tracker_url_rule(tmp):
+    data = load_example()
+    data["tracker"] = {"type": "linear"}
+    code, out, err = summarize(tmp, "linear-no-url.json", data)
+    check("linear without url: exit 0", code == 0, f"exit {code}: {err.strip()[:300]}")
+    check("linear without url: Tracker line is 'Tracker: linear'", has_line(out, "Tracker: linear"))
+    check(
+        "linear without url: no gap for tracker.url",
+        "tracker.url" not in (gaps_line(out) or ""),
+        f"got: {gaps_line(out)}",
+    )
+
+    data = load_example()
+    data["tracker"] = {"type": "itsaplan"}
+    code, out, err = summarize(tmp, "itsaplan-no-url.json", data)
+    check("itsaplan without url: exit 0", code == 0, f"exit {code}: {err.strip()[:300]}")
+    check(
+        "itsaplan without url: gaps tracker.url (not answered)",
+        "tracker.url (not answered)" in (gaps_line(out) or ""),
+        f"got: {gaps_line(out)}",
+    )
+
+
+def check_missing_purposes(tmp):
+    data = load_example()
+    del data["machines"][1]["purposes"]
+    del data["machines"][1]["domain"]
+    del data["machines"][1]["https"]
+    code, out, err = summarize(tmp, "purposes-absent.json", data)
+    check("machine without purposes: exit 0", code == 0, f"exit {code}: {err.strip()[:300]}")
+    check(
+        "machine without purposes: Gaps line lists purposes before domain and https",
+        gaps_line(out)
+        == "Gaps (unbekannt): machines[1].purposes (not answered), machines[1].domain (not answered), machines[1].https (not answered)",
+        f"got: {gaps_line(out)}",
+    )
 
 
 def check_invalid(tmp):
@@ -383,6 +485,10 @@ def main():
         check_empty_answers(tmp)
         check_absent_optional_fields(tmp)
         check_unanswered_gaps(tmp)
+        check_chatgpt_consent_gap(tmp)
+        check_gateway_key_variable(tmp)
+        check_tracker_url_rule(tmp)
+        check_missing_purposes(tmp)
         check_invalid(tmp)
         check_write(tmp)
     check_skill_layout()

@@ -30,7 +30,7 @@ Ask one question: "Which language do you prefer, for our conversation and for th
 
 ### 1. Orient (1 min)
 
-Say in three lines what happens: questions (about 10 min), a recommendation, then the command and the checklist. Ask which of the three outcomes the human wants if they already know: a quick prototype, a repo with the workflow, or a project that runs on its own while they sleep. Unknown: continue with the catalog.
+Say in three lines what happens: questions (about 10 min), a recommendation, then the command and the checklist. Ask which of the three outcomes the human wants if they already know: a quick prototype, a repo with the workflow, or a project that runs on its own while they sleep. Unknown: continue with the catalog. Only the human's own statement "quick prototype" skips block C and step 2b. It is not a recommendation and is never inferred from the answers of block B.
 
 ### 2. Question catalog (about 10 min)
 
@@ -51,6 +51,8 @@ Ask block A first. Its answers set your explanation depth for the rest of the se
 4. Ask the human to confirm or correct. Give no recommendation, no profile and no install command before the human confirms. Corrections go back into the answers, and the summary is shown again.
 5. After confirmation, write `workspace.json`. With a shell: `python3 scripts/setup-summary.py <answers.json> --write workspace.json --confirmed`. Otherwise output the JSON for the human to save. Never write secrets into it.
 6. Put the same content into the `infra` block of `.foreman.json` through `install.sh --workspace <file>`.
+
+Quick: for a quick prototype no workspace.json is written and the summary step is skipped; the block B and A answers go straight to step 3 (recommendation). Everything else about the summary stays as described above.
 
 ### 3. Recommend a profile
 

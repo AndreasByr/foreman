@@ -75,7 +75,9 @@ def summarize(data):
             gaps.append(f"{base}.role")
         if UNKNOWN in machine["services"]:
             gaps.append(f"{base}.services")
-        if UNKNOWN in machine.get("purposes", []):
+        if "purposes" not in machine:
+            gaps.append(f"{base}.purposes (not answered)")
+        elif UNKNOWN in machine["purposes"]:
             gaps.append(f"{base}.purposes")
         for field in ("domain", "https"):
             add_gap(gaps, machine, field, f"{base}.{field}")
@@ -114,7 +116,7 @@ def summarize(data):
     lines.append(tracker_line)
     if tracker["type"] == UNKNOWN:
         gaps.append("tracker.type")
-    elif tracker["type"] != "none":
+    elif tracker["type"] == "itsaplan":
         add_gap(gaps, tracker, "url", "tracker.url")
 
     gateway = data["gateway"]
@@ -127,13 +129,18 @@ def summarize(data):
         gaps.append("gateway.running")
     if gateway["running"] == "yes":
         add_gap(gaps, gateway, "url", "gateway.url")
+        add_gap(gaps, gateway, "keyEnv", "gateway.keyEnv")
     lines.append(gateway_line)
+    if "keyEnv" in gateway:
+        lines.append(f"Gateway key variable: {gateway['keyEnv']}")
 
     if "chatgptViaGateway" in data:
         value = data["chatgptViaGateway"]
         lines.append(f"ChatGPT via gateway: {value}")
         if value == UNKNOWN:
             gaps.append("chatgptViaGateway")
+    elif ai["chatgpt"]["plan"] != "none":
+        gaps.append("chatgptViaGateway (not answered)")
 
     for field, label in (("agent", "Agent"), ("github", "GitHub")):
         if field in data:

@@ -51,7 +51,7 @@ while [ $# -gt 0 ]; do
     --gateway-url) gateway_url="$2"; shift 2 ;;
     --fallback-model) fallback_model="$2"; shift 2 ;;
     --chatgpt-via-gateway) chatgpt_via_gateway="$2"; shift 2 ;;
-    -h|--help) sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) awk 'NR>1 { if ($0 !~ /^#/) exit; sub(/^# ?/, ""); print }' "$0"; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) target="$1"; shift ;;
   esac
@@ -99,6 +99,10 @@ if [ -n "$workspace" ]; then
   if [ "$ws_rc" -ne 0 ]; then
     echo "workspace: file failed validation; nothing written" >&2
     printf '%s\n' "$ws_out" | grep -v '^workspace: ok$' >&2 || true
+    exit 2
+  fi
+  if [ -f "$target/.foreman.json" ] && ! python3 -c 'import json,sys; json.load(open(sys.argv[1], encoding="utf-8"))' "$target/.foreman.json" >/dev/null 2>&1; then
+    echo "workspace: existing .foreman.json is not valid JSON; nothing written" >&2
     exit 2
   fi
 fi
@@ -275,6 +279,7 @@ PY
   else
     kept+=(".foreman.json")
     if [ -n "$workspace" ]; then
+      cp "$target/.foreman.json" "$target/.foreman.json.before-foreman"
       python3 - "$target/.foreman.json" "$workspace" <<'PY'
 import json, sys
 path, workspace = sys.argv[1:3]
@@ -310,7 +315,8 @@ if [ "$gw_on" = yes ]; then
     python3 "$HERE/scripts/gateway-preset.py" "${gw_args[@]}"
     preset_written=yes
   else
-    echo "  gateway: config.toml kept (exists); preset not applied. Re-run with --force or run: python3 $HERE/scripts/gateway-preset.py tools/delegate/config.toml --url $gateway_url --key-env $gw_key_env --fallback-model $fallback_model"
+    chatgpt_hint=""; [ "$chatgpt_via_gateway" = accepted-risk ] && chatgpt_hint=" --chatgpt"
+    echo "  gateway: config.toml kept (exists); preset not applied. Re-run with --force or, from the target directory ($target), run: python3 $HERE/scripts/gateway-preset.py tools/delegate/config.toml --url $gateway_url --key-env $gw_key_env --fallback-model $fallback_model$chatgpt_hint"
   fi
 fi
 

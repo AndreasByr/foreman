@@ -57,7 +57,9 @@ No always-on machine: Repo profile, started by hand. If the human still wants sc
   [--modules tracker-itsaplan|tracker-linear,delegate,gateway,autopilot,pretest] \
   [--agent claude-code|opencode|other] \
   [--session-model <exact model id>] [--no-staging] [--force] [--dry-run] \
-  [--recommended-skills all|none|<list>] [--skills-scope global|project]
+  [--recommended-skills all|none|<list>] [--skills-scope global|project] \
+  [--workspace <file>] [--gateway-url <url> --fallback-model <claude/id>] \
+  [--chatgpt-via-gateway accepted-risk|declined]
 ```
 
 Rules for the command you hand out:
@@ -68,6 +70,10 @@ Rules for the command you hand out:
 - `--session-model` is an exact model ID, never `opusplan`.
 - `--no-staging` for projects without a separate staging environment (then `main` is production).
 - `--recommended-skills` and `--skills-scope`: leave out when the human decided in chat and you install the skills yourself or print the commands. Non-interactive without the flag means none.
+- `--workspace <file>`: a confirmed workspace.json, checked first; it becomes the `infra` block of `.foreman.json`.
+- `--gateway-url <url>`: activates the gateway preset (adds delegate and gateway); https only, http for localhost or 127.0.0.1.
+- `--fallback-model <id>`: exact `claude/<id>` fallback model; required with a gateway URL.
+- `--chatgpt-via-gateway accepted-risk|declined`: the human's consent for ChatGPT via the gateway; `declined` keeps it off.
 - Always propose `--dry-run` first for a beginner.
 
 Examples:
