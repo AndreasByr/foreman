@@ -17,6 +17,7 @@ active = "claude-only"
 
 [defaults]
 timeout_seconds = 900                      # per attempt
+                                           # default for every role; a role can set its own `timeout = <seconds>`; zero, negative or non-numeric values are rejected
 claude_login = "inherit"                   # Claude workers reuse the session's login (subscription). Required in
                                            # Claude Code cloud sessions: a clean HOME there means "Not logged in".
                                            # Keys of other providers, trackers and tokens are stripped either way.
@@ -43,6 +44,7 @@ claude_auth_env = ["CLAUDE_CODE_OAUTH_TOKEN"]  # names only, for "isolated" (tok
 who = "worker"
 model = "claude/<small-model-id>"
 readonly = true
+# timeout = 1800                          # optional per role: this role's attempts abort after 1800 s
 
 [roles.planning]
 who = "worker"

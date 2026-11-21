@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Plain tests, no pytest: python3 test_run_task.py"""
-import importlib.util, os, subprocess, sys, tempfile, traceback
+import importlib.util, os, subprocess, sys, tempfile, time, traceback
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -504,6 +504,86 @@ def test_limits_ledger_not_a_scope_finding():
         assert p.returncode == 0, (p.returncode, p.stdout, p.stderr)
         assert (t / "tasks" / ".limits.json").exists(), "default ledger lives next to the config file"
         assert "## Findings" not in (t / "t.result.md").read_text()
+
+
+# ---------------------------------------------------------------- timeout
+
+def _timeout_cfg(role_value=None, defaults_value=None):
+    cfg = rt.tomllib.loads(CONFIG)
+    for k in ("env", "mcp", "claude", "gateway", "limits"):
+        cfg.setdefault(k, {})
+    if role_value is not None:
+        cfg["roles"]["research"]["timeout"] = role_value
+    if defaults_value is not None:
+        cfg["defaults"]["timeout_seconds"] = defaults_value
+    return cfg
+
+
+def _timeout_run(t, cfg_text, script, extra=()):
+    (t / "config.toml").write_text(cfg_text)
+    (t / "t.md").write_text("---\nrole: research\n---\nx\n")
+    env = _fake_claude(t, script)
+    env.pop("ANTHROPIC_BASE_URL", None)  # cloud sessions set it; the wrapper must not depend on it
+    return subprocess.run([sys.executable, str(HERE / "run_task.py"), "t.md", "--config", "config.toml", *extra],
+                          capture_output=True, text=True, cwd=t, env=env)
+
+
+def test_timeout_config_validation():
+    def timeout_errs(cfg):
+        return [e for e in rt.validate_config(cfg) if "timeout" in e]
+    for bad in (0, -3, "10", True):
+        errs = timeout_errs(_timeout_cfg(role_value=bad))
+        assert errs, ("role timeout must be rejected", bad)
+    for bad in (0, -1):
+        errs = timeout_errs(_timeout_cfg(defaults_value=bad))
+        assert errs, ("[defaults] timeout_seconds must be rejected", bad)
+    for good in (5, 0.5):
+        assert timeout_errs(_timeout_cfg(role_value=good)) == [], ("role timeout valid", good)
+        assert timeout_errs(_timeout_cfg(defaults_value=good)) == [], ("defaults timeout valid", good)
+
+
+def test_timeout_cli_rejects_zero():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        cfg = CONFIG.replace("readonly = true\n", "readonly = true\ntimeout = 0\n", 1)
+        p = _timeout_run(t, cfg, "exit 0\n", extra=["--dry-run"])
+        assert p.returncode == 2, (p.returncode, p.stdout, p.stderr)
+        assert "timeout" in p.stderr, p.stderr
+
+
+def test_timeout_role_value_aborts_attempt():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        cfg = CONFIG.replace("readonly = true\n", "readonly = true\ntimeout = 1\n", 1)
+        t0 = time.monotonic()
+        p = _timeout_run(t, cfg, "sleep 5\n")
+        elapsed = time.monotonic() - t0
+        assert elapsed < 4, (elapsed, p.stdout, p.stderr)
+        assert p.returncode == 1, (p.returncode, p.stdout, p.stderr)
+        assert "timeout after 1s" in (t / "t.result.md").read_text()
+
+
+def test_timeout_global_default_applies():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        cfg = CONFIG.replace("timeout_seconds = 60\n", "timeout_seconds = 1\n", 1)
+        t0 = time.monotonic()
+        p = _timeout_run(t, cfg, "sleep 5\n")
+        elapsed = time.monotonic() - t0
+        assert elapsed < 4, (elapsed, p.stdout, p.stderr)
+        assert p.returncode == 1, (p.returncode, p.stdout, p.stderr)
+        assert "timeout after 1s" in (t / "t.result.md").read_text()
+
+
+def test_timeout_role_overrides_global():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        cfg = CONFIG.replace("timeout_seconds = 60\n", "timeout_seconds = 1\n", 1)
+        cfg = cfg.replace("readonly = true\n", "readonly = true\ntimeout = 30\n", 1)
+        script = "sleep 2\necho '{\"result\":\"ok\",\"is_error\":false}'\n"
+        p = _timeout_run(t, cfg, script)
+        assert p.returncode == 0, (p.returncode, p.stdout, p.stderr)
+        assert "timeout after" not in (t / "t.result.md").read_text()
 
 
 if __name__ == "__main__":

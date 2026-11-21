@@ -10,6 +10,8 @@ Front matter (all keys optional except role):
     verify: <command>        # mechanical acceptance, exit 0 = done
     files: [src/**, tests/**]   # scope: changed files outside these globs are reported as findings
 
+A role may set `timeout` (seconds); `[defaults] timeout_seconds` is the default.
+
 Exit codes: 0 done, 1 all steps failed (the session takes over), 2 call/config error,
             3 prerequisite missing (claude CLI, API key without fallback),
             4 the verify command itself is not runnable (no worker started).
@@ -205,6 +207,11 @@ def fallback_of(cfg, role):
     return cfg["roles"][role].get("fallback_model") or endpoint_cfg(cfg, p)["fallback_model"] or None
 
 
+def is_positive_number(v):
+    """True for a positive int or float (bool excluded)."""
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0
+
+
 def validate_config(cfg, name="config"):
     """Return a list of problems; empty means valid."""
     errs = []
@@ -212,6 +219,8 @@ def validate_config(cfg, name="config"):
     for k in ("timeout_seconds",):
         if k not in d:
             errs.append(f"[defaults] {k} missing")
+    if "timeout_seconds" in d and not is_positive_number(d["timeout_seconds"]):
+        errs.append(f"[defaults] timeout_seconds must be a positive number, got {d['timeout_seconds']!r}")
     if not cfg["roles"]:
         errs.append("no [roles.*] defined")
     if d.get("claude_login", "inherit") not in ("inherit", "isolated"):
@@ -225,6 +234,8 @@ def validate_config(cfg, name="config"):
             continue
         if who == "session":
             continue
+        if "timeout" in r and not is_positive_number(r["timeout"]):
+            errs.append(f"roles.{role}.timeout must be a positive number, got {r['timeout']!r}")
         m = r.get("model", "")
         if not m:
             errs.append(f"roles.{role}.model missing")
@@ -629,10 +640,10 @@ def run_attempt(role, cfg, body, meta, workdir, fallback=None, skip_rel=()):
     t0 = time.time()
     try:
         p = subprocess.run(cmd, cwd=workdir, env=env, capture_output=True, text=True, stdin=subprocess.DEVNULL,
-                           timeout=d["timeout_seconds"])
+                           timeout=r.get("timeout", d["timeout_seconds"]))
         out, err, rc = p.stdout, clean_stderr(p.stderr), p.returncode
     except subprocess.TimeoutExpired:
-        out, err, rc = "", f"timeout after {d['timeout_seconds']}s", 124
+        out, err, rc = "", f"timeout after {r.get('timeout', d['timeout_seconds']):g}s", 124
     finally:
         shutil.rmtree(state, ignore_errors=True)
     result, is_error, denials = out, rc != 0, []
@@ -649,7 +660,7 @@ def run_attempt(role, cfg, body, meta, workdir, fallback=None, skip_rel=()):
     if login:
         cause = "Claude worker not logged in (no session login and no CLAUDE_CODE_OAUTH_TOKEN), see stderr"
     elif rc == 124:
-        cause = f"timeout after {d['timeout_seconds']}s"
+        cause = f"timeout after {r.get('timeout', d['timeout_seconds']):g}s"
     elif infra:
         cause = "provider API unusable (auth/limit/server/network), see stderr"
     elif is_error:

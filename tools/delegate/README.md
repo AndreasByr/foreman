@@ -76,6 +76,7 @@ Two limits apply: the number of worker attempts per run (`max_calls_per_run`, de
 Endpoint providers (`ollama`, `gateway`) retry up to 3 times with growing pauses (`pause_seconds`, doubled after each failure, capped at `max_pause_seconds`), then fall back to `fallback_model`, or to the next role when there is none.
 A provider is locked after 3 failures in a row. The lock lasts only for the rest of the run. Every lock appears in the section `## Limits and locks` of the result and report files.
 The ledger (`ledger_file`, default `tasks/.limits.json`) records only the call times per provider.
+Per-role timeout: a role can set `timeout = <seconds>` in its `[roles.<name>]` block; without it the global `timeout_seconds` from `[defaults]` applies. An attempt that runs out reports the cause `timeout after <N>s`. A value of 0 or below is rejected with exit 2.
 
 ## Claude login of workers
 
