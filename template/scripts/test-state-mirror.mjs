@@ -277,10 +277,26 @@ t("wiki: parseState returns the Wiki header value, empty when missing", () => {
   assert.equal(parseState("Status: done").wiki, "");
 });
 
+t("wiki: parseState reads only the header (lines before the first # line)", () => {
+  assert.equal(parseState("Status: done\n\n# M001 x\n\n## Log\n\nWiki: noch pruefen\n").wiki, "");
+  assert.equal(parseState("Status: done\n# M001 x\nWiki: no change\n").wiki, "");
+  assert.equal(parseState("Status: done\nWiki: no change\n\n# M001 x\n\n## Log\n\nWiki: other\n").wiki, "no change");
+});
+
 t("wiki: batch-pr milestone without Wiki line is one problem", () => {
   assert.equal(typeof mirror.wikiProblems, "function", "wikiProblems is not exported");
   const p = mirror.wikiProblems([wu("batch-pr", "Status: batch-pr")], wikiOn);
   assert.deepEqual(p, ["M001: Wiki line missing in STATE.md (wiki is on)"]);
+});
+
+t("wiki: a Wiki line only in the Log below the title is a problem", () => {
+  const text = "Status: batch-pr\n\n# M001: x\n\n## Log\n\nWiki: no change\n";
+  assert.equal(mirror.wikiProblems([wu("batch-pr", text)], wikiOn).length, 1);
+});
+
+t("wiki: done milestone without Wiki line is no problem (old milestones)", () => {
+  assert.equal(mirror.wikiProblems([wu("done")], wikiOn).length, 0);
+  assert.equal(mirror.wikiProblems([wu("done", "Status: done\n\n# M001: x\n")], wikiOn).length, 0);
 });
 
 t("wiki: a filled Wiki line is accepted", () => {
@@ -298,7 +314,7 @@ t("wiki: only milestones in the wiki statuses are checked", () => {
   assert.equal(mirror.wikiProblems([wu("slice")], wikiOn).length, 0);
   assert.equal(mirror.wikiProblems([wu("planning")], wikiOn).length, 0);
   assert.equal(mirror.wikiProblems([wu("done", "", "fixpack", "F-x")], wikiOn).length, 0);
-  for (const s of ["batch-pr", "awaiting-merge", "pretest-waiting", "pretest-running", "uat-ready", "release-ready", "done"]) {
+  for (const s of ["batch-pr", "awaiting-merge", "pretest-waiting", "pretest-running", "uat-ready", "release-ready"]) {
     assert.equal(mirror.wikiProblems([wu(s)], wikiOn).length, 1, s);
   }
 });
@@ -330,6 +346,17 @@ t("wiki: CLI --local fails on a missing Wiki line, passes once it is set, and ig
     assert.ok(r.stdout.split("\n").some((l) => l.startsWith("PROBLEM|M001:") && l.includes("Wiki")), r.stdout);
 
     writeFileSync(statePath, `${head}Wiki: no change\n\n# M001: x\n`);
+    r = run();
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+
+    // a Wiki line only in the Log below the title does not count as the header line
+    writeFileSync(statePath, `${head}\n# M001: x\n\n## Log\n\nWiki: no change\n`);
+    r = run();
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok(r.stdout.split("\n").some((l) => l.startsWith("PROBLEM|M001:") && l.includes("Wiki")), r.stdout);
+
+    // an old done milestone without a Wiki line is no problem
+    writeFileSync(statePath, "Status: done · since 2026-01-01T00:00Z\nTarget: dev\n\n# M001: x\n");
     r = run();
     assert.equal(r.status, 0, r.stdout + r.stderr);
 

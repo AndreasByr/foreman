@@ -66,7 +66,7 @@ export function interventionProblems(units) {
     .map((u) => `${u.id}: status needs-input but STATE.md has no "Open question" section with content`);
 }
 
-const WIKI_STATUSES = ["batch-pr", "awaiting-merge", "pretest-waiting", "pretest-running", "uat-ready", "release-ready", "done"];
+const WIKI_STATUSES = ["batch-pr", "awaiting-merge", "pretest-waiting", "pretest-running", "uat-ready", "release-ready"];
 
 /** With wiki on: a milestone from batch-pr on needs its `Wiki:` line in STATE.md (pages affected or "no change"). */
 export function wikiProblems(units, conf) {

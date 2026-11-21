@@ -56,7 +56,7 @@ Commands that must be green: <the project's test, typecheck, lint, build command
 Human only (UAT): <only what needs a second real account, real hardware or a product decision; everything the Agent can test is proven in the cloud pretest. If accessibility is required: one pass with keyboard only and one with a screen reader>
 
 ## Wiki
-<Only if `wiki.enabled` is true in `.foreman.json`; otherwise leave the section out. Todo: "Check whether the wiki needs an update". The result goes into STATE.md as the `Wiki:` line.>
+<Only if `wiki.enabled` is true in `.foreman.json`; otherwise leave the section out. Todo: "Check whether the wiki needs an update". The result goes into STATE.md as the `Wiki:` header line (pages affected or "no change"), required from `batch-pr` on.>
 
 ## Risks
 <Known pitfalls, fragile spots.>

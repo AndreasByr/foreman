@@ -15,11 +15,12 @@ description: Write and maintain the user wiki in docs/wiki/ when wiki.enabled is
 - Write only from internal docs that exist: `docs/requirements.md`, `docs/design.md`, `CHANGELOG.md`, and the user-facing parts of the change.
 - Never invent a feature. If the sources do not say it, leave it out.
 - Every page lists its sources in the head (`source:`).
+- The pages are written by the strong worker role `execution` (through the delegate wrapper), only from the sources named in the head.
 
 ## Audience and language
 
 - One folder per audience: `docs/wiki/<audience-slug>/<page>.md`. Audience names come from `wiki.audiences` in `.foreman.json`.
-- Slug: lowercase; ä becomes ae, ö oe, ü ue, ß ss; every other non-alphanumeric character becomes `-`. Example: "Spieler und Tester" becomes `spieler-und-tester`.
+- Slug (same rule as `audienceSlug`): lowercase; ä becomes ae, ö oe, ü ue, ß ss; other accents are dropped; every run of non-alphanumeric characters becomes one `-`; leading and trailing `-` are trimmed. An empty slug or two names with one slug are config errors. Example: "Spieler und Tester" becomes `spieler-und-tester`.
 - Language: `wiki.language`, else `context.language`.
 - Write for that audience's level. Short sentences. No internal vocabulary: no milestone, slice, fix pack, brief, ticket or STATE.
 
@@ -36,6 +37,7 @@ checked: no-ai-slop, humanizer
 ```
 
 - The head is removed before upload. Readers see only the body.
+- The page title in Notion is the first `# ` heading of the body, so every page needs exactly one. Without a heading the file name is the title. A heading used in two audiences becomes `<heading> (<audience name>)`; two pages of one audience with the same title are refused.
 - Write the `checked` line only after the text check below has run.
 
 ## Text check
@@ -49,7 +51,7 @@ checked: no-ai-slop, humanizer
 - Roast notes, open questions, logic gaps, briefs, fix packs, agent reports, roadmap details.
 - Credentials, internal hosts or paths.
 - Real project or person names. The repo is public: use placeholders.
-- The publish scan refuses the whole run on a hit (terms from `wiki.forbidden`, hosts, secrets). Do not work around it. Remove the term and run again.
+- The publish scan refuses the whole run on a hit (terms from `wiki.forbidden`, hosts, secrets, internal terms). It checks page texts and also the file and folder names below `docs/wiki/`. Do not work around it. Remove the term and run again.
 
 ## Publishing
 

@@ -38,10 +38,27 @@ function parseArgs(argv) {
   return opts;
 }
 
+// The wiki and the mirror must not share a root page (the mirror would archive the wiki pages). A nested root cannot be
+// checked without the API. docsRootPageId is "" when there is no valid docsNotion block.
+function docsRootPageId(root) {
+  try {
+    return loadConfig(root).rootPageId;
+  } catch {
+    return "";
+  }
+}
+
+function checkSameRoot(wiki, docsRoot) {
+  if (wiki.enabled && wiki.rootPageId && wiki.rootPageId === docsRoot) {
+    throw new CliError("docs-notion: same root page: wiki.rootPageId equals docsNotion.rootPageId (use two different pages)", 2);
+  }
+}
+
 // --wiki: validates and scans the pages, then lists them (dry run) or publishes them.
 async function runWiki(root, dryRun, token) {
   const wiki = loadWikiConfig(root);
   if (!wiki.enabled) throw new CliError("docs-notion: wiki is off (wiki.enabled is not true in .foreman.json)", 2);
+  checkSameRoot(wiki, docsRootPageId(root));
   if (!dryRun) {
     const missing = [];
     if (!token) missing.push("NOTION_API_KEY");
@@ -54,15 +71,17 @@ async function runWiki(root, dryRun, token) {
     out("nothing to publish");
     return 0;
   }
-  // A dry run reports head problems on stderr but only scan findings fail it (it is a preview of what would go out).
-  const headProblems = validatePages(wiki, pages);
-  const problems = dryRun ? [] : headProblems;
-  if (dryRun) for (const p of headProblems) err(`docs-notion: ${p.path}: ${p.problem} (not publishable)`);
+  // Head problems and scan findings stop a dry run like the real run (exit 4, nothing is sent).
+  const problems = validatePages(wiki, pages);
   const scans = pages.map((p) => ({ path: p.path, text: p.body }));
   for (const a of wiki.audiences.filter((x) => pages.some((p) => p.head?.audience === x.name))) {
     scans.push({ path: `audience ${a.name}`, text: `${a.name}\n${a.description}` });
   }
   for (const sc of scans) for (const f of scanText(sc.text, wiki.forbidden)) problems.push({ path: sc.path, problem: f.rule, line: f.line });
+  // File and folder names below docs/wiki are published as part of the page path: scan them too. A secret is never echoed.
+  for (const p of pages) {
+    for (const f of scanText(p.path, wiki.forbidden)) problems.push({ path: f.rule === "secret" ? "docs/wiki/ (a file or folder name)" : p.path, problem: `${f.rule} (in the name)` });
+  }
   if (problems.length) {
     for (const p of problems) err(`docs-notion: ${p.path}: ${p.problem}${p.line ? ` (line ${p.line})` : ""}`);
     return 4;
@@ -84,6 +103,11 @@ async function main() {
   const token = (process.env.NOTION_API_KEY ?? "").trim();
   if (opts.wiki) return runWiki(root, opts.dryRun, token);
   const cfg = loadConfig(root);
+  try {
+    checkSameRoot(loadWikiConfig(root), cfg.rootPageId);
+  } catch (e) {
+    if (/same root page/.test(e?.message ?? "")) throw e; // no or broken wiki block: nothing to compare
+  }
   cfg.exclude = [...cfg.exclude, "docs/wiki/**"]; // wiki pages go out only with --wiki
   if (!opts.dryRun) {
     const missing = [];

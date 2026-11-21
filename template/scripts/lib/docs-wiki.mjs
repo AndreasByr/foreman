@@ -36,11 +36,17 @@ export function loadWikiConfig(root) {
   if (!Array.isArray(audiences) || audiences.some((a) => !a || typeof a !== "object" || typeof a.name !== "string" || !a.name.trim())) {
     throw new CliError("docs-notion: wiki.audiences must be a list of objects with a name", 2);
   }
+  if (c.enabled === true) {
+    // Slugs are folder names and virtual paths: they must be non-empty and unique.
+    const slugs = audiences.map((a) => audienceSlug(a.name));
+    if (slugs.some((s) => !s)) throw new CliError("docs-notion: wiki.audiences: an audience name gives an empty folder slug (use letters or digits)", 2);
+    if (new Set(slugs).size !== slugs.length) throw new CliError("docs-notion: wiki.audiences: two audience names give the same folder slug", 2);
+  }
   const forbidden = c.forbidden ?? [];
   if (!Array.isArray(forbidden) || forbidden.some((x) => typeof x !== "string")) throw new CliError("docs-notion: wiki.forbidden must be an array of strings", 2);
   return {
     enabled: c.enabled === true,
-    language: c.language ?? json.context?.language ?? "",
+    language: c.language || json.context?.language || "",
     rootPageId: (c.rootPageId ?? "").trim(),
     audiences: audiences.map((a) => ({
       name: a.name.trim(),
@@ -76,6 +82,32 @@ export function parseHead(text) {
     head: { audience: fields.audience ?? "", source: list(fields.source), checked: list(fields.checked) },
     body: lines.slice(end + 1).join("\n"),
   };
+}
+
+// Page title: the first "# " heading of the body (outside code fences, markdown stripped), else the file name without .md.
+export function pageTitle(page) {
+  let fenced = false;
+  for (const line of page.body.split(/\r?\n/)) {
+    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
+    const m = !fenced && line.match(/^ {0,3}#[ \t]+(.*)$/);
+    if (!m) continue;
+    const t = m[1]
+      .replace(/[ \t]+#+[ \t]*$/, "")
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/[*`]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (t) return t;
+  }
+  return page.path.split("/").pop().replace(/\.md$/i, "");
+}
+
+// Map path -> Notion title. A heading that occurs in more than one audience becomes "<heading> (<audience name>)".
+export function pageTitles(pages) {
+  const raw = pages.map((p) => ({ path: p.path, title: pageTitle(p), aud: p.head?.audience ?? "" }));
+  const auds = new Map();
+  for (const r of raw) auds.set(r.title, (auds.get(r.title) ?? new Set()).add(r.aud));
+  return new Map(raw.map((r) => [r.path, auds.get(r.title).size > 1 ? `${r.title} (${r.aud})` : r.title]));
 }
 
 // Every .md file below docs/wiki, sorted by path. Returns { pages: [{path, dir, head, body}], skipped: ["<path> (reason)"] }.

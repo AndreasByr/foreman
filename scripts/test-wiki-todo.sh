@@ -25,6 +25,17 @@ for f in .claude/skills/foreman-milestone/SKILL.md template/.claude/skills/forem
   has "$f" "wiki.enabled"
 done
 
+# batch skill: both copies run the wiki check and name the Wiki line
+for f in .claude/skills/foreman-batch/SKILL.md template/.claude/skills/foreman-batch/SKILL.md; do
+  has "$f" "state-mirror.mjs --local"
+  has "$f" "Wiki:"
+done
+cmp -s .claude/skills/foreman-batch/SKILL.md template/.claude/skills/foreman-batch/SKILL.md || fail "foreman-batch SKILL.md differs between .claude/ and template/.claude/"
+cmp -s .claude/skills/foreman-milestone/SKILL.md template/.claude/skills/foreman-milestone/SKILL.md || fail "foreman-milestone SKILL.md differs between .claude/ and template/.claude/"
+
+# brief template carries the Wiki line
+has plugins/foreman/skills/foreman-brief/references/brief-template.md "Wiki:"
+
 # state-mirror and state lib copies
 cmp -s scripts/state-mirror.mjs template/scripts/state-mirror.mjs || fail "state-mirror.mjs differs between scripts/ and template/scripts/"
 cmp -s scripts/lib/state.mjs template/scripts/lib/state.mjs || fail "lib/state.mjs differs between scripts/lib/ and template/scripts/lib/"

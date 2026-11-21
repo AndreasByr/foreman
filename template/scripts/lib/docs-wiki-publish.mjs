@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { buildPlan, buildTree, collectFiles, createClient, readExisting, runSync } from "./docs-notion.mjs";
+import { pageTitles } from "./docs-wiki.mjs";
 
 // Virtual path of a page: <slug>/<path inside the audience folder>. Pages sit directly in docs/wiki or below the audience folder.
 export function virtualPath(page, slug) {
@@ -21,18 +22,24 @@ export async function publishWiki({ wiki, pages, token, base, out, err }) {
       mkdirSync(dirname(join(tmp, rel)), { recursive: true });
       writeFileSync(join(tmp, rel), text);
     };
+    // Notion titles: the audience name for audience pages, see pageTitles for the others. The virtual paths stay internal.
+    const titles = new Map();
     const used = new Set(pages.map((p) => p.head.audience));
     for (const a of wiki.audiences.filter((x) => used.has(x.name))) {
       write(`${a.slug}.md`, `# ${a.name}\n${a.description ? `\n${a.description}\n` : ""}`);
+      titles.set(`${a.slug}.md`, a.name);
     }
+    const pageTitle = pageTitles(pages);
     for (const p of pages) {
       const slug = wiki.audiences.find((a) => a.name === p.head.audience).slug;
-      write(virtualPath(p, slug), p.body);
+      const vp = virtualPath(p, slug);
+      write(vp, p.body);
+      titles.set(vp, pageTitle.get(p.path));
     }
     const { files } = collectFiles(tmp, { include: ["**/*.md"], exclude: [] });
     const client = createClient({ token, base });
     const existing = await readExisting(client, wiki.rootPageId);
-    const plan = buildPlan(tmp, buildTree(files), existing);
+    const plan = buildPlan(tmp, buildTree(files).map((e) => ({ ...e, title: titles.get(e.path) })), existing);
     for (const b of plan.blocked) err(`docs-notion: ${b.page.title} (has foreign child pages: ${b.foreign.map((f) => f.title).join(", ")})`);
     const { counts, errors } = await runSync(client, wiki.rootPageId, plan, out);
     for (const e of errors) err(e);

@@ -500,4 +500,12 @@ bad_value l-forbidden-number '{"wiki":{"enabled":false,"forbidden":[42]}}' wiki.
 bad_value l-forbidden-empty-string '{"wiki":{"enabled":false,"forbidden":[""]}}' wiki.forbidden
 bad_value l-forbidden-enabled-empty '{"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"123","forbidden":[""]}}' wiki.forbidden
 
+# l-root-*: with the wiki enabled, wiki.rootPageId must differ from docsNotion.rootPageId
+bad_value l-root-same '{"docsNotion":{"rootPageId":"123"},"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"123"}}' wiki.rootPageId
+good_value l-root-different '{"docsNotion":{"rootPageId":"456"},"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"123"}}'
+
+# l-audience-slug-*: an audience name needs a non-empty slug, and two names must not share one
+bad_value l-audience-slug-empty '{"wiki":{"enabled":true,"language":"de","audiences":[{"name":"!!!"}],"rootPageId":"123"}}' wiki.audiences
+bad_value l-audience-slug-dup '{"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler/Tester"},{"name":"Spieler Tester"}],"rootPageId":"123"}}' wiki.audiences
+
 echo "check-config tests: ok"

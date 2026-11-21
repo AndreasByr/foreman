@@ -95,6 +95,8 @@ assert isinstance(dn.get("exclude"), list), dn
 PY
 [ -f "$T/dn1/scripts/docs-notion.mjs" ] || fail "docs-notion: scripts/docs-notion.mjs missing"
 (cd "$T/dn1" && bash scripts/check-config.sh >/dev/null) || fail "docs-notion: check-config failed"
+# installed docs wiki test must pass inside the target, without the foreman repo around it
+dw_out=$(cd "$T/dn1" && node scripts/test-docs-wiki.mjs 2>&1) || fail "docs-notion: installed scripts/test-docs-wiki.mjs failed in the target (it must run without the foreman repo): $dw_out"
 
 # 4b-wiki. wiki block: docs-notion install adds it with disabled defaults; default install has no wiki key;
 # enabling docs-notion in an existing project adds the block only if missing and never overwrites it

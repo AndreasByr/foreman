@@ -1,4 +1,4 @@
-Status: validation · since 2026-11-22T00:10Z · Slices fertig, Validierung läuft
+Status: validation · since 2026-11-22T01:10Z · R1 fertig, Validierung Runde 2
 Target: dev
 Batch-branch: batch/m010
 Lock: free
@@ -18,6 +18,7 @@ Start commit: cd07088 (Basis dev 9950ab9, nach Merge von main)
 | S2 | Wiki-Dateien: Seitenformat, Kopfdaten, Skill `foreman-wiki`, Beispiel-Wiki im Test | done | M010 S2 | template/scripts/lib/docs-wiki.mjs, docs-notion.mjs (--wiki), test-docs-wiki.mjs, template/.claude/skills/foreman-wiki/SKILL.md, install.sh, update.py, test-install.sh, test-all.sh, MODULES.md, CHANGELOG.md | Veröffentlichen folgt in S3 (Exit 1 Platzhalter) |
 | S3 | Veröffentlichen: `--wiki`, Wiki-Scan, Ablehnung, Hook ohne Wiki | done | M010 S3 | template/scripts/docs-notion.mjs, lib/docs-wiki-scan.mjs, lib/docs-wiki-publish.mjs, test-docs-wiki.mjs, install.sh, update.py, test-install.sh, MODULES.md, CHANGELOG.md | Seitentitel in Notion sind virtuelle Pfade (Lib nutzt Pfad als Titel); --dry-run meldet Kopffehler nur als Hinweis, scheitert nur an Scan-Treffern |
 | S4 | Milestone-Todo: Vorlagen, foreman-brief, Prüfung der Wiki-Zeile in state-mirror | done | M010 S4 | _TEMPLATE (beide), foreman-brief (SKILL, brief-template), foreman-milestone (2 Kopien), state.mjs, state-mirror.mjs (2 Kopien), test-state-mirror.mjs, test-wiki-todo.sh, test-all.sh, MODULES.md, CHANGELOG.md | Wiki-Problem lässt state-mirror in jedem Modus mit Exit 1 enden; Todo-Text in Vorlagen englisch |
+| R1 | Rework: Scan (Mehrzahl, Brief, Pfade, Dateinamen, mehr Secrets, Verbotsbegriffe über Zeilen), Titel statt Pfade, gleiche Wurzelseite, Slug-Prüfung, Dry-run Exit 4, `done` ohne Wiki-Zeile erlaubt, Kopfzeilen-Parser, Gate im Batch-Skill | done | M010 R1 | template/scripts/lib/docs-*.mjs, docs-notion.mjs, check-config.sh (2), state.mjs (2), state-mirror.mjs (2), foreman-batch/-milestone/-wiki Skills, Tests, MODULES.md, CHANGELOG.md | Marker-Zeile bleibt sichtbar (Titel statt Pfad); localhost/IPv4 bleiben gesperrt |
 
 ## Check plan per slice
 
@@ -49,3 +50,4 @@ None recorded.
 - 2026-11-21T22:45Z · S2: Test vorher rot (Lib fehlte, Import schlägt fehl), danach grün: test-docs-wiki, test-docs-notion, test-install, test-update-classes, test-update, test-plugin, test-update-skill, test-docs-rules, privacy-scan je Exit 0 · M010 S2
 - 2026-11-21T23:20Z · S3: Tests vorher rot (scanText not implemented), Worker `execution` Exit 1 (verify rot wegen Fehler im Test: `plainText` undefiniert); Sitzung hat den Testfehler behoben (1 Zeile), Rest war grün. Danach `bash scripts/test-all.sh` Exit 0 (inkl. privacy-scan; Secret-Beispiele im Test zur Laufzeit zusammengesetzt) · M010 S3
 - 2026-11-22T00:10Z · S4: Tests vorher rot (Vorlage ohne Todo, test-state-mirror Fehler), Worker execution_simple verify rot, Eskalation `execution` grün. Sitzung: Exit-Code nur bei Wiki-Problemen (nicht bei needs-input) eingeschränkt. `bash scripts/test-all.sh` Exit 0 · M010 S4
+- 2026-11-22T00:40Z · Validierung 1 (A/B/C auf bf2a783): alle needs-remediation, 1 hoch (Scan verpasst Mehrzahl), mehrere mittel (Titel/Marker, gleiche Wurzelseite, done-Milestones, Gate nicht verdrahtet, Dry-run, installierter Test). Rework R1 mit Tests zuerst (rot bestätigt), danach grün; `bash scripts/test-all.sh` Exit 0 auf dem R1-Commit · M010 R1
