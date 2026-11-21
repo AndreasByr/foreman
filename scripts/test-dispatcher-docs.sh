@@ -71,4 +71,7 @@ forbid plugins/foreman/skills/foreman-fix/SKILL.md "reaches the outside"
 forbid template/.claude/skills/foreman-dispatch-run/references/batch-run.md outward-facing
 forbid template/.claude/skills/foreman-dispatch-run/references/batch-run.md "reaches the outside"
 
+# batch-run.md: the Units line of an order is the rule for which units a run touches
+need template/.claude/skills/foreman-dispatch-run/references/batch-run.md 'The `Units:` line of the order is authoritative'
+
 echo "dispatcher docs tests: ok"

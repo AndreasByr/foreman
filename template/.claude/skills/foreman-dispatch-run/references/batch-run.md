@@ -14,6 +14,8 @@ The human's order "Batch PR dev/main/Mnnn" starts a run at once and is the merge
 
 ## Steps
 
+The `Units:` line of the order is authoritative: touch only those units (for target `main` without `autopilot.mainAutoMerge` it lists only units the human already merged, never other `awaiting-merge` units).
+
 1. Take the lock of each unit in the batch.
 2. Run the batch PR flow of `foreman-batch` for all `awaiting-merge` units together.
 3. **Close each unit right after the merge commit,** before the next PR opens: set the status, write the round into `STATE.md`, free the lock, mirror. Status after the merge: target `dev` or `main`: `pretest-waiting` with module `pretest` (write the order per `payload.md`, "Request a pretest"), otherwise `uat-ready` with a UAT list; pure docs units: `done` (target `dev`) or `release-ready` (target `main`). Do not close only the last unit.
