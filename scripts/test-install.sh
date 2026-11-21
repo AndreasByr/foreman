@@ -150,6 +150,52 @@ br3="$T/pm3/.claude/skills/foreman-dispatch-run/references/batch-run.md"
 grep -q 'post-merge.d' "$br3" || fail "post-merge: batch-run.md lacks post-merge.d without docs-notion"
 grep -qi 'notion' "$br3" && fail "post-merge: batch-run.md mentions notion without docs-notion" || true
 
+# 4d. enabling docs-notion in an existing foreman project (red until the install-into-existing-target task lands)
+mkdir "$T/dnr" && git -C "$T/dnr" init -q
+inst "$T/dnr" --project p >/dev/null 2>&1 || fail "enable docs-notion: default install failed"
+cp "$T/dnr/.foreman.json" "$T/dnr-before.json"
+inst "$T/dnr" --project p --modules docs-notion >/dev/null 2>&1 || fail "enable docs-notion: re-run with --modules docs-notion exited nonzero"
+python3 - "$T/dnr-before.json" "$T/dnr/.foreman.json" "$T/dn1/.foreman.json" <<'PY' || fail "enable docs-notion: .foreman.json wrong or other keys changed"
+import json, sys
+old = json.load(open(sys.argv[1])); new = json.load(open(sys.argv[2])); fresh = json.load(open(sys.argv[3]))
+assert "docs-notion" in new.get("modules", []), new.get("modules")
+dn = new.get("docsNotion")
+assert isinstance(dn, dict), "no docsNotion object"
+assert dn == fresh["docsNotion"], (dn, fresh["docsNotion"])
+for k in old:
+    if k in ("modules", "docsNotion"): continue
+    assert new.get(k) == old[k], f"key changed: {k}"
+PY
+[ -f "$T/dnr/scripts/docs-notion.mjs" ] || fail "enable docs-notion: scripts/docs-notion.mjs missing"
+[ -f "$T/dnr/scripts/post-merge.d/docs-notion.sh" ] || fail "enable docs-notion: scripts/post-merge.d/docs-notion.sh missing"
+
+# re-run keeps an existing rootPageId and lists the module once
+python3 - "$T/dnr/.foreman.json" <<'PY' || fail "enable docs-notion: could not set rootPageId"
+import json, sys
+p = sys.argv[1]; d = json.load(open(p)); d["docsNotion"]["rootPageId"] = "abc123"
+open(p, "w").write(json.dumps(d, indent=2) + "\n")
+PY
+inst "$T/dnr" --project p --modules docs-notion >/dev/null 2>&1 || fail "enable docs-notion: second re-run exited nonzero"
+python3 - "$T/dnr/.foreman.json" <<'PY' || fail "enable docs-notion: rootPageId lost or module listed twice"
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["docsNotion"]["rootPageId"] == "abc123", d["docsNotion"]
+assert d["modules"].count("docs-notion") == 1, d["modules"]
+PY
+(cd "$T/dnr" && bash scripts/check-config.sh >/dev/null) || fail "enable docs-notion: check-config failed in the enabled target"
+
+# static: the batch skill holds the full post-merge step, the run reference only points to it
+TPL_BATCH="$HERE/template/.claude/skills/foreman-batch/SKILL.md"
+grep -q 'post-merge.d' "$TPL_BATCH" || fail "enable docs-notion: template foreman-batch lacks post-merge.d"
+grep -q 'target checked out' "$TPL_BATCH" || fail "enable docs-notion: template foreman-batch lacks 'target checked out'"
+grep -qi 'notion' "$TPL_BATCH" && fail "enable docs-notion: template foreman-batch mentions notion" || true
+cmp -s "$TPL_BATCH" "$HERE/.claude/skills/foreman-batch/SKILL.md" || fail "enable docs-notion: repo foreman-batch SKILL.md differs from the template"
+TPL_RUN="$HERE/template/.claude/skills/foreman-dispatch-run/references/batch-run.md"
+grep -q 'post-merge.d' "$TPL_RUN" || fail "enable docs-notion: batch-run.md lacks post-merge.d"
+grep -q 'never blocks' "$TPL_RUN" || fail "enable docs-notion: batch-run.md lacks 'never blocks'"
+n=$(grep -c 'every executable' "$TPL_RUN" || true)
+[ "$n" = 0 ] || fail "enable docs-notion: batch-run.md still describes every hook ('every executable' x$n); the full step lives in foreman-batch"
+
 # 5. agents: opencode and other get AGENTS.md and the git guard
 for ag in opencode other; do
   mkdir "$T/$ag" && git -C "$T/$ag" init -q

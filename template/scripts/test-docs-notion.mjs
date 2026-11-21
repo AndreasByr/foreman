@@ -66,14 +66,23 @@ async function startFake({ pageSize = 3, token = TOKEN } = {}) {
     if (Array.isArray(c.children)) c.children = c.children.map(stamp);
     return c;
   };
+  // Real API: a block with children is listed WITHOUT them, with has_children: true.
+  const shallow = (b) => {
+    const c = structuredClone(b);
+    const kids = kidsOf(c);
+    if (c[c.type]) delete c[c.type].children;
+    delete c.children;
+    c.has_children = !!kids?.length;
+    return c;
+  };
   const listing = (page) =>
     page.items.flatMap((it) => {
       if (it.child_page) {
         const p = pages.get(it.child_page);
         if (p.archived) return [];
-        return [{ object: "block", id: p.id, type: "child_page", child_page: { title: p.title } }];
+        return [{ object: "block", id: p.id, type: "child_page", has_children: true, child_page: { title: p.title } }];
       }
-      return [it];
+      return [shallow(it)];
     });
   const findIn = (arr, id) => {
     for (const b of arr ?? []) {
@@ -83,17 +92,29 @@ async function startFake({ pageSize = 3, token = TOKEN } = {}) {
     }
     return null;
   };
-  const findBlock = (id) => {
-    for (const p of pages.values()) {
-      const r = findIn(p.items.filter((it) => !it.child_page), id);
-      if (r) return r;
+  // Any id: a page or a block (also nested). archived is true when the page (or the block's page) is archived.
+  const target = (id) => {
+    const p = pages.get(id);
+    if (p) return { page: p, archived: p.archived };
+    for (const q of pages.values()) {
+      const r = findIn(q.items.filter((it) => !it.child_page), id);
+      if (r) return { blk: r, owner: q, archived: q.archived };
     }
     return null;
   };
-  const live = (id) => {
-    const p = pages.get(id);
-    return p && !p.archived ? p : null;
+  const archivePage = (page) => {
+    page.archived = true;
+    for (const it of page.items) if (it.child_page) archivePage(pages.get(it.child_page));
   };
+  const removeIn = (arr, id) => {
+    const i = arr.findIndex((b) => b.id === id);
+    if (i >= 0) {
+      arr.splice(i, 1);
+      return true;
+    }
+    return arr.some((b) => kidsOf(b) && removeIn(kidsOf(b), id));
+  };
+  const ARCHIVED = "Can't edit block that is archived";
 
   const server = http.createServer(async (req, res) => {
     const chunks = [];
@@ -131,8 +152,9 @@ async function startFake({ pageSize = 3, token = TOKEN } = {}) {
 
     let m;
     if (req.method === "POST" && url.pathname === "/v1/pages") {
-      const parent = live(body?.parent?.page_id);
+      const parent = pages.get(body?.parent?.page_id);
       if (!parent) return reject(404, "object_not_found", "parent page not found");
+      if (parent.archived) return reject(400, "validation_error", ARCHIVED);
       const tp = body.properties?.title;
       const arr = Array.isArray(tp) ? tp : tp?.title;
       if (!Array.isArray(arr)) return reject(400, "validation_error", "properties.title missing");
@@ -145,50 +167,46 @@ async function startFake({ pageSize = 3, token = TOKEN } = {}) {
       return send(200, { object: "page", id: page.id, archived: false, parent: { type: "page_id", page_id: parent.id }, properties: { title: { type: "title", title: arr } } });
     }
     if (req.method === "GET" && (m = url.pathname.match(/^\/v1\/blocks\/([^/]+)\/children$/))) {
-      const page = live(m[1]);
-      if (!page) return reject(404, "object_not_found", "block not found");
+      const tg = target(m[1]);
+      if (!tg) return reject(404, "object_not_found", "block not found");
+      if (tg.archived) return reject(400, "validation_error", ARCHIVED);
       const size = Math.min(parseInt(rec.query.page_size, 10) || 100, pageSize);
       const start = parseInt(rec.query.start_cursor, 10) || 0;
-      const all = listing(page);
+      const all = tg.page ? listing(tg.page) : (kidsOf(tg.blk) ?? []).map(shallow);
       const more = start + size < all.length;
       return send(200, { object: "list", results: all.slice(start, start + size), has_more: more, next_cursor: more ? String(start + size) : null });
     }
     if (req.method === "PATCH" && (m = url.pathname.match(/^\/v1\/blocks\/([^/]+)\/children$/))) {
-      const page = live(m[1]);
-      const blk = page ? null : findBlock(m[1]);
-      if (!page && !blk) return reject(404, "object_not_found", "block not found");
+      const tg = target(m[1]);
+      if (!tg) return reject(404, "object_not_found", "block not found");
+      if (tg.archived) return reject(400, "validation_error", ARCHIVED);
       if (!Array.isArray(body?.children)) return reject(400, "validation_error", "children must be an array");
       if (body.children.length > 100) return reject(400, "validation_error", `children has ${body.children.length} items (max 100)`);
       const v = bodyViolations(body);
       if (v.length) return reject(400, "validation_error", v.join("; "));
       const added = body.children.map(stamp);
-      if (page) page.items.push(...added);
+      if (tg.page) tg.page.items.push(...added);
       else {
+        const blk = tg.blk;
         if (!kidsOf(blk)) (blk[blk.type] ??= {}).children = [];
         kidsOf(blk).push(...added); // table blocks: append rows
       }
-      return send(200, { object: "list", results: added, has_more: false, next_cursor: null });
+      return send(200, { object: "list", results: added.map(shallow), has_more: false, next_cursor: null });
     }
     if (req.method === "DELETE" && (m = url.pathname.match(/^\/v1\/blocks\/([^/]+)$/))) {
       const id = m[1];
-      const asPage = live(id);
-      if (asPage && asPage.id !== ROOT_ID) {
-        asPage.archived = true; // deleting a child_page block archives the page
-        return send(200, { object: "block", id, archived: true });
-      }
-      for (const p of pages.values()) {
-        const i = p.items.findIndex((it) => it.id === id);
-        if (i >= 0) {
-          p.items.splice(i, 1);
-          return send(200, { object: "block", id, archived: true });
-        }
-      }
-      return reject(404, "object_not_found", "block not found");
+      const tg = target(id);
+      if (!tg || id === ROOT_ID) return reject(404, "object_not_found", "block not found");
+      if (tg.archived) return reject(400, "validation_error", ARCHIVED);
+      if (tg.page) archivePage(tg.page); // deleting a child_page block archives the page and its sub-pages
+      else removeIn(tg.owner.items, id);
+      return send(200, { object: "block", id, archived: true });
     }
     if (req.method === "PATCH" && (m = url.pathname.match(/^\/v1\/pages\/([^/]+)$/))) {
       const page = pages.get(m[1]);
       if (!page || page.id === ROOT_ID) return reject(404, "object_not_found", "page not found");
-      if (typeof body?.archived === "boolean") page.archived = body.archived;
+      if (page.archived || pages.get(page.parent)?.archived) return reject(400, "validation_error", ARCHIVED);
+      if (body?.archived === true) archivePage(page);
       return send(200, { object: "page", id: page.id, archived: page.archived });
     }
     return reject(404, "invalid_request_url", `no route for ${req.method} ${url.pathname}`);
@@ -214,6 +232,14 @@ async function startFake({ pageSize = 3, token = TOKEN } = {}) {
     },
     failNext(status, headers = {}) {
       armed = { n: 1, status, headers };
+    },
+    // A page created directly in the fake (not by the CLI); no marker.
+    addPage(title, parentId = ROOT_ID, blocks = []) {
+      const parent = pages.get(parentId);
+      const page = { id: newId("page"), title, parent: parentId, archived: false, items: blocks.map(stamp) };
+      pages.set(page.id, page);
+      parent.items.push({ child_page: page.id });
+      return page.id;
     },
     mark: () => requests.length,
     since: (mark) => requests.slice(mark),
@@ -895,6 +921,144 @@ t("23 include outside the root is named on stderr, exit 0, no page", async () =>
   } finally {
     rmSync(outsideFile, { force: true });
     try { rmdirSync(outsideDir); } catch {}
+  }
+});
+
+t("24 nested 1000-element limit: 20 bullets with 60 sub-items each", async () => {
+  const lines = ["# Nested", ""];
+  for (let i = 0; i < 20; i++) {
+    lines.push(`- item ${i}`);
+    for (let j = 0; j < 60; j++) lines.push(`  - sub ${i}-${j}`);
+  }
+  const md = lines.join("\n") + "\n";
+  await scenario(
+    async ({ fake, run }) => {
+      const r = await run();
+      expectSummary(r, 1, 0, 0, 0);
+      assert.deepEqual(fake.rejected, []);
+      assert.ok(!fake.requests.some((q) => q.status === 400), "fake answered 400");
+      const items = fake.blocksOf(fake.pageByTitle("docs/nested.md")).filter((b) => b.type === "bulleted_list_item");
+      assert.deepEqual(items.map(blockText), Array.from({ length: 20 }, (_, i) => `item ${i}`));
+      items.forEach((it, i) => {
+        const kids = kidsOf(it) ?? [];
+        assert.deepEqual(kids.map(blockText), Array.from({ length: 60 }, (_, j) => `sub ${i}-${j}`), `children of item ${i}`);
+      });
+      expectSummary(await run(), 0, 0, 0, 1);
+      assert.deepEqual(fake.rejected, []);
+    },
+    { files: { "docs/nested.md": md } },
+    { pageSize: 100 },
+  );
+});
+
+t("25 foreign pages are not archived and are named on stderr", async () => {
+  await scenario(async ({ fake, run }) => {
+    const foreign = fake.addPage("Meeting notes", ROOT_ID, [para("Invented minutes.")]);
+    const r = await run();
+    expectSummary(r, 1, 0, 0, 0);
+    assert.ok(!fake.isArchived(foreign), "foreign page was archived");
+    assert.ok(fake.tree().includes("Meeting notes < root"), "foreign page gone");
+    assert.ok(
+      r.stderr.split("\n").some((l) => l.includes("Meeting notes") && l.includes("not mirrored, left alone")),
+      `foreign page not named\n${info(r)}`,
+    );
+    assert.deepEqual(fake.rejected, []);
+  }, ONE_FILE);
+});
+
+t("26 deleting an overview archives overview and parts without an error", async () => {
+  await scenario(async ({ fake, dir, run }) => {
+    expectSummary(await run(), 5, 0, 0, 0);
+    rmSync(join(dir, "docs/requirements.md"));
+    rmSync(join(dir, "docs/requirements"), { recursive: true });
+    const r = await run();
+    expectSummary(r, 0, 0, 3, 2);
+    assert.deepEqual(fake.rejected, []);
+    assert.ok(!fake.requests.some((q) => q.status === 400), "fake answered 400");
+    assert.deepEqual(fake.tree(), ["docs/learnings.md < root", "docs/sample.md < root"]);
+    const again = await run();
+    expectSummary(again, 0, 0, 0, 2);
+    assert.deepEqual(fake.rejected, []);
+  });
+});
+
+t("27 total wait budget: NOTION_MAX_TOTAL_WAIT_S ends a run of permanent 429", async () => {
+  await scenario(async ({ fake, run }) => {
+    fake.failFrom(2, 429, { "Retry-After": "1" }); // request 1 is the read of the root page
+    const t0 = Date.now();
+    const r = await run([], { env: { NOTION_MAX_TOTAL_WAIT_S: "2", NOTION_MAX_RETRY_WAIT_S: "1" } });
+    const took = Date.now() - t0;
+    assert.equal(r.status, 1, info(r));
+    assert.ok(took < 10000, `run took ${took} ms, expected < 10000\n${info(r)}`);
+    const budgetLines = r.stderr.split("\n").filter((l) => /^docs-notion: docs\/.+\.md:/.test(l) && l.includes("wait budget"));
+    assert.ok(budgetLines.length >= 3, `expected >= 3 files failing on the wait budget, got ${budgetLines.length}\n${info(r)}`);
+  });
+});
+
+t("28 formatting edits in Notion are reset (annotation, link url, table header flag)", async () => {
+  const md = ["# Learnings", "", "Tide data arrives hourly, see [the chart](https://example.com/chart) for details.", ""].join("\n");
+  await scenario(async ({ fake, run }) => {
+    expectSummary(await run(), 1, 0, 0, 0);
+    const id = fake.pageByTitle("docs/learnings.md");
+    const before = norm(fake.blocksOf(id));
+    const paraBlock = () => fake.blocksOf(id).find((b) => b.type === "paragraph" && blockText(b).startsWith("Tide data"));
+
+    const plain = paraBlock().paragraph.rich_text.find((x) => x.text.content.startsWith("Tide data"));
+    plain.annotations = { ...(plain.annotations ?? {}), bold: true };
+    assert.notDeepEqual(norm(fake.blocksOf(id)), before);
+    expectSummary(await run(), 0, 1, 0, 0);
+    assert.deepEqual(norm(fake.blocksOf(id)), before);
+
+    const link = paraBlock().paragraph.rich_text.find((x) => x.text.link);
+    assert.ok(link, "no link segment");
+    link.text.link.url = "https://example.com/other";
+    assert.notDeepEqual(norm(fake.blocksOf(id)), before);
+    expectSummary(await run(), 0, 1, 0, 0);
+    assert.deepEqual(norm(fake.blocksOf(id)), before);
+    assert.deepEqual(fake.rejected, []);
+  }, { files: { "docs/learnings.md": md } });
+
+  const tmd = ["# T", "", "| Name | Value |", "| --- | --- |", "| a | 1 |", ""].join("\n");
+  await scenario(async ({ fake, run }) => {
+    expectSummary(await run(), 1, 0, 0, 0);
+    const id = fake.pageByTitle("docs/table.md");
+    const before = norm(fake.blocksOf(id));
+    const table = fake.blocksOf(id).find((b) => b.type === "table");
+    assert.ok(table, "no table block");
+    table.table.has_column_header = !table.table.has_column_header;
+    assert.notDeepEqual(norm(fake.blocksOf(id)), before);
+    expectSummary(await run(), 0, 1, 0, 0);
+    assert.deepEqual(norm(fake.blocksOf(id)), before);
+    assert.deepEqual(fake.rejected, []);
+  }, { files: { "docs/table.md": tmd } });
+});
+
+t("29 path with spaces: second run is unchanged", async () => {
+  await scenario(async ({ fake, run }) => {
+    expectSummary(await run(), 1, 0, 0, 0);
+    assert.deepEqual(fake.tree(), ["docs/my notes.md < root"]);
+    expectSummary(await run(), 0, 0, 0, 1);
+    assert.deepEqual(fake.rejected, []);
+  }, { files: { "docs/my notes.md": "# My notes\n\nInvented text.\n" } });
+});
+
+t("30 directory symlink out of the repo is skipped and named on stderr", async () => {
+  const target = mkdtempSync(join(tmpdir(), "docs-notion-extdir-"));
+  writeFileSync(join(target, "outside.md"), "# Outside\n\nMust never be mirrored.\n");
+  try {
+    await scenario(
+      async ({ fake, dir, run }) => {
+        symlinkSync(target, join(dir, "docs/ext"), "dir");
+        const r = await run();
+        expectSummary(r, 1, 0, 0, 0);
+        assert.deepEqual(fake.tree(), ["docs/ok.md < root"]);
+        assert.match(r.stderr, /docs\/ext/, `skipped directory symlink not named\n${info(r)}`);
+        assert.ok(!JSON.stringify(fake.requests.map((q) => q.body)).includes("Must never be mirrored"), "outside content was sent");
+      },
+      { files: { "docs/ok.md": "# Ok\n\nInside.\n" } },
+    );
+  } finally {
+    rmSync(target, { recursive: true, force: true });
   }
 });
 
