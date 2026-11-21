@@ -33,6 +33,8 @@ Failures that existed before this milestone, each with the run on the start comm
 ## Open question (when `needs-input`)
 
 One question, options, recommendation.
+**Cause:** <category> · <one sentence>
+Categories: missing-requirement, open-decision, missing-infra, merge-conflict, ui-deviation, limit-exceeded, security, other. One section per intervention; keep the section after it is answered.
 
 ## Log
 

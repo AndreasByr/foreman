@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 python3 template/scripts/test-guard.py
 bash template/scripts/test-pre-push.sh
 node template/scripts/test-state-mirror.mjs
+node template/scripts/test-measure.mjs
 node template/scripts/test-autopilot-check.mjs
 node template/scripts/test-pretest.mjs
 (cd template/tools/delegate && python3 test_run_task.py)
