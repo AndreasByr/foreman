@@ -657,6 +657,53 @@ t("docs: MODULES.md and learnings.md mention measure.mjs", () => {
   }
 });
 
+t("collect: only an event field that starts with needs-input starts a wait", () => {
+  const root = tmp();
+  put(root, "docs/fixpacks/FP7/STATE.md", stateText("FP7", [
+    "- 2026-11-10T08:00Z · plan",
+    "- 2026-11-10T08:30Z · Rework · needs-input aufgehoben",
+    "- 2026-11-10T08:45Z · review mentions needs-input in the middle",
+    "- 2026-11-10T09:00Z · S2 done · no needs-input needed",
+    "- 2026-11-10T10:00Z · needs-input · Which source?",
+    "- 2026-11-10T10:30Z · answered",
+  ]));
+  const u = collect({ root, ...PERIOD }).units[0];
+  assert.equal(u.waitedMinutes, 30);
+  assert.equal(u.minutes, 120);
+});
+
+t("collect: needs-input as event field counts case-insensitively", () => {
+  const root = tmp();
+  put(root, "docs/fixpacks/FP8/STATE.md", stateText("FP8", [
+    "- 2026-11-10T08:00Z · plan",
+    "- 2026-11-10T09:00Z · Needs-Input",
+    "- 2026-11-10T10:00Z · answered",
+  ]));
+  const u = collect({ root, ...PERIOD }).units[0];
+  assert.equal(u.waitedMinutes, 60);
+  assert.equal(u.minutes, 60);
+});
+
+t("collect: result file names outside the plain pattern are shown as 'a result file' in gaps", () => {
+  const root = tmp();
+  const mtime = new Date("2026-11-15T12:00:00Z");
+  utimesSync(put(root, "tools/delegate/tasks/my SECRET run.result.md", "# Result\n\nno attempts\n"), mtime, mtime);
+  utimesSync(put(root, "tools/delegate/tasks/odd SECRET.result.md", result("execution (claude/claude-sonnet-5-5) - ok, 90s") + "\n## Attempt 9: execution (free text SECRET) - ok\n"), mtime, mtime);
+  const r = collect({ root, ...PERIOD });
+  assert.deepEqual(r.gaps, ["a result file: no attempt found", "a result file: attempt heading with unexpected form ignored"]);
+  assert.ok(!JSON.stringify(r).includes("SECRET"));
+});
+
+t("cli: docs/metrics.md never shows a result file name with spaces", () => {
+  const root = tmp();
+  const mtime = new Date("2026-11-15T12:00:00Z");
+  utimesSync(put(root, "tools/delegate/tasks/my SECRET run.result.md", "# Result\n\nno attempts\n"), mtime, mtime);
+  assert.equal(cli(["--root", root, ...PERIOD_ARGS]).status, 0);
+  const md = metricsOf(root);
+  assert.ok(md.includes("- a result file: no attempt found\n"));
+  assert.ok(!md.includes("SECRET"));
+});
+
 let failed = 0;
 for (const [name, fn] of queue) {
   try { await fn(); n++; console.log(`ok ${name}`); } catch (e) { failed++; console.log(`FAIL ${name}\n  ${e.message}`); }

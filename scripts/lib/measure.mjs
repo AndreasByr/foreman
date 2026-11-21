@@ -12,6 +12,8 @@ const ATTEMPT = /^## Attempt \d+: (\S+) \((.+?)\) - (ok|failed)/;
 // A worker answer inside a result file could contain a fake heading, so only these forms count.
 const ROLE_FORM = /^[a-z_]+$/;
 const MODEL_FORM = /^[A-Za-z0-9._:-]+\/[A-Za-z0-9._:/-]+$/;
+// Result file names are shown in gaps only when they are plain; otherwise a generic text is used.
+const PLAIN_NAME = /^[A-Za-z0-9._-]{1,80}$/;
 
 /** Folder for output: relative to root when inside it, otherwise only its base name. Never an absolute path. */
 function shownDir(root, dir) {
@@ -68,7 +70,8 @@ function durations(entries) {
   let waited = 0;
   let open = false;
   entries.forEach((e, i) => {
-    if (!e.text.includes("needs-input")) return;
+    // The event field is the text up to the next " · "; only a field that starts with needs-input is a wait.
+    if (!e.text.split(" · ")[0].trim().toLowerCase().startsWith("needs-input")) return;
     if (i === entries.length - 1) open = true;
     else waited += Math.max(0, entries[i + 1].t - e.t);
   });
@@ -172,8 +175,9 @@ export function collect(opts = {}) {
         const role = (models[m[1]] ??= {});
         role[model] = (role[model] ?? 0) + 1;
       }
-      if (ignored) gaps.push(`${name}: attempt heading with unexpected form ignored`);
-      if (!count) gaps.push(`${name}: no attempt found`);
+      const shown = PLAIN_NAME.test(name) ? name : "a result file";
+      if (ignored) gaps.push(`${shown}: attempt heading with unexpected form ignored`);
+      if (!count) gaps.push(`${shown}: no attempt found`);
     }
   }
 
