@@ -608,7 +608,7 @@ Go/no-go: keine doppelte Meldung bei zwei Läufen hintereinander.
 **Goal:** Eine Regeldatei legt fest, welche Dokumente wo liegen und wann große Dokumente in Übersicht und Teildateien geteilt werden.
 **Coding:** ~2 Tage (Agent)
 **Testing:** ~2 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT von Andreas abgenommen, 2026-11-21; PR #8 in dev)
 
 ---
 
@@ -645,17 +645,17 @@ Ein Agent weiß ohne Rückfrage, wo ein Dokument hingehört und wann er es teilt
 
 #### Acceptance criteria
 
-- [ ] **Regeldatei** [agent]: vorhanden, keine Doppelung.
-- [ ] **Aufteilen** [human]: Regel passt auf die Kasev-Requirements (Übersicht + zehn Teile).
-- [ ] **Stand-Zeile** [agent]: Test grün.
+- [x] **Regeldatei** [agent]: vorhanden, keine Doppelung.
+- [x] **Aufteilen** [human]: Regel passt auf die Kasev-Requirements (Übersicht + zehn Teile).
+- [x] **Stand-Zeile** [agent]: Test grün.
 
 Go/no-go: Regeldatei vorhanden und von Roast und Roadmap referenziert.
 
 #### Test flow checklist
 
 **Flow A: Regel gegen Kasev**
-- [ ] Schritt 1: Regel neben `docs/requirements.md` von Kasev legen.
-- [ ] Schritt 2: Erwartet: Kasevs Aufbau erfüllt die Regel, nur die Stand-Zeile verstößt.
+- [x] Schritt 1: Regel neben `docs/requirements.md` von Kasev legen.
+- [x] Schritt 2: Erwartet: Kasevs Aufbau erfüllt die Regel, nur die Stand-Zeile verstößt.
 
 #### Feedback-loop protocol
 
