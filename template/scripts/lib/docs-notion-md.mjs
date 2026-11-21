@@ -1,5 +1,6 @@
 // Markdown to Notion blocks for docs-notion. No dependencies. Nothing is dropped: unknown syntax stays paragraph text.
 const MAX_TEXT = 2000;
+const MAX_RICH = 100;
 
 const LANGS = new Set([
   ...("abap arduino bash basic c clojure coffeescript c++ c# css dart diff docker elixir elm erlang flow fortran f# gherkin glsl go " +
@@ -152,6 +153,27 @@ function limit(blocks, d = 0) {
   return out;
 }
 
+// A table cell cannot be split: keep the first 99 pieces, the rest becomes plain text (no text is lost).
+function squash(rich) {
+  if (rich.length <= MAX_RICH) return rich;
+  const tail = rich.slice(MAX_RICH - 1).map((r) => r.text.content).join("");
+  return [...rich.slice(0, MAX_RICH - 1), ...splitText(tail).map((c) => seg(c))];
+}
+
+// Notion takes at most 100 rich_text elements per block: continue the text in the next block of the same type.
+function fitRich(blocks) {
+  return blocks.flatMap((b) => {
+    const inner = b[b.type];
+    if (Array.isArray(inner?.children)) inner.children = fitRich(inner.children);
+    const rt = inner?.rich_text;
+    if (!Array.isArray(rt) || rt.length <= MAX_RICH) return [b];
+    const parts = [];
+    for (let i = 0; i < rt.length; i += MAX_RICH) parts.push({ ...b, [b.type]: { ...inner, rich_text: rt.slice(i, i + MAX_RICH) } });
+    parts.slice(0, -1).forEach((p) => delete p[p.type].children); // children go below the last part
+    return parts;
+  });
+}
+
 export function markdownToBlocks(src) {
   const lines = String(src).replace(/^﻿/, "").replace(/\r\n?/g, "\n").split("\n");
   const out = [];
@@ -185,12 +207,13 @@ export function markdownToBlocks(src) {
       const head = splitRow(line);
       const rows = [head];
       for (i += 2; i < lines.length && lines[i].trim() && lines[i].includes("|"); i++) rows.push(splitRow(lines[i]));
-      const cell = (r, k) => toRich(r[k] ?? "");
+      const cols = Math.max(...rows.map((r) => r.length));
+      const cell = (r, k) => squash(toRich(r[k] ?? ""));
       out.push({
         object: "block", type: "table",
         table: {
-          table_width: head.length, has_column_header: true, has_row_header: false,
-          children: rows.map((r) => ({ object: "block", type: "table_row", table_row: { cells: head.map((_, k) => cell(r, k)) } })),
+          table_width: cols, has_column_header: true, has_row_header: false,
+          children: rows.map((r) => ({ object: "block", type: "table_row", table_row: { cells: Array.from({ length: cols }, (_, k) => cell(r, k)) } })),
         },
       });
     } else if (/^\s{0,3}>/.test(line)) {
@@ -216,5 +239,5 @@ export function markdownToBlocks(src) {
       out.push(block("paragraph", p.join("\n").trim()));
     }
   }
-  return limit(out.map((b) => (b.kids ? buildItem(b) : b)));
+  return fitRich(limit(out.map((b) => (b.kids ? buildItem(b) : b))));
 }

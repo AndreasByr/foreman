@@ -6,6 +6,8 @@ import { markdownToBlocks } from "./docs-notion-md.mjs";
 
 const MIN_GAP_MS = 334; // at most 3 requests per second
 const MAX_RETRIES = 5;
+const MAX_BLOCKS = 100; // top-level blocks per request, children per array
+const MAX_ELEMENTS = 1000; // block elements per request, nested children included
 const MARKER_RE = /^Mirrored from \S+\. Edits here are overwritten\. sha256:([0-9a-f]{16})$/;
 
 export class CliError extends Error {
@@ -17,7 +19,7 @@ export class CliError extends Error {
 
 export class HttpError extends Error {
   constructor(status) {
-    super(`HTTP ${status}`);
+    super(typeof status === "number" ? `HTTP ${status}` : status);
     this.status = status;
   }
 }
@@ -58,12 +60,13 @@ export function globToRegExp(glob) {
 
 // Returns { files: sorted repo paths, skipped: ["<path> (reason)"] }. Symlinks and paths outside the root are skipped.
 export function collectFiles(root, cfg) {
-  const inc = cfg.include.map(globToRegExp);
+  const outside = (g) => /^(\.\.(\/|$)|\/|[a-zA-Z]:[\\/])/.test(g.replace(/^\.\//, ""));
+  const skipped = cfg.include.filter(outside).map((g) => `include ${g} (outside root)`);
+  const inc = cfg.include.filter((g) => !outside(g)).map(globToRegExp);
   const exc = cfg.exclude.map(globToRegExp);
   const wanted = (p) => /\.md$/i.test(p) && inc.some((r) => r.test(p)) && !exc.some((r) => r.test(p));
   const rootReal = realpathSync(root);
   const files = [];
-  const skipped = [];
   const walk = (rel) => {
     for (const name of readdirSync(join(root, rel)).sort()) {
       if (name === ".git" || name === "node_modules") continue;
@@ -128,7 +131,8 @@ export function createClient({ token, base }) {
       if (res.status === 429 && attempt < MAX_RETRIES) {
         await res.text().catch(() => "");
         const ra = parseFloat(res.headers.get("retry-after"));
-        await sleep((ra >= 0 ? ra : 1) * 1000);
+        const cap = parseFloat(process.env.NOTION_MAX_RETRY_WAIT_S);
+        await sleep(Math.min(ra >= 0 ? ra : 1, cap >= 0 ? cap : 60) * 1000);
         continue;
       }
       if (!res.ok) {
@@ -157,6 +161,15 @@ async function listChildren(client, id) {
   return out;
 }
 
+// Attach nested children that Notion lists separately (has_children) so a page's content can be compared as a whole.
+async function hydrate(client, blocks) {
+  for (const b of blocks) {
+    const inner = (b[b.type] ??= {});
+    if (!Array.isArray(inner.children) && b.has_children) inner.children = await listChildren(client, b.id);
+    if (Array.isArray(inner.children)) await hydrate(client, inner.children);
+  }
+}
+
 // Existing child pages below the root, recursively. byTitle: first page per title wins; all: every page (duplicates included).
 export async function readExisting(client, rootId) {
   const all = [];
@@ -164,7 +177,10 @@ export async function readExisting(client, rootId) {
   // A page's child list holds its blocks and its child pages; keep the blocks for the hash check and rewrite.
   const walkPage = async (id, page) => {
     const kids = await listChildren(client, id);
-    if (page) page.blocks = kids.filter((k) => k.type !== "child_page");
+    if (page) {
+      page.blocks = kids.filter((k) => k.type !== "child_page");
+      await hydrate(client, page.blocks);
+    }
     for (const k of kids.filter((x) => x.type === "child_page")) {
       const child = { id: k.id, title: k.child_page?.title ?? "", blocks: [] };
       all.push(child);
@@ -178,9 +194,28 @@ export async function readExisting(client, rootId) {
 
 const textOf = (b) => (b?.paragraph?.rich_text ?? []).map((r) => r.text?.content ?? r.plain_text ?? "").join("");
 const markerHash = (page) => (page.blocks[0]?.type === "paragraph" ? textOf(page.blocks[0]).match(MARKER_RE)?.[1] : undefined);
+const richText = (rt = []) => rt.map((r) => r.text?.content ?? r.plain_text ?? "").join("");
+
+// Comparable shape of a block: type, text, code language, checked, table cells, nesting. Works for fresh and Notion blocks.
+export function fingerprint(b) {
+  const inner = b[b.type] ?? {};
+  const f = { t: b.type, x: richText(inner.rich_text), k: (Array.isArray(inner.children) ? inner.children : []).map(fingerprint) };
+  if (b.type === "code") f.l = inner.language;
+  if (b.type === "to_do") f.c = !!inner.checked;
+  if (b.type === "table_row") f.cells = (inner.cells ?? []).map(richText);
+  return JSON.stringify(f);
+}
+
+const sameContent = (blocks, fresh) => blocks.length === fresh.length && blocks.every((b, i) => fingerprint(b) === fingerprint(fresh[i]));
 const sha16 = (buf) => createHash("sha256").update(buf).digest("hex").slice(0, 16);
 
 // ---------------------------------------------------------------- plan
+
+const pageBlocks = (item) => {
+  const marker = `Mirrored from ${item.path}. Edits here are overwritten. sha256:${item.hash}`;
+  const first = { object: "block", type: "paragraph", paragraph: { rich_text: [{ type: "text", text: { content: marker } }] } };
+  return [first, ...markdownToBlocks(item.buf.toString("utf8"))];
+};
 
 // action: sync (offline dry-run) | new | update | unchanged. archives: existing pages without a file.
 export function buildPlan(root, entries, existing) {
@@ -190,8 +225,10 @@ export function buildPlan(root, entries, existing) {
     const hash = sha16(buf);
     const ex = existing?.byTitle.get(e.path);
     if (ex) used.add(ex.id);
-    const action = !existing ? "sync" : !ex ? "new" : markerHash(ex) === hash ? "unchanged" : "update";
-    return { ...e, buf, hash, existing: ex, action };
+    const item = { ...e, buf, hash, existing: ex };
+    if (ex && markerHash(ex) === hash) item.blocks = pageBlocks(item);
+    item.action = !existing ? "sync" : !ex ? "new" : item.blocks && sameContent(ex.blocks, item.blocks) ? "unchanged" : "update";
+    return item;
   });
   const archives = existing ? existing.all.filter((p) => !used.has(p.id)) : [];
   return { items, archives };
@@ -199,51 +236,57 @@ export function buildPlan(root, entries, existing) {
 
 // ---------------------------------------------------------------- writing
 
-const oversized = (b) => b.type === "table" && b.table.children.length > 100;
+const kidsOf = (b) => (Array.isArray(b[b.type]?.children) ? b[b.type].children : []);
+const count = (b) => 1 + kidsOf(b).reduce((n, k) => n + count(k), 0);
 
-// Chunks of up to 100 blocks; a table with more than 100 rows travels alone (`big`).
+// Chunks of at most 100 blocks and 1000 elements (nested included); a block that cannot fit in one request travels alone (`big`).
 function chunk(blocks) {
   const out = [];
   let cur = [];
+  let n = 0;
+  const flush = () => {
+    if (cur.length) out.push({ blocks: cur });
+    cur = [];
+    n = 0;
+  };
   for (const b of blocks) {
-    if (oversized(b)) {
-      if (cur.length) out.push({ blocks: cur });
-      cur = [];
+    const c = count(b);
+    if (c > MAX_ELEMENTS || kidsOf(b).length > MAX_BLOCKS) {
+      flush();
       out.push({ blocks: [b], big: true });
-    } else {
-      cur.push(b);
-      if (cur.length === 100) { out.push({ blocks: cur }); cur = []; }
+      continue;
     }
+    if (cur.length === MAX_BLOCKS || n + c > MAX_ELEMENTS) flush();
+    cur.push(b);
+    n += c;
   }
-  if (cur.length) out.push({ blocks: cur });
+  flush();
   return out;
+}
+
+// Appends a block with as many children as fit into one request; the rest goes below the new block.
+async function appendBig(client, id, block) {
+  const kids = kidsOf(block);
+  let k = 0;
+  let n = 1;
+  while (k < kids.length && k < MAX_BLOCKS && n + count(kids[k]) <= MAX_ELEMENTS) n += count(kids[k++]);
+  k = Math.max(k, 1);
+  const head = { ...block, [block.type]: { ...block[block.type], children: kids.slice(0, k) } };
+  const res = await client.call("PATCH", `/blocks/${id}/children`, { children: [head] });
+  if (k < kids.length) await appendChunks(client, res.results?.[0]?.id, chunk(kids.slice(k)));
+  return res;
 }
 
 // state.first receives the id of the first block that was written (the marker).
 async function appendChunks(client, id, chunks, state = {}) {
   for (const c of chunks) {
-    let res;
-    if (c.big) {
-      const rows = c.blocks[0].table.children;
-      const head = { ...c.blocks[0], table: { ...c.blocks[0].table, children: rows.slice(0, 100) } };
-      res = await client.call("PATCH", `/blocks/${id}/children`, { children: [head] });
-      const tableId = res.results?.[0]?.id;
-      for (let i = 100; i < rows.length; i += 100) await client.call("PATCH", `/blocks/${tableId}/children`, { children: rows.slice(i, i + 100) });
-    } else {
-      res = await client.call("PATCH", `/blocks/${id}/children`, { children: c.blocks });
-    }
+    const res = c.big ? await appendBig(client, id, c.blocks[0]) : await client.call("PATCH", `/blocks/${id}/children`, { children: c.blocks });
     state.first ??= res.results?.[0]?.id;
   }
 }
 
-const pageBlocks = (item) => {
-  const marker = `Mirrored from ${item.path}. Edits here are overwritten. sha256:${item.hash}`;
-  const first = { object: "block", type: "paragraph", paragraph: { rich_text: [{ type: "text", text: { content: marker } }] } };
-  return [first, ...markdownToBlocks(item.buf.toString("utf8"))];
-};
-
 async function createPage(client, parentId, item) {
-  const chunks = chunk(pageBlocks(item));
+  const chunks = chunk(item.blocks ?? pageBlocks(item));
   const head = chunks[0] && !chunks[0].big ? chunks.shift().blocks : [];
   const page = await client.call("POST", "/pages", {
     parent: { page_id: parentId },
@@ -263,7 +306,7 @@ async function updatePage(client, page, item) {
   for (const b of page.blocks) await client.call("DELETE", `/blocks/${b.id}`);
   const state = {};
   try {
-    await appendChunks(client, page.id, chunk(pageBlocks(item)), state);
+    await appendChunks(client, page.id, chunk(item.blocks ?? pageBlocks(item)), state);
   } catch (e) {
     if (state.first) await client.call("DELETE", `/blocks/${state.first}`).catch(() => {}); // drop the marker so the next run rewrites
     throw e;
