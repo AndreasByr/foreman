@@ -1,4 +1,4 @@
-Status: validation · since 2026-11-22T01:10Z · R2 fertig, Validierung Runde 3
+Status: validation · since 2026-11-22T01:10Z · R3 fertig, Validierung Runde 4
 Target: dev
 Batch-branch: batch/m010
 Lock: free
@@ -20,6 +20,7 @@ Start commit: cd07088 (Basis dev 9950ab9, nach Merge von main)
 | S4 | Milestone-Todo: Vorlagen, foreman-brief, Prüfung der Wiki-Zeile in state-mirror | done | M010 S4 | _TEMPLATE (beide), foreman-brief (SKILL, brief-template), foreman-milestone (2 Kopien), state.mjs, state-mirror.mjs (2 Kopien), test-state-mirror.mjs, test-wiki-todo.sh, test-all.sh, MODULES.md, CHANGELOG.md | Wiki-Problem lässt state-mirror in jedem Modus mit Exit 1 enden; Todo-Text in Vorlagen englisch |
 | R1 | Rework: Scan (Mehrzahl, Brief, Pfade, Dateinamen, mehr Secrets, Verbotsbegriffe über Zeilen), Titel statt Pfade, gleiche Wurzelseite, Slug-Prüfung, Dry-run Exit 4, `done` ohne Wiki-Zeile erlaubt, Kopfzeilen-Parser, Gate im Batch-Skill | done | M010 R1 | template/scripts/lib/docs-*.mjs, docs-notion.mjs, check-config.sh (2), state.mjs (2), state-mirror.mjs (2), foreman-batch/-milestone/-wiki Skills, Tests, MODULES.md, CHANGELOG.md | Marker-Zeile bleibt sichtbar (Titel statt Pfad); localhost/IPv4 bleiben gesperrt |
 | R2 | Rework 2: Titel global eindeutig (Zielgruppen-Seiten inbegriffen), Seiten nur in Zielgruppen-Ordnern, Scan mit Beugung und Markup-Bereinigung, Namen mit Secret nie ausgeben, Wurzel-ID normalisiert, Wiki-Gate nur mit `--unit` (sonst WARN), Update-Test, Doku | done | M010 R2 | template/scripts/lib/docs-wiki*.mjs, docs-notion.mjs, check-config.sh (2), state-mirror.mjs (2), foreman-batch/-milestone/-wiki Skills, Tests, MODULES.md, CHANGELOG.md | Abweichung von Kriterium 7: `state-mirror --check --local` scheitert nur mit `--unit <Mnnn>`; ohne `--unit` nur WARN, damit alte Milestones nichts blockieren |
+| R3 | Rework 3: Scan löst Markdown-Escapes und Links auf, Verbotsbegriffe nur als ganze Wörter, `offen`-Muster enger, `.MD`-Seiten, fremde Notion-Seiten werden nie überschrieben, Doku und Batch-Lauf-Hinweis | done | M010 R3 | template/scripts/lib/docs-wiki-scan.mjs, docs-wiki-publish.mjs, docs-notion.mjs (lib), batch-run.md, MODULES.md, CHANGELOG.md, test-docs-wiki.mjs | Abweichung: nur ganze Wörter plus s/n/en/es; Wiki-Hook gibt weiter Argumente durch |
 
 ## Check plan per slice
 
@@ -53,3 +54,4 @@ None recorded.
 - 2026-11-22T00:10Z · S4: Tests vorher rot (Vorlage ohne Todo, test-state-mirror Fehler), Worker execution_simple verify rot, Eskalation `execution` grün. Sitzung: Exit-Code nur bei Wiki-Problemen (nicht bei needs-input) eingeschränkt. `bash scripts/test-all.sh` Exit 0 · M010 S4
 - 2026-11-22T00:40Z · Validierung 1 (A/B/C auf bf2a783): alle needs-remediation, 1 hoch (Scan verpasst Mehrzahl), mehrere mittel (Titel/Marker, gleiche Wurzelseite, done-Milestones, Gate nicht verdrahtet, Dry-run, installierter Test). Rework R1 mit Tests zuerst (rot bestätigt), danach grün; `bash scripts/test-all.sh` Exit 0 auf dem R1-Commit · M010 R1
 - 2026-11-22T02:10Z · Validierung 2 (A/C needs-attention, B needs-remediation, 1 hoch: Titelkollision Zielgruppe/Seite). R2 Tests zuerst (rot bestätigt), Worker B Exit 1 (nur Skill-Texte offen, von der Sitzung ergänzt); `bash scripts/test-all.sh` Exit 0 · M010 R2
+- 2026-11-22T03:10Z · Validierung 3 (A/B/C needs-attention: 2 mittlere in B, 1 in C Doku). R3 Tests zuerst (6 rot bestätigt), danach `bash scripts/test-all.sh` Exit 0 · M010 R3

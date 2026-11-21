@@ -260,7 +260,8 @@ export function buildPlan(root, entries, existing) {
   const items = entries.map((e) => {
     const buf = readFileSync(join(root, e.path));
     const hash = sha16(buf);
-    let ex = existing?.byTitle.get(titleOf(e));
+    // A page found by title is reused only when it carries the mirror marker; a foreign page with that title stays untouched.
+    let ex = existing?.all.find((p) => p.title === titleOf(e) && isMirrored(p));
     if (ex) used.add(ex.id);
     const item = { ...e, buf, hash };
     byPath.set(e.path, item);

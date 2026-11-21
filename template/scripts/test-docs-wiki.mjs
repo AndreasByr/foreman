@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import http from "node:http";
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync, realpathSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync, realpathSync, copyFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -17,6 +17,7 @@ const LIB = join(HERE, "lib", "docs-wiki.mjs");
 const CLI = join(HERE, "docs-notion.mjs");
 const SKILL = join(HERE, "..", ".claude", "skills", "foreman-wiki", "SKILL.md");
 const MODULES = join(HERE, "..", "..", "docs", "MODULES.md");
+const INSTALL_SH = join(HERE, "..", "..", "install.sh"); // present only in a foreman checkout, not in an installed project
 const DEAD_BASE = "http://127.0.0.1:9";
 const FAKE_TOKEN = ["ntn", "TEST_FAKE_TOKEN_WIKI_12345"].join("_"); // built at runtime (privacy-scan)
 
@@ -392,11 +393,16 @@ function pubProject(extra = {}) {
 }
 
 // Minimal fake Notion for the wiki publish. Records every request (method, path).
-async function startWikiFake({ token = PUB_TOKEN } = {}) {
+// seed: [id, title, text] human-made child pages of the wiki root (no marker paragraph).
+async function startWikiFake({ token = PUB_TOKEN, seed = [] } = {}) {
   let seq = 0;
   const newId = (p) => `${p}-${++seq}`;
   const pages = new Map();
   pages.set(WIKI_ROOT, { id: WIKI_ROOT, title: "Wiki", parent: null, archived: false, items: [] });
+  for (const [id, title, text] of seed) {
+    pages.set(id, { id, title, parent: WIKI_ROOT, archived: false, items: [{ object: "block", id: newId("blk"), type: "paragraph", paragraph: { rich_text: [{ type: "text", text: { content: text } }] } }] });
+    pages.get(WIKI_ROOT).items.push({ child_page: id });
+  }
   const requests = [];
   const stamp = (b) => ({ ...structuredClone(b), object: "block", id: newId("blk") });
   const archive = (p) => {
@@ -486,6 +492,7 @@ async function startWikiFake({ token = PUB_TOKEN } = {}) {
     since: (mark) => requests.slice(mark),
     writes: (mark = 0) => requests.slice(mark).filter((q) => ["POST", "PATCH", "DELETE"].includes(q.method)),
     page: (title) => live().find((p) => p.title === title),
+    titled: (title) => live().filter((p) => p.title === title),
     archivedPage: (title) => [...pages.values()].find((p) => p.title === title && p.archived),
     childTitles: (id) => listing(pages.get(id)).filter((b) => b.type === "child_page").map((b) => b.child_page.title).sort(),
     // text of the blocks directly on a page (child pages excluded)
@@ -650,6 +657,62 @@ await check("lib scanText markup: bold, code span, zero-width space and 'Fix Pak
   }
   const f = scanText(`Erste Zeile\nDas gilt für Projekt${ZW}Z heute.\n`, ["Projekt Z"]);
   assert.ok(f.some((x) => x.line === 2 && x.rule === "forbidden"), JSON.stringify(f));
+});
+
+await check("lib scanText markdown: backslash escapes hide neither an internal term, a host, a token shape nor a forbidden term", async () => {
+  const { scanText } = await loadScan();
+  const NTN_ESC = ["ntn", "\\_", ALNUM.slice(0, 24)].join(""); // token shape with an escaped underscore, built at runtime
+  const cases = [
+    ["internal-term", "STATE\\.md", []],
+    ["internal-term", "needs\\_input", []],
+    ["host", "10\\.0\\.0\\.7", []],
+    ["secret", NTN_ESC, []],
+    ["forbidden", "Projekt\\-Z", ["Projekt Z"]],
+  ];
+  for (const [rule, v, forb] of cases) {
+    const f = scanText(`Erste Zeile\nText mit ${v} hier\nDritte Zeile`, forb);
+    assert.ok(f.some((x) => x.line === 2 && x.rule === rule), `${v}: ${JSON.stringify(f)}`);
+  }
+});
+
+await check("lib scanText markdown: a link split inside a word is joined for the scan; the URL part of a link is scanned", async () => {
+  const { scanText } = await loadScan();
+  for (const v of ["[Road](https://example.com)map", "Road[map](x)"]) {
+    const f = scanText(`Erste Zeile\nText mit ${v} hier\nDritte Zeile`, []);
+    assert.ok(f.some((x) => x.line === 2 && x.rule === "internal-term"), `${v}: ${JSON.stringify(f)}`);
+  }
+  const h = scanText("Erste Zeile\nSiehe [hier](http://192.168.1.5/x) dazu\n", []);
+  assert.ok(h.some((x) => x.line === 2 && x.rule === "host"), `URL host: ${JSON.stringify(h)}`);
+});
+
+await check("lib scanText forbidden: whole words only; 'Projekt B' inside 'Das Projekt bietet' or 'Projektbüro' is no hit; spelled forms are", async () => {
+  const { scanText } = await loadScan();
+  for (const v of ["Das Projekt bietet viel.", "Projektbüro eröffnet."]) {
+    const f = scanText(`Erste Zeile\n${v}\n`, ["Projekt B"]);
+    assert.ok(!f.some((x) => x.rule === "forbidden"), `${v}: ${JSON.stringify(f)}`);
+  }
+  for (const v of ["Projekt B", "Projekt-B", "projekt  b", "**Projekt** B"]) {
+    const f = scanText(`Erste Zeile\nDas gilt für ${v} heute.\n`, ["Projekt B"]);
+    assert.ok(f.some((x) => x.rule === "forbidden"), `${JSON.stringify(v)}: ${JSON.stringify(f)}`);
+  }
+  const o = scanText("Erste Zeile\nEin officer kommt.\n", ["Office"]);
+  assert.ok(!o.some((x) => x.rule === "forbidden"), `officer: ${JSON.stringify(o)}`);
+  for (const v of ["Office", "Offices"]) {
+    const f = scanText(`Erste Zeile\nIm ${v} hier.\n`, ["Office"]);
+    assert.ok(f.some((x) => x.rule === "forbidden"), `${v}: ${JSON.stringify(f)}`);
+  }
+});
+
+await check("lib scanText internal-term: 'offen' + word is no hit ('Offenbar fragen', 'offensichtlich'); offene/offenen/offener Frage(n) is", async () => {
+  const { scanText } = await loadScan();
+  for (const v of ["Offenbar fragen viele Spieler.", "Das ist offensichtlich so."]) {
+    const f = scanText(`Erste Zeile\n${v}\nDritte Zeile\n`, []);
+    assert.ok(!f.some((x) => x.rule === "internal-term"), `${v}: ${JSON.stringify(f)}`);
+  }
+  for (const v of ["offene Fragen", "offenen Frage", "offener Fragen"]) {
+    const f = scanText(`Erste Zeile\nText mit ${v} hier\nDritte Zeile\n`, []);
+    assert.ok(f.some((x) => x.line === 2 && x.rule === "internal-term"), `${v}: ${JSON.stringify(f)}`);
+  }
 });
 
 // ---- lib: validatePages
@@ -969,6 +1032,65 @@ await check("cli same root: ids equal after dashes are removed and case is ignor
   }
 });
 
+await check("cli --wiki publish: page file 'Start.MD' (uppercase extension) is published with its heading as title, counted, and listed in the dry run", async () => {
+  const root = pubProject({ "docs/wiki/spieler-und-tester/Start.MD": HEAD + "# Willkommen\n\nInvented welcome text for players.\n" });
+  rmSync(join(root, "docs/wiki/spieler-und-tester/start.md"));
+  const fake = await startWikiFake();
+  try {
+    const dry = runCli({ cwd: root, args: ["--wiki", "--dry-run", "--root", root], token: "" });
+    assert.equal(dry.status, 0, info(dry));
+    const lines = dry.stdout.split("\n").map((l) => l.trim());
+    assert.ok(lines.includes("sync docs/wiki/spieler-und-tester/Start.MD (audience: Spieler und Tester)"), `not listed in dry run\n${info(dry)}`);
+    const r = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(r.status, 0, info(r));
+    assert.equal(lastLine(r.stdout), "created 3, updated 0, archived 0, unchanged 0", info(r));
+    const aud = fake.page("Spieler und Tester");
+    assert.ok(aud, info(r));
+    assert.deepEqual(fake.childTitles(aud.id), ["Spielen", "Willkommen"], info(r));
+    assert.ok(fake.textOf(fake.page("Willkommen").id).includes("Invented welcome text for players"), "body of Start.MD missing");
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+await check("cli --wiki publish: human-made pages under the wiki root are left alone; clash named 'not mirrored'; second run stable", async () => {
+  const root = pubProject();
+  const seed = [
+    ["foreign-aud-1", "Spieler und Tester", "Von Hand geschriebene Seite, invented."],
+    ["foreign-faq-1", "FAQ", "Von Hand geschriebene FAQ, invented."],
+  ];
+  const fake = await startWikiFake({ seed });
+  try {
+    const r1 = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(r1.status, 0, info(r1));
+    assert.ok(r1.stderr.includes("not mirrored"), `clash not named on stderr\n${info(r1)}`);
+    assert.equal(lastLine(r1.stdout), "created 3, updated 0, archived 0, unchanged 0", info(r1));
+    const touched = fake.requests.filter((q) => ["PATCH", "DELETE"].includes(q.method) && (q.path.includes("foreign-aud-1") || q.path.includes("foreign-faq-1")));
+    assert.equal(touched.length, 0, `foreign page touched: ${JSON.stringify(touched)}`);
+    assert.equal(fake.textOf("foreign-aud-1"), "Von Hand geschriebene Seite, invented.", "foreign page content changed");
+    assert.equal(fake.textOf("foreign-faq-1"), "Von Hand geschriebene FAQ, invented.", "foreign FAQ content changed");
+    assert.deepEqual(fake.childTitles("foreign-aud-1"), [], "pages added under the foreign page");
+    assert.deepEqual(fake.childTitles("foreign-faq-1"), [], "pages added under the foreign FAQ");
+    const own = fake.titled("Spieler und Tester").filter((p) => p.id !== "foreign-aud-1");
+    assert.equal(own.length, 1, info(r1));
+    assert.deepEqual(fake.childTitles(own[0].id), ["Spielen", "Start"], info(r1));
+
+    const posts = () => fake.requests.filter((q) => q.method === "POST").length;
+    const before = posts();
+    const mark = fake.requests.length;
+    const r2 = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(r2.status, 0, info(r2));
+    assert.equal(lastLine(r2.stdout), "created 0, updated 0, archived 0, unchanged 3", info(r2));
+    assert.equal(fake.since(mark).filter((q) => q.method === "POST").length, 0, "second run created pages");
+    assert.equal(posts(), before, "duplicates created");
+    assert.equal(fake.titled("Spieler und Tester").length, 2, "audience page count changed");
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 // ---- CLI: scan blocks the whole publish
 
 const SCAN_CASES = [
@@ -1064,6 +1186,7 @@ for (const dry of [false, true]) {
       assert.equal(fake.writes(mark).length, 0, "writes sent");
       assert.ok(r.stderr.includes("text check missing"), `problem not named\n${info(r)}`);
       assert.ok(!r.stdout.includes(TOKEN_STEM) && !r.stderr.includes(TOKEN_STEM), `token-shaped name printed\n${info(r)}`);
+      assert.ok(r.stderr.includes("<hidden: secret in name>"), `file named with a token shape not masked\n${info(r)}`);
       noToken(r);
     } finally {
       await fake.close();
@@ -1092,6 +1215,50 @@ for (const dry of [false, true]) {
       assert.equal(fake.writes(mark).length, 0, "writes sent");
       assert.ok(r.stderr.includes("text check missing"), `problem not named\n${info(r)}`);
       assert.ok(!r.stdout.includes(name) && !r.stderr.includes(name), `audience name printed\n${info(r)}`);
+      noToken(r);
+    } finally {
+      await fake.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+// ---- CLI: audience name and description are scanned
+
+for (const dry of [false, true]) {
+  await check(`cli --wiki scan: audience description with an internal term -> exit 4, 'audience <name>' and internal-term named, no writes${dry ? " (--dry-run)" : ""}`, async () => {
+    const cfg = { ...PUB_CONFIG, wiki: { ...PUB_CONFIG.wiki, audiences: [{ name: "Spieler und Tester", description: "Roadmap für Spielende und Testende" }] } };
+    const root = pubProject({ ".foreman.json": JSON.stringify(cfg, null, 2) });
+    const fake = await startWikiFake();
+    try {
+      const args = ["--wiki", "--root", root];
+      if (dry) args.push("--dry-run");
+      const mark = fake.requests.length;
+      const r = await runCliAsync({ cwd: root, args, base: fake.base });
+      assert.equal(r.status, 4, info(r));
+      assert.ok(r.stderr.includes("audience Spieler und Tester"), `audience not named\n${info(r)}`);
+      assert.ok(r.stderr.includes("internal-term"), `rule not named\n${info(r)}`);
+      assert.equal(fake.writes(mark).length, 0, "writes sent");
+      noToken(r);
+    } finally {
+      await fake.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await check(`cli --wiki scan: audience name with a forbidden term -> exit 4, 'audience <name>' and forbidden named, no writes${dry ? " (--dry-run)" : ""}`, async () => {
+    const cfg = { ...PUB_CONFIG, wiki: { ...PUB_CONFIG.wiki, audiences: [{ name: "Spieler und Tester", description: "Spielende" }, { name: "Projekt Z", description: "Spielende" }] } };
+    const root = pubProject({ ".foreman.json": JSON.stringify(cfg, null, 2), "docs/wiki/projekt-z/x.md": pageTextWithHead("Projekt Z") + "# X\n\nInvented text.\n" });
+    const fake = await startWikiFake();
+    try {
+      const args = ["--wiki", "--root", root];
+      if (dry) args.push("--dry-run");
+      const mark = fake.requests.length;
+      const r = await runCliAsync({ cwd: root, args, base: fake.base });
+      assert.equal(r.status, 4, info(r));
+      assert.ok(r.stderr.includes("audience Projekt Z"), `audience not named\n${info(r)}`);
+      assert.ok(r.stderr.includes("forbidden"), `rule not named\n${info(r)}`);
+      assert.equal(fake.writes(mark).length, 0, "writes sent");
       noToken(r);
     } finally {
       await fake.close();
@@ -1188,9 +1355,33 @@ if (!process.argv.includes("--lib-only")) {
     }
   });
 
-  await checkIfInstalled("docs/MODULES.md mentions --wiki", MODULES, (text) => {
-    assert.ok(text.includes("--wiki"), "docs/MODULES.md does not mention --wiki");
-  });
+  // Runs only in a foreman checkout (install.sh at the repo root); an installed project prints the skip line.
+  if (!existsSync(INSTALL_SH)) {
+    console.log("ok docs/MODULES.md mentions --wiki (skipped: not a foreman checkout)");
+  } else {
+    await check("docs/MODULES.md mentions --wiki", () => {
+      assert.ok(readFileSync(MODULES, "utf8").includes("--wiki"), "docs/MODULES.md does not mention --wiki");
+    });
+  }
+
+  // Gate self-check: a copy of this file in a tree without install.sh must print the skip line.
+  // DOCS_WIKI_NESTED stops the copy from running this check again.
+  if (!process.env.DOCS_WIKI_NESTED) {
+    await check("gate: docs/MODULES.md check prints 'skipped: not a foreman checkout' when install.sh is missing", () => {
+      const tmp = mkdtempSync(join(tmpdir(), "docs-wiki-plain-"));
+      try {
+        const scripts = join(tmp, "template", "scripts");
+        mkdirSync(scripts, { recursive: true });
+        const copy = join(scripts, "test-docs-wiki.mjs");
+        copyFileSync(fileURLToPath(import.meta.url), copy);
+        const r = spawnSync(process.execPath, [copy], { cwd: tmp, env: { ...process.env, DOCS_WIKI_NESTED: "1" }, encoding: "utf8", timeout: 120000 });
+        const stdout = r.stdout ?? "";
+        assert.ok(stdout.includes("ok docs/MODULES.md mentions --wiki (skipped: not a foreman checkout)"), `no skip line\n${stdout}\n${r.stderr ?? ""}`);
+      } finally {
+        rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+  }
 }
 
 if (failed) {

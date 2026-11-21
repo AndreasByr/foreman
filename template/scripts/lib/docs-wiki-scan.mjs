@@ -5,7 +5,7 @@ import { pageTitles } from "./docs-wiki.mjs";
 // Internal terms, case-insensitive, with plural and inflected endings. \p{L} lookarounds because \b is ASCII-only.
 const L = "a-zäöüß";
 const INTERNAL = new RegExp(
-  `(?<![\\p{L}])(roast|roadmap|fix[ -]?pack|fix[ -]?paket|agent[ -]?report|offen[${L}]*[ -]?frage|open[ -]question|logik[ -]?l(ü|ue)cke|logic[ -]gap|needs[ -]?input|milestone[ -]brief)[${L}]*` +
+  `(?<![\\p{L}])(roast|roadmap|fix[ -]?pack|fix[ -]?paket|agent[ -]?report|offene[nrms]?[ -]?frage[nr]?|open[ -]question|logik[ -]?l(ü|ue)cke|logic[ -]gap|needs[ -]?input|milestone[ -]brief)[${L}]*` +
     "|(?<![\\p{L}])(STATE|CONTEXT)\\.md(?![\\p{L}])" +
     "|docs/(agent-reports|fixpacks|answers|role-reviews|milestones|uat)(?![\\p{L}-])",
   "iu",
@@ -35,40 +35,53 @@ const SECRET = [
   /\bNOTION_API_KEY\s*[=:]\s*\S+/,
 ];
 
-// Zero-width characters are removed and NBSP counts as a space. Markup marks (* _ ` ~) go too for internal and forbidden terms.
+// Cleaning. Zero-width characters are removed and NBSP counts as a space; markdown backslash escapes are resolved.
 const ZERO = /[​-‏⁠﻿]/g;
+const ESCAPED = /\\([\\`*_{}[\]()#+\-.!|~<>])/g;
+const LINK = /!?\[([^\]]*)\]\(\s*<?([^)\s>]*)>?[^)]*\)/g;
 const plain = (s) => String(s).replace(ZERO, "").replace(/ /g, " ");
-const clean = (s) => plain(s).replace(/[*_`~]/g, "");
-// Forbidden terms match on cleaned text: case, whitespace and hyphens are ignored (a zero-width space may stand for a gap).
-const normalize = (s) => clean(s).replace(/[\s‐-―-]+/g, "").toLowerCase();
+const unescape = (s) => plain(s).replace(ESCAPED, "$1");
+// Cleaned copy: links become their text, brackets and markup marks go. urls holds the link targets for a separate scan.
+function cleaned(s) {
+  const urls = [];
+  const text = unescape(s)
+    .replace(LINK, (_, t, u) => (urls.push(u), t))
+    .replace(/[[\]*_`~]/g, "");
+  return { text, urls };
+}
+// Forbidden terms: lowercase, runs of whitespace, hyphens and NBSP become one space. A zero-width character is a gap or nothing.
+const norm = (s) => s.toLowerCase().replace(/[\s‐-―−-]+/g, " ").trim();
+const variants = (s) => [norm(cleaned(String(s).replace(ZERO, "")).text), norm(cleaned(String(s).replace(ZERO, " ")).text)];
+const termRe = (t) => new RegExp(`(?<![\\p{L}\\p{N}])${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:s|n|en|es)?(?![\\p{L}\\p{N}])`, "u");
+
+const hostSecret = (texts) => ({
+  host: texts.some((t) => HOST.some((r) => r.test(t))),
+  secret: texts.some((t) => SECRET.some((r) => r.test(t))),
+});
 
 // True when the text holds a secret shape. Used to mask names in messages: a secret is never printed.
-export const hasSecret = (text) => SECRET.some((r) => r.test(plain(text)));
+export const hasSecret = (text) => hostSecret([plain(text), unescape(text), cleaned(text).text]).secret;
 
 // Returns [{line, rule}] for the rules internal-term, host, secret, forbidden. Lines count from 1; a forbidden hit that only
-// the normalized whole text finds (a term split over lines or by emphasis) has line 0.
+// the whole text finds (a term split over lines or by emphasis) has line 0. The raw line and the cleaned copy are both scanned.
 export function scanText(text, forbidden = []) {
   const found = [];
-  const terms = forbidden.map(normalize).filter(Boolean);
-  const lines = String(text).split(/\r?\n/);
+  const terms = forbidden.map((t) => norm(cleaned(t).text)).filter(Boolean).map(termRe);
   let lineHit = false;
-  lines.forEach((line, i) => {
+  String(text).split(/\r?\n/).forEach((line, i) => {
     const hit = (rule) => found.push({ line: i + 1, rule });
-    const c = clean(line);
-    if (INTERNAL.test(c) || BRIEF.test(c)) hit("internal-term");
-    const raw = plain(line); // secrets and hosts keep "_" and the other marks
-    if (HOST.some((r) => r.test(raw))) hit("host");
-    if (SECRET.some((r) => r.test(raw))) hit("secret");
-    const low = normalize(line);
-    if (terms.some((t) => low.includes(t))) {
+    const c = cleaned(line);
+    const parts = [c.text, ...c.urls];
+    if (parts.some((p) => INTERNAL.test(p)) || BRIEF.test(c.text)) hit("internal-term");
+    const hs = hostSecret([plain(line), unescape(line), ...parts]);
+    if (hs.host) hit("host");
+    if (hs.secret) hit("secret");
+    if (variants(line).some((v) => terms.some((r) => r.test(v)))) {
       hit("forbidden");
       lineHit = true;
     }
   });
-  if (!lineHit) {
-    const all = normalize(text);
-    if (terms.some((t) => all.includes(t))) found.push({ line: 0, rule: "forbidden" });
-  }
+  if (!lineHit && variants(text).some((v) => terms.some((r) => r.test(v)))) found.push({ line: 0, rule: "forbidden" });
   return found;
 }
 

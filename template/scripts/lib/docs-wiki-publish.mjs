@@ -32,7 +32,7 @@ export async function publishWiki({ wiki, pages, token, base, out, err }) {
     const pageTitle = pageTitles(pages);
     for (const p of pages) {
       const slug = wiki.audiences.find((a) => a.name === p.head.audience).slug;
-      const vp = virtualPath(p, slug);
+      const vp = virtualPath(p, slug).replace(/\.md$/i, ".md"); // upper-case extensions are collected as .md
       write(vp, p.body);
       titles.set(vp, pageTitle.get(p.path));
     }
@@ -41,6 +41,7 @@ export async function publishWiki({ wiki, pages, token, base, out, err }) {
     const existing = await readExisting(client, wiki.rootPageId);
     const plan = buildPlan(tmp, buildTree(files).map((e) => ({ ...e, title: titles.get(e.path) })), existing);
     for (const b of plan.blocked) err(`docs-notion: ${b.page.title} (has foreign child pages: ${b.foreign.map((f) => f.title).join(", ")})`);
+    for (const f of plan.foreign) err(`docs-notion: ${f.title} (not mirrored, left alone)`);
     const { counts, errors } = await runSync(client, wiki.rootPageId, plan, out);
     for (const e of errors) err(e);
     out(`created ${counts.created}, updated ${counts.updated}, archived ${counts.archived}, unchanged ${counts.unchanged}`);
