@@ -74,4 +74,28 @@ forbid template/.claude/skills/foreman-dispatch-run/references/batch-run.md "rea
 # batch-run.md: the Units line of an order is the rule for which units a run touches
 need template/.claude/skills/foreman-dispatch-run/references/batch-run.md 'The `Units:` line of the order is authoritative'
 
+# M007 S4: foreman update notice (version source, update_notice, releases/latest)
+# dispatcher/README.md
+for term in foreman_version_source foreman_repo update_notice "foreman update available" releases/latest ITSAPLAN_URL "Action Required"; do
+  need dispatcher/README.md "$term"
+done
+
+# dispatcher/config.example.json
+for term in foreman_version_source foreman_repo update_notice; do
+  need dispatcher/config.example.json "$term"
+done
+
+# docs/MODULES.md
+for term in foreman_version_source update_notice "foreman update available"; do
+  need docs/MODULES.md "$term"
+done
+
+# CHANGELOG.md
+for term in foreman_version_source update_notice "foreman update available"; do
+  need CHANGELOG.md "$term"
+done
+
+# docs/learnings.md
+need docs/learnings.md "foreman update available"
+
 echo "dispatcher docs tests: ok"

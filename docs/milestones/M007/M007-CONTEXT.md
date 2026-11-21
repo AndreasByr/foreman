@@ -4,7 +4,7 @@
 **Roadmap:** docs/roadmap-0.2.x.md · **Track:** D · Update · **Parallel to:** M004, M009 (M001 und M006 sind abgenommen und in `dev`)
 
 ## Start approval
-Blocked by: M001 und M006, UAT von Andreas abgenommen am 21.11.2026 (`docs/milestones/M001/STATE.md`, `docs/milestones/M006/STATE.md`: `done`).
+Blocked by: M001 und M006, UAT vom Menschen abgenommen am 21.11.2026 (`docs/milestones/M001/STATE.md`, `docs/milestones/M006/STATE.md`: `done`).
 
 ## Goal
 Liegt ein Projekt hinter der aktuellen foreman-Version, meldet der Dispatcher das genau einmal pro Projekt und Version: als Ticket in „Action Required“ (itsaplan) und als Webhook-Nachricht. Das Ticket schließt sich, sobald `.foreman.json` des Projekts die neue Version zeigt. Ohne Tracker geht nur der Webhook. Kein Modell ist beteiligt.
@@ -37,7 +37,7 @@ Bericht: `docs/role-reviews/M007-briefing.md`. Als Erfolgskriterien übernommen:
 `docs/requirements.md` (Abschnitt „Update-Meldung durch den Dispatcher“), `docs/roadmap-0.2.x.md` (Abschnitt M007), `docs/PRINCIPLES.md`, `docs/CONVENTIONS.md`, `docs/versioning.md`, `CLAUDE.md`, `dispatcher/README.md`. Konfliktreihenfolge: requirements > roadmap > Brief.
 
 ## Fixed decisions
-- **Aktuelle Version = neuestes GitHub-Release** des foreman-Repos (Config `foreman_repo`, Standard `AndreasByr/foreman`). Grund: Die Meldung soll nur auf veröffentlichte Versionen hinweisen; ein Klon auf dem Server mit unveröffentlichtem `VERSION` würde zu früh melden und braucht regelmäßiges `git pull`. Wer das Repo privat hält oder offline arbeitet, setzt `foreman_version_source: "local"`: dann zählt die `VERSION`-Datei des foreman-Checkouts, in dem `dispatch.mjs` liegt. Das ist die Empfehlung aus der Roadmap; die Entscheidung bleibt bei Andreas (UAT-Punkt).
+- **Aktuelle Version = neuestes GitHub-Release** des foreman-Repos (Config `foreman_repo`, Standard `AndreasByr/foreman`). Grund: Die Meldung soll nur auf veröffentlichte Versionen hinweisen; ein Klon auf dem Server mit unveröffentlichtem `VERSION` würde zu früh melden und braucht regelmäßiges `git pull`. Wer das Repo privat hält oder offline arbeitet, setzt `foreman_version_source: "local"`: dann zählt die `VERSION`-Datei des foreman-Checkouts, in dem `dispatch.mjs` liegt. Das ist die Empfehlung aus der Roadmap; die Entscheidung bleibt beim Menschen (UAT-Punkt).
 - Ohne Release und ohne Netz: keine Meldung, eine Logzeile. Der Dispatcher darf deswegen nie Aufträge blockieren.
 - Das Ticket legt der Dispatcher selbst an, mit dem Bot-Konto über die `pass_env`-Werte des Projekts (`ITSAPLAN_URL`, `ITSAPLAN_API_KEY` als Namen). Ein Modell legt nie ein Ticket an. Grund: Anforderung und Auftragsregel „Tracker-Status schreibt nur Skript“.
 - Der Tracker-Client im Dispatcher ist klein und eigenständig (kein Import aus `scripts/`), weil `dispatcher/` einzeln kopiert werden darf.
@@ -53,7 +53,7 @@ Bericht: `docs/role-reviews/M007-briefing.md`. Als Erfolgskriterien übernommen:
 - Update ausführen, Projekte ändern oder `foreman-update` aufrufen (M012 und Mensch).
 - Ticket in Linear.
 - Dispatcher-Code auf dem Server aktualisieren (Teil von `foreman-update` später).
-- Release, Tag, Version `0.2.2` und höher: bleibt bei Andreas. `VERSION` bleibt 0.2.1.
+- Release, Tag, Version `0.2.2` und höher: bleibt beim Menschen. `VERSION` bleibt 0.2.1.
 - Änderungen an `scripts/autopilot-check.sh` oder am Verhalten der Work Runs.
 
 ## Success criteria
