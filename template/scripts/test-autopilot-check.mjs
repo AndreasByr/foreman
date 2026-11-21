@@ -355,6 +355,43 @@ t("integration: units from remote branches, verdicts, catch-up, full check outpu
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+t("main: --no-fetch skips the fetch and prints the same TASK lines", async () => {
+  const state = (status, since) => `Status: ${status} since ${since}\nTarget: dev\nBatch-branch: batch/dev\nLock: free\nTracker: -\nPretest-round: 0\n`;
+  const files = {
+    "origin/batch/dev:docs/fixpacks/f-one/STATE.md": state("slice", "2026-03-06T01:00:00Z"),
+    "origin/batch/dev:docs/fixpacks/f-two/STATE.md": state("planning", "2026-03-06T02:00:00Z"),
+  };
+  const run = async (argv) => {
+    const calls = [];
+    const git = (args) => {
+      calls.push(args);
+      if (args[0] === "fetch") return { status: 0, stdout: "" };
+      if (args[0] === "for-each-ref") return { status: 0, stdout: "origin/batch/dev\n" };
+      if (args[0] === "ls-tree") {
+        const [, , , ref, dir] = args;
+        const hits = Object.keys(files).filter((k) => k.startsWith(`${ref}:${dir}/`)).map((k) => k.slice(ref.length + 1));
+        return { status: 0, stdout: hits.join("\n") };
+      }
+      if (args[0] === "show" && args[1] in files) return { status: 0, stdout: files[args[1]] };
+      return { status: 1, stdout: "" };
+    };
+    const lines = [];
+    const orig = console.log;
+    console.log = (...a) => lines.push(a.join(" "));
+    try {
+      await main(argv, { git, conf: {}, openPrs: { dev: null, main: null }, stderr: () => {} });
+    } finally { console.log = orig; }
+    return { calls, out: lines.join("\n") };
+  };
+  const withFetch = await run(["--now", "2026-03-06T08:10:00Z"]);
+  const noFetch = await run(["--no-fetch", "--now", "2026-03-06T08:10:00Z"]);
+  const taskLines = (out) => out.split("\n").filter((l) => l.startsWith("TASK|"));
+  assert.ok(taskLines(withFetch.out).length >= 1, withFetch.out);
+  assert.deepEqual(taskLines(noFetch.out), taskLines(withFetch.out));
+  assert.equal(noFetch.calls.some((c) => c[0] === "fetch"), false, "no fetch with --no-fetch");
+  assert.equal(withFetch.calls.filter((c) => c[0] === "fetch").length, 1, "one fetch without the option");
+});
+
 let n = 0;
 for (const [name, fn] of queue) {
   await fn();

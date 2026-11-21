@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CI guard for the foreman setup: no opusplan, size limits, no committed worker task files.
+# CI guard for the foreman setup: no opusplan, size limits, no committed worker task files, autopilot-check --no-fetch warning (warn only).
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 fail=0
@@ -29,6 +29,11 @@ done
 
 n=$(git ls-files tools/delegate/tasks 2>/dev/null | grep -v '\.gitkeep$' | wc -l | tr -d ' ')
 if [ "$n" -gt 0 ]; then echo "FAIL: $n worker task files are committed in tools/delegate/tasks. Remove them with git rm --cached."; fail=1; fi
+
+ap=(scripts/autopilot-check.*)
+if [ -e "${ap[0]}" ] && ! grep -qs -- '--no-fetch' "${ap[@]}"; then
+  echo "WARN: scripts/autopilot-check.* does not support --no-fetch. The dispatcher passes it; without support the check fails with its exit code and nothing is started. Add the option (see the template scripts/autopilot-check.mjs)."
+fi
 
 [ $fail = 0 ] && echo "foreman config check: ok"
 exit $fail
