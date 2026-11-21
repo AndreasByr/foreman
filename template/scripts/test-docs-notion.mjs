@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, rmdirSync, symlinkSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,7 +37,7 @@ function violations(node, path = "body") {
   return out;
 }
 
-async function startFake({ pageSize = 3 } = {}) {
+async function startFake({ pageSize = 3, token = TOKEN } = {}) {
   let seq = 0;
   const newId = (p) => `${p}-${++seq}`;
   const pages = new Map(); // id -> { id, title, parent, archived, items }
@@ -81,7 +81,7 @@ async function startFake({ pageSize = 3 } = {}) {
     } catch {
       badJson = true;
     }
-    const rec = { method: req.method, path: url.pathname, query: Object.fromEntries(url.searchParams), headers: req.headers, body, status: 0 };
+    const rec = { method: req.method, path: url.pathname, query: Object.fromEntries(url.searchParams), headers: req.headers, body, status: 0, t: Date.now() };
     requests.push(rec);
 
     const send = (status, obj, headers = {}) => {
@@ -94,12 +94,12 @@ async function startFake({ pageSize = 3 } = {}) {
       send(status, { object: "error", status, code, message });
     };
 
-    if (armed && --armed.n === 0) {
+    if (armed && --armed.n <= 0) {
       const a = armed;
-      armed = null;
+      if (!a.sticky) armed = null;
       return send(a.status, { object: "error", status: a.status, code: "injected_failure", message: "injected failure" }, a.headers);
     }
-    if (req.headers.authorization !== `Bearer ${TOKEN}`) return reject(401, "unauthorized", "API token is invalid.");
+    if (req.headers.authorization !== `Bearer ${token}`) return reject(401, "unauthorized", "API token is invalid.");
     if (!req.headers["notion-version"]) return reject(400, "missing_version", "Notion-Version header is required.");
     if (badJson) return reject(400, "invalid_json", "Body is not valid JSON.");
 
@@ -176,6 +176,10 @@ async function startFake({ pageSize = 3 } = {}) {
     // Answer the n-th request from now on (1 = the next one) with this status, once.
     failNth(n, status, headers = {}) {
       armed = { n, status, headers };
+    },
+    // From the n-th request on, answer every request with this status.
+    failFrom(n, status, headers = {}) {
+      armed = { n, status, headers, sticky: true };
     },
     failNext(status, headers = {}) {
       armed = { n: 1, status, headers };
@@ -265,8 +269,8 @@ function runCli({ cwd, args = [], base, token = TOKEN }) {
   });
 }
 
-async function scenario(fn, repoOpts) {
-  const fake = await startFake();
+async function scenario(fn, repoOpts, fakeOpts) {
+  const fake = await startFake(fakeOpts);
   const dir = makeRepo(repoOpts);
   const run = (args = [], opts = {}) => runCli({ cwd: dir, args, base: fake.base, ...opts });
   try {
@@ -583,6 +587,147 @@ t("10 Notion 500 mid-run: exit 1, no token in output, rerun heals without duplic
     expectMarkers(fake, dir);
     assert.deepEqual(fake.rejected, []);
   });
+});
+
+const ONE_FILE = { files: { "docs/a.md": "# A\n\nOne paragraph.\n" } };
+
+t("11 429 with Retry-After: 1 is waited out and the run succeeds", async () => {
+  await scenario(async ({ fake, run }) => {
+    fake.failNth(2, 429, { "Retry-After": "1" });
+    const r = await run();
+    expectSummary(r, 5, 0, 0, 0);
+    const i = fake.requests.findIndex((q) => q.status === 429);
+    assert.ok(i >= 0 && fake.requests[i + 1], "no 429 followed by a retry");
+    const gap = fake.requests[i + 1].t - fake.requests[i].t;
+    assert.ok(gap >= 900, `retry came after ${gap} ms, expected >= 900`);
+    assert.equal(fake.requests[i + 1].method, fake.requests[i].method);
+    assert.equal(fake.requests[i + 1].path, fake.requests[i].path);
+    assert.deepEqual(fake.tree(), EXPECTED_TREE);
+    assert.deepEqual(fake.rejected, []);
+  });
+});
+
+t("12 permanent 429 (Retry-After: 0): bounded retries, exit 1, names file and 429", async () => {
+  await scenario(async ({ fake, run }) => {
+    fake.failFrom(2, 429, { "Retry-After": "0" }); // request 1 is the read of the root page
+    const r = await run();
+    assert.equal(r.status, 1, info(r));
+    const n429 = fake.requests.filter((q) => q.status === 429).length;
+    assert.ok(n429 >= 2 && n429 <= 8, `${n429} requests answered 429, expected 2..8\n${info(r)}`);
+    assert.ok(fake.requests.length <= 9, `${fake.requests.length} requests in total`);
+    assert.match(r.stderr, /docs\/a\.md/, info(r));
+    assert.match(r.stderr, /429/, info(r));
+  }, ONE_FILE);
+});
+
+t("13 large input: 250 bullets, 5000-char paragraph, 4500-char code block", async () => {
+  const para5000 = "lorem ".repeat(1000).slice(0, 4999) + "x";
+  const code4500 = "y".repeat(4500);
+  const bullets = Array.from({ length: 250 }, (_, i) => `item ${i}`);
+  const md = ["# Big", "", ...bullets.map((b) => `- ${b}`), "", para5000, "", "```", code4500, "```", ""].join("\n");
+  await scenario(async ({ fake, run }) => {
+    const r = await run();
+    expectSummary(r, 1, 0, 0, 0);
+    assert.deepEqual(fake.rejected, []);
+    assert.ok(!fake.requests.some((q) => q.status === 400), "fake answered 400");
+    const blocks = fake.blocksOf(fake.pageByTitle("docs/big.md")).slice(1);
+    const text = (type) => blocks.filter((b) => b.type === type).map(blockText);
+    assert.deepEqual(text("bulleted_list_item"), bullets);
+    assert.equal(text("paragraph").join("").length, 5000);
+    assert.equal(text("paragraph").join(""), para5000);
+    assert.equal(text("code").join("").trim().length, 4500);
+    assert.equal(text("code").join("").trim(), code4500);
+  }, { files: { "docs/big.md": md } });
+});
+
+const SECRET = "ntn_SECRET_LEAK_CHECK_98765";
+
+function filesUnder(dir) {
+  return readdirSync(dir).flatMap((name) => {
+    const p = join(dir, name);
+    return statSync(p).isDirectory() ? filesUnder(p) : [p];
+  });
+}
+
+function assertNoLeak(label, r, fake, dir) {
+  assert.ok(!r.stdout.includes(SECRET), `${label}: token in stdout`);
+  assert.ok(!r.stderr.includes(SECRET), `${label}: token in stderr`);
+  for (const f of filesUnder(dir)) assert.ok(!readFileSync(f, "utf8").includes(SECRET), `${label}: token in ${f}`);
+  for (const q of fake.requests) {
+    assert.ok(!JSON.stringify([q.path, q.query, q.body]).includes(SECRET), `${label}: token in URL or body of ${q.method} ${q.path}`);
+  }
+}
+
+t("14 token never leaks (401, permanent 429, 500, normal); --dry-run writes nothing", async () => {
+  // 401: the server expects another token
+  await scenario(async ({ fake, dir, run }) => {
+    const r = await run([], { token: SECRET });
+    assert.equal(r.status, 1, info(r));
+    assert.ok(fake.requests.some((q) => q.status === 401), "server never answered 401");
+    assertNoLeak("401", r, fake, dir);
+  }, ONE_FILE);
+  const cases = [
+    ["429", (f) => f.failFrom(2, 429, { "Retry-After": "0" }), 1, ONE_FILE],
+    ["500", (f) => f.failNth(3, 500), 1, undefined],
+    ["normal", () => {}, 0, undefined],
+  ];
+  for (const [label, arm, code, repo] of cases) {
+    await scenario(async ({ fake, dir, run }) => {
+      arm(fake);
+      const r = await run([], { token: SECRET });
+      assert.equal(r.status, code, `${label}: ${info(r)}`);
+      assertNoLeak(label, r, fake, dir);
+      for (const q of fake.requests) assert.equal(q.headers.authorization, `Bearer ${SECRET}`);
+    }, repo, { token: SECRET });
+  }
+  await scenario(async ({ fake, dir, run }) => {
+    const r = await run(["--dry-run"], { token: SECRET });
+    assert.equal(r.status, 0, info(r));
+    const writes = fake.requests.filter((q) => ["POST", "PATCH", "DELETE"].includes(q.method));
+    assert.deepEqual(writes.map((q) => `${q.method} ${q.path}`), [], "dry-run must not write");
+    assertNoLeak("dry-run", r, fake, dir);
+  }, undefined, { token: SECRET });
+});
+
+t("15 path limits: symlink out of the repo and ../ include glob are not mirrored", async () => {
+  const outsideDir = join(tmpdir(), "outside");
+  const outsideFile = join(outsideDir, `secret-${process.pid}.md`);
+  const targetDir = mkdtempSync(join(tmpdir(), "docs-notion-target-"));
+  const targetFile = join(targetDir, "target.md");
+  mkdirSync(outsideDir, { recursive: true });
+  writeFileSync(outsideFile, "# Outside\n\nMust never be mirrored.\n");
+  writeFileSync(targetFile, "# Target\n\nMust never be mirrored.\n");
+  try {
+    await scenario(
+      async ({ fake, dir, run }) => {
+        symlinkSync(targetFile, join(dir, "docs/leak.md"));
+        const r = await run();
+        expectSummary(r, 1, 0, 0, 0);
+        assert.deepEqual(fake.tree(), ["docs/ok.md < root"]);
+        assert.match(r.stderr, /docs\/leak\.md/, `skipped symlink not named\n${info(r)}`);
+        const bodies = JSON.stringify(fake.requests.map((q) => q.body));
+        assert.ok(!bodies.includes("Must never be mirrored"), "outside content was sent to the server");
+        assert.ok(!bodies.includes("leak.md") && !bodies.includes("secret-"), "outside path reached the server");
+      },
+      { files: { "docs/ok.md": "# Ok\n\nInside.\n" }, docsNotion: { rootPageId: ROOT_ID, include: ["docs/**/*.md", "../outside/**/*.md"], exclude: [] } },
+    );
+  } finally {
+    rmSync(outsideFile, { force: true });
+    try { rmdirSync(outsideDir); } catch {} // only succeeds when empty
+    rmSync(targetDir, { recursive: true, force: true });
+  }
+});
+
+t("16 pacing: at most 3 requests per 1000 ms (assert <= 4)", async () => {
+  const files = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`docs/f${i}.md`, `# F${i}\n\nText ${i}.\n`]));
+  await scenario(async ({ fake, run }) => {
+    expectSummary(await run(), 10, 0, 0, 0);
+    const ts = fake.requests.map((q) => q.t);
+    assert.ok(ts.length >= 11, `only ${ts.length} requests`); // 1 read + 10 creates
+    let max = 0;
+    for (const a of ts) max = Math.max(max, ts.filter((x) => x >= a && x < a + 1000).length);
+    assert.ok(max <= 4, `${max} requests within 1000 ms`);
+  }, { files });
 });
 
 // ---------------------------------------------------------------- runner
