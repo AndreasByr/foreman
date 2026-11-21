@@ -3,7 +3,8 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 CHECK="$HERE/scripts/check-config.sh"
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d); SRV_PID=""
+trap 'if [ -n "$SRV_PID" ]; then kill "$SRV_PID" 2>/dev/null || true; fi; rm -rf "$T"' EXIT
 fail() { echo "check-config test FAIL: $*"; exit 1; }
 
 # new_project NAME: a git repo with a copy of check-config.sh in scripts/; prints its path
@@ -140,5 +141,164 @@ bad_value i-merge-null '{"autopilot":{"mainAutoMerge":null}}' autopilot.mainAuto
 
 # j. .foreman.json that is not valid JSON: exit 1 with a FAIL line naming .foreman.json
 bad_value j-invalid-json '{"autopilot":' .foreman.json
+
+# k. itsaplan name check. A local stub stands in for the itsaplan API on 127.0.0.1; the stub writes its port to $T/port.
+cat > "$T/stub.py" <<'PY'
+import http.server, os, sys
+T = sys.argv[1]
+class H(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+    def _send(self, code, body):
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+    def do_GET(self):
+        if self.path != "/projects/TST":
+            return self._send(404, b'{"error":"not found"}')
+        if self.headers.get("x-api-key") != "secret-test-key":
+            return self._send(401, b'{"error":"unauthorized"}')
+        with open(os.path.join(T, "body.json"), "rb") as fh:
+            return self._send(200, fh.read())
+srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+tmp = os.path.join(T, "port.tmp")
+with open(tmp, "w") as fh:
+    fh.write(str(srv.server_address[1]))
+os.replace(tmp, os.path.join(T, "port"))
+srv.serve_forever()
+PY
+python3 "$T/stub.py" "$T" >"$T/stub.log" 2>&1 &
+SRV_PID=$!
+for _ in $(seq 1 100); do [ -s "$T/port" ] && break; sleep 0.1; done
+[ -s "$T/port" ] || fail "itsaplan stub did not start: $(cat "$T/stub.log")"
+URL="http://127.0.0.1:$(cat "$T/port")"
+
+# project_json COLUMNS LABELS: the stub's answer for GET /projects/TST; both lists are |-separated names
+project_json() {
+  python3 - "$T/body.json" "$1" "$2" <<'PY'
+import json, sys
+out, cols, labels = sys.argv[1:4]
+doc = {"key": "TST",
+       "columns": [{"name": n} for n in cols.split("|") if n],
+       "labels": [{"name": n} for n in labels.split("|") if n]}
+with open(out, "w", encoding="utf-8") as fh:
+    json.dump(doc, fh)
+PY
+}
+
+# run_env DIR ENV_ARGS...: runs the check from DIR under `env ENV_ARGS` (this call only); sets OUT and RC
+run_env() {
+  local dir=$1; shift
+  RC=0
+  OUT=$(cd "$dir" && env "$@" bash "$dir/scripts/check-config.sh" 2>&1) || RC=$?
+}
+
+# itsaplan_project NAME CONFIG_JSON: new project whose .foreman.json is CONFIG_JSON; prints its path
+itsaplan_project() {
+  local p
+  p=$(new_project "$1")
+  printf '%s\n' "$2" > "$p/.foreman.json"
+  echo "$p"
+}
+
+ITS_CFG='{"tracker":{"type":"itsaplan"},"mirror":{"itsaplan":{"projectKey":"TST"}}}'
+ENG_COLS="Backlog|Todo|In Progress|Action Required|Wait for Merge|Testing|In Review|Done"
+ENG_LABELS="Milestone|Fix pack|AP: Coding|AP: Fix round|AP: Action Required|AP: Waiting for merge|AP: Pretest waiting|AP: Pretest running|AP: UAT ready|AP: Release ready"
+FAIL_OUT=""
+
+# k-english: all English names: exit 0 and ok line
+p=$(itsaplan_project k-english "$ITS_CFG")
+project_json "$ENG_COLS" "$ENG_LABELS"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 0 ] || fail "k-english: exit $RC, expected 0: $OUT"
+grep -q "foreman config check: ok" <<<"$OUT" || fail "k-english: missing ok line: $OUT"
+echo "ok k-english"
+
+# k-label-typo: "AP: UAT bereit" instead of "AP: UAT ready": exit 1, FAIL lines name both labels
+p=$(itsaplan_project k-label-typo "$ITS_CFG")
+project_json "$ENG_COLS" "Milestone|Fix pack|AP: Coding|AP: Fix round|AP: Action Required|AP: Waiting for merge|AP: Pretest waiting|AP: Pretest running|AP: UAT bereit|AP: Release ready"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 1 ] || fail "k-label-typo: exit $RC, expected 1: $OUT"
+grep -q '^FAIL:.*AP: UAT bereit' <<<"$OUT" || fail "k-label-typo: no FAIL line naming AP: UAT bereit: $OUT"
+grep -q '^FAIL:.*AP: UAT ready' <<<"$OUT" || fail "k-label-typo: no FAIL line naming AP: UAT ready: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-label-typo"
+
+# k-column-typo: "Wartet auf Merge" instead of "Wait for Merge": exit 1, FAIL lines name both
+p=$(itsaplan_project k-column-typo "$ITS_CFG")
+project_json "Backlog|Todo|In Progress|Action Required|Wartet auf Merge|Testing|In Review|Done" "$ENG_LABELS"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 1 ] || fail "k-column-typo: exit $RC, expected 1: $OUT"
+grep -q '^FAIL:.*Wait for Merge' <<<"$OUT" || fail "k-column-typo: no FAIL line naming Wait for Merge: $OUT"
+grep -q '^FAIL:.*Wartet auf Merge' <<<"$OUT" || fail "k-column-typo: no FAIL line naming Wartet auf Merge: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-column-typo"
+
+# k-alias-intervention: "Intervention needed" is an alias of "Action Required": exit 0, no FAIL line
+p=$(itsaplan_project k-alias-intervention "$ITS_CFG")
+project_json "Backlog|Todo|In Progress|Intervention needed|Wait for Merge|Testing|In Review|Done" "$ENG_LABELS"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 0 ] || fail "k-alias-intervention: exit $RC, expected 0: $OUT"
+grep -q "FAIL:" <<<"$OUT" && fail "k-alias-intervention: unexpected FAIL line: $OUT"
+echo "ok k-alias-intervention"
+
+# k-alias-config: tracker.columnAliases maps "Waiting" to "Wait for Merge": exit 0, no FAIL line
+p=$(itsaplan_project k-alias-config '{"tracker":{"type":"itsaplan","columnAliases":{"Wait for Merge":["Waiting"]}},"mirror":{"itsaplan":{"projectKey":"TST"}}}')
+project_json "Backlog|Todo|In Progress|Action Required|Waiting|Testing|In Review|Done" "$ENG_LABELS"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 0 ] || fail "k-alias-config: exit $RC, expected 0: $OUT"
+grep -q "FAIL:" <<<"$OUT" && fail "k-alias-config: unexpected FAIL line: $OUT"
+echo "ok k-alias-config"
+
+# k-prefix: mirror.itsaplan.labelPrefix "X: " is used for the expected labels: exit 0, no FAIL line
+p=$(itsaplan_project k-prefix '{"tracker":{"type":"itsaplan"},"mirror":{"itsaplan":{"projectKey":"TST","labelPrefix":"X: "}}}')
+project_json "$ENG_COLS" "Milestone|Fix pack|X: Coding|X: Fix round|X: Action Required|X: Waiting for merge|X: Pretest waiting|X: Pretest running|X: UAT ready|X: Release ready"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 0 ] || fail "k-prefix: exit $RC, expected 0: $OUT"
+grep -q "FAIL:" <<<"$OUT" && fail "k-prefix: unexpected FAIL line: $OUT"
+echo "ok k-prefix"
+
+# k-no-env: ITSAPLAN_URL and ITSAPLAN_API_KEY unset: exit 0 and a note: line naming itsaplan
+p=$(itsaplan_project k-no-env "$ITS_CFG")
+project_json "$ENG_COLS" "$ENG_LABELS"
+run_env "$p" -u ITSAPLAN_URL -u ITSAPLAN_API_KEY
+[ "$RC" -eq 0 ] || fail "k-no-env: exit $RC, expected 0: $OUT"
+grep -Ei '^note:.*itsaplan' <<<"$OUT" >/dev/null || fail "k-no-env: missing note: line naming itsaplan: $OUT"
+echo "ok k-no-env"
+
+# k-tracker-none: tracker "none" with the stub reachable: exit 0, output does not mention itsaplan
+p=$(itsaplan_project k-tracker-none '{"tracker":{"type":"none"},"mirror":{"itsaplan":{"projectKey":"TST"}}}')
+project_json "$ENG_COLS" "$ENG_LABELS"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 0 ] || fail "k-tracker-none: exit $RC, expected 0: $OUT"
+grep -Eqi 'itsaplan' <<<"$OUT" && fail "k-tracker-none: output mentions itsaplan: $OUT"
+echo "ok k-tracker-none"
+
+# k-wrong-key: wrong API key: exit 0, WARN line with HTTP 401, the key never printed
+p=$(itsaplan_project k-wrong-key "$ITS_CFG")
+project_json "$ENG_COLS" "$ENG_LABELS"
+run_env "$p" ITSAPLAN_URL="$URL" ITSAPLAN_API_KEY=wrong
+[ "$RC" -eq 0 ] || fail "k-wrong-key: exit $RC, expected 0: $OUT"
+grep -q "WARN:" <<<"$OUT" || fail "k-wrong-key: missing WARN line: $OUT"
+grep -q "401" <<<"$OUT" || fail "k-wrong-key: WARN line does not contain 401: $OUT"
+grep -q "wrong" <<<"$OUT" && fail "k-wrong-key: output contains the wrong key: $OUT"
+grep -q "secret-test-key" <<<"$OUT" && fail "k-wrong-key: output contains the API key: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-wrong-key"
+
+# k-unreachable: server not reachable (port 9): exit 0 and a WARN line
+p=$(itsaplan_project k-unreachable "$ITS_CFG")
+project_json "$ENG_COLS" "$ENG_LABELS"
+run_env "$p" ITSAPLAN_URL=http://127.0.0.1:9 ITSAPLAN_API_KEY=secret-test-key
+[ "$RC" -eq 0 ] || fail "k-unreachable: exit $RC, expected 0: $OUT"
+grep -q "WARN:" <<<"$OUT" || fail "k-unreachable: missing WARN line: $OUT"
+FAIL_OUT="$FAIL_OUT$OUT"
+echo "ok k-unreachable"
+
+# k-no-key-in-output: the API key appears in no output of the failing and warning cases
+grep -q "secret-test-key" <<<"$FAIL_OUT" && fail "k-no-key-in-output: the API key appears in the output of a failing case"
+echo "ok k-no-key-in-output"
 
 echo "check-config tests: ok"
