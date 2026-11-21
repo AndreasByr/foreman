@@ -9,11 +9,11 @@ This file says which documents a project has, who writes them, and when a large 
 | Requirements | `docs/requirements.md` | `foreman-roast` with the human | the goal or scope changes |
 | Roadmap | `docs/roadmap-<version>.md` or `docs/roadmap.md` | `foreman-roadmap` | milestones change |
 | Design | `docs/design.md` and boards in `docs/design-reference/` | `foreman-design-file` and the human | UI changes |
-| Milestone brief | `docs/milestones/Mnnn/Mnnn-CONTEXT.md` | `foreman-brief` | before the milestone starts |
-| Unit state | `docs/milestones/Mnnn/STATE.md`, and the same for fix packs | the session | every status change |
-| Fix pack | `docs/fixpacks/<id>/` | `foreman-fix` and the session | per fix pack |
+| Milestone brief | folder per Names in `docs/CONVENTIONS.md`, file `Mnnn-CONTEXT.md` | `foreman-brief` | before the milestone starts |
+| Unit state | `STATE.md` in the unit's folder | the session | every status change |
+| Fix pack | folder per Names in `docs/CONVENTIONS.md` | `foreman-fix` and the session | per fix pack |
 | Learnings | `docs/learnings.md` | the session | when a reusable finding appears |
-| Agent reports | `docs/agent-reports/<date>-<slug>.md` | the session | one per slice or run |
+| Agent reports | file per Names in `docs/CONVENTIONS.md` | the session | one per slice or run |
 | Role reviews | `docs/role-reviews/` | `foreman-role-review` | per briefing or review |
 | Changelog | `docs/changelog/vX.Y.Z.md` | `foreman-release` | at release only |
 
@@ -35,7 +35,7 @@ The overview has a table with this header:
 | `docs/requirements/01-<topic>.md` | User roles and permissions | the work touches who may do what |
 | `docs/roadmap-<version>/M001-<title>.md` | Slices and tests of milestone M001 | the Agent works on M001 |
 
-The conflict order says which document wins when two documents disagree. The foreman default is: requirements, design, roadmap, milestone brief, fix pack.
+Every overview contains the conflict order. It says which document wins when two documents disagree. The foreman default is: requirements, design, roadmap, milestone brief, fix pack.
 
 German projects may name the columns `Datei | Inhalt | Lesen bei`.
 
@@ -47,7 +47,7 @@ Every overview has exactly one status line in this form:
 
 `**Stand:** <date>, Version <N> (<last change>)`
 
-The line names one version only, the current one, and the last change in a few words. The history goes below the line, in a section of its own, or stays in the git log.
+The line names one version only, the current one, and the last change in a few words. The change note names no other version. The history goes below the line, in a section of its own, or stays in the git log.
 
 Correct:
 
@@ -59,4 +59,4 @@ Wrong, because it lists several versions as a range:
 
 ## Check
 
-Run `node scripts/docs-check.mjs <file>` on an overview before you commit a changed overview. Exit code 0 means the file is ok. Exit code 1 means a rule is broken. Exit code 2 means the file cannot be read.
+Run `node scripts/docs-check.mjs <file>` on an overview before you commit a changed overview. Exit code 0 means the file is ok. Exit code 1 means a rule is broken. Exit code 2 means the file cannot be read. The check script is installed with scope repo or autopilot (`scope repo`), not with scope docs.

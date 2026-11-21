@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Tests for lib/docs-check.mjs (the "Stand" line rule) and the CLI scripts/docs-check.mjs. Run: node scripts/test-docs-check.mjs
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -49,6 +49,22 @@ t("ok: leading spaces before the Stand line", () => {
 
 t("ok: bare numbers (roadmap 0.2.1, 5000 words) are not versions", () => {
   expectOk("**Stand:** 2026-11-21, Version 3 (Roadmap 0.2.1, 5000 Wörter)");
+});
+
+t("ok: Stand line in a quote block", () => {
+  expectOk("> **Stand:** 14.10.2026, Version 27 (Kapitel 4 ergänzt)");
+});
+
+t("ok: bold variant with the colon outside", () => {
+  expectOk("**Stand**: 14.10.2026, Version 27 (Kapitel 4 ergänzt)");
+});
+
+t("ok: comma and plain number in the note after a singular keyword", () => {
+  expectOk("**Stand:** 14.10.2026, Version 3, 12 neue Milestones");
+});
+
+t("ok: date without year", () => {
+  expectOk("**Stand:** Version 3, 21.11.");
 });
 
 t("ok: longer document, history below the Stand line in its own section", () => {
@@ -106,6 +122,10 @@ t("problem: fabricated overview, history from Version 9 to 27 in one Stand parag
   );
 });
 
+t("problem: second version in the note (v-prefix)", () => {
+  expectProblem("**Stand:** 14.10.2026, Version 3 (v0.2.2 veröffentlicht)", MULTI);
+});
+
 // ----- problem cases: Stand line count -----
 
 t("problem: empty string has no Stand line", () => {
@@ -119,6 +139,13 @@ t("problem: text without a Stand line", () => {
 t("problem: two Stand lines", () => {
   expectProblem(
     "**Stand:** 14.10.2026, Version 27 (Kapitel 4)\n\nText.\n\n**Stand:** 21.11.2026, Version 28 (M008)\n",
+    MANY_STAND,
+  );
+});
+
+t("problem: quote-block Stand line plus a normal Stand line", () => {
+  expectProblem(
+    "> **Stand:** 14.10.2026, Version 27 (Kapitel 4 ergänzt)\n\nText.\n\n**Stand:** 21.11.2026, Version 28 (M008)\n",
     MANY_STAND,
   );
 });
@@ -145,51 +172,49 @@ t("invariant: ok is true exactly when problems is empty", () => {
 
 const CLI = fileURLToPath(new URL("./docs-check.mjs", import.meta.url));
 
-if (existsSync(CLI)) {
-  const GOOD = "# Requirements\n\n**Stand:** 21.11.2026, Version 1 (erste Fassung)\n\nText.\n";
-  const BAD = "# Roadmap\n\n**Stand:** 14.10.2026, Versionen 9 bis 27 (Verlauf)\n";
+const GOOD = "# Requirements\n\n**Stand:** 21.11.2026, Version 1 (erste Fassung)\n\nText.\n";
+const BAD = "# Roadmap\n\n**Stand:** 14.10.2026, Versionen 9 bis 27 (Verlauf)\n";
 
-  const runCli = (args) => spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8" });
+const runCli = (args) => spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8" });
 
-  t("cli: good file exits 0", () => {
-    const dir = mkdtempSync(join(tmpdir(), "docs-check-"));
-    try {
-      const file = join(dir, "good.md");
-      writeFileSync(file, GOOD);
-      const r = runCli([file]);
-      assert.equal(r.status, 0, `stdout: ${r.stdout}\nstderr: ${r.stderr}`);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+t("cli: good file exits 0", () => {
+  const dir = mkdtempSync(join(tmpdir(), "docs-check-"));
+  try {
+    const file = join(dir, "good.md");
+    writeFileSync(file, GOOD);
+    const r = runCli([file]);
+    assert.equal(r.status, 0, `stdout: ${r.stdout}\nstderr: ${r.stderr}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
-  t("cli: bad file exits 1", () => {
-    const dir = mkdtempSync(join(tmpdir(), "docs-check-"));
-    try {
-      const file = join(dir, "bad.md");
-      writeFileSync(file, BAD);
-      const r = runCli([file]);
-      assert.equal(r.status, 1, `stdout: ${r.stdout}\nstderr: ${r.stderr}`);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+t("cli: bad file exits 1", () => {
+  const dir = mkdtempSync(join(tmpdir(), "docs-check-"));
+  try {
+    const file = join(dir, "bad.md");
+    writeFileSync(file, BAD);
+    const r = runCli([file]);
+    assert.equal(r.status, 1, `stdout: ${r.stdout}\nstderr: ${r.stderr}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
-  t("cli: missing path exits 2", () => {
-    const dir = mkdtempSync(join(tmpdir(), "docs-check-"));
-    try {
-      const r = runCli([join(dir, "does-not-exist.md")]);
-      assert.equal(r.status, 2, `stdout: ${r.stdout}\nstderr: ${r.stderr}`);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  t("cli: no argument exits 2", () => {
-    const r = runCli([]);
+t("cli: missing path exits 2", () => {
+  const dir = mkdtempSync(join(tmpdir(), "docs-check-"));
+  try {
+    const r = runCli([join(dir, "does-not-exist.md")]);
     assert.equal(r.status, 2, `stdout: ${r.stdout}\nstderr: ${r.stderr}`);
-  });
-}
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+t("cli: no argument exits 2", () => {
+  const r = runCli([]);
+  assert.equal(r.status, 2, `stdout: ${r.stdout}\nstderr: ${r.stderr}`);
+});
 
 for (const [name, fn] of queue) {
   await fn();

@@ -5,6 +5,8 @@ Fill every section. Write "none" where nothing applies.
 ```markdown
 # <Project name>: Requirements
 
+**Stand:** <date>, Version 1 (<last change>)
+
 ## Project goal
 <1 or 2 sentences, precise, no buzzwords. What is built, for whom, which problem it solves.>
 

@@ -36,8 +36,9 @@ done
 
 # 3. documents table
 need "$RULES" "| Document | Location | Written by | Updated when |"
-for term in "docs/requirements.md" "docs/roadmap-" "docs/design.md" "docs/milestones/" "STATE.md" \
-            "docs/fixpacks/" "docs/learnings.md" "docs/agent-reports/" "docs/role-reviews/" "docs/changelog/"; do
+for term in "docs/requirements.md" "docs/roadmap-" "docs/design.md" "docs/learnings.md" \
+            "docs/role-reviews/" "docs/changelog/" \
+            "Milestone brief" "Unit state" "Fix pack" "Agent reports" "STATE.md" "Names" "Mnnn-CONTEXT.md"; do
   need "$RULES" "$term"
 done
 
@@ -53,7 +54,12 @@ need "$RULES" "5000 words"
 # 5. stand line
 need "$RULES" "**Stand:**"
 need "$RULES" "one version"
+need "$RULES" "names no other version"
 need "$RULES" "docs-check"
+# the "## Check" part (from its heading to the end of the file) must name the scope repo
+sed -n '/^## Check$/,$p' "$RULES" | grep -q -F -- "scope repo" \
+  || fail "$RULES: the '## Check' part does not contain 'scope repo'"
+echo "ok $RULES contains 'scope repo' in '## Check'"
 
 # 6. no duplication: no heading of the rule file (level 2 and 3) may occur in CONVENTIONS.md
 [ -f "$CONV" ] || fail "missing file $CONV"
@@ -63,6 +69,23 @@ while IFS= read -r h; do
   fi
 done < <(grep -E '^###? ' "$RULES" || true)
 echo "ok no level-2 or level-3 heading of $RULES occurs in $CONV"
+
+# 6b. the rule file must not name the folders that docs/CONVENTIONS.md owns
+for s in "docs/milestones/" "docs/fixpacks/" "docs/agent-reports/"; do
+  if grep -q -F -- "$s" "$RULES"; then
+    fail "$RULES contains '$s' (folder names are owned by $CONV)"
+  fi
+  echo "ok $RULES does not contain '$s'"
+done
+
+# 6c. no table row of the rule file may occur as a whole line in CONVENTIONS.md
+# (separator rows made of | - and spaces are skipped)
+while IFS= read -r row; do
+  if grep -q -x -F -- "$row" "$CONV"; then
+    fail "$CONV duplicates table row from $RULES: '$row'"
+  fi
+done < <(grep -E '^\|' "$RULES" | grep -v -E '^[| -]*$' || true)
+echo "ok no table row of $RULES occurs as a line in $CONV"
 
 # 7. CONVENTIONS.md points to the rule file
 need "$CONV" "docs/docs-rules.md"

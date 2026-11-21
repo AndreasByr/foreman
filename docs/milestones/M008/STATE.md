@@ -1,4 +1,4 @@
-Status: validation · since 2026-11-21T18:05Z · S1 bis S4 done, Validierung offen
+Status: validation · since 2026-11-21T18:40Z · S1 bis S4 done, Validierung offen
 Target: dev
 Batch-branch: batch/m008
 Lock: free
@@ -17,6 +17,7 @@ Start commit: c6b3149 (Baseline: bash scripts/test-all.sh exit 0)
 | S2 | Aufteilen (Übersicht + Ordner, Tabelle, Konfliktreihenfolge, Schwelle) und Stand-Zeile | done | M008 S1+S2 | template/docs/docs-rules.md, scripts/test-docs-rules.sh | |
 | S3 | Prüfskript für Stand-Zeile mit Beispielen, in test-all | done | M008 S3 | template/scripts/docs-check.mjs, template/scripts/lib/docs-check.mjs, template/scripts/test-docs-check.mjs, scripts/test-all.sh (Beispiele inline im Test statt Fixture-Ordner) | |
 | S4 | Verweise in roast und roadmap, Learnings | done | M008 S4 | plugins/foreman/skills/foreman-roast/, plugins/foreman/skills/foreman-roadmap/, docs/learnings.md | |
+| R1 | Korrekturen aus Validierung (Doppelung, docs-check-Lücken, Template-Stand-Zeile) | done | M008 R1 | template/docs/docs-rules.md, docs/docs-rules.md, template/scripts/lib/docs-check.mjs, Tests, beide SKILL.md, requirements-template.md | niedrige Funde im Bericht R1 |
 
 ## Check plan per slice
 
@@ -52,3 +53,4 @@ none
 - 2026-11-21T17:30Z · S1+S2 · test-docs-rules.sh rot (exit 1) vorher, grün (exit 0) nachher, test-all exit 0 · siehe Commit
 - 2026-11-21T17:50Z · S3 · test-docs-check.mjs rot (Stub, exit 1) vorher, grün (exit 0, 21 Tests) nachher, test-all exit 0 · siehe Commit
 - 2026-11-21T18:05Z · S4 · test-docs-rules.sh rot (exit 1) vorher, grün (exit 0) nachher, test-all exit 0 · siehe Commit
+- 2026-11-21T18:40Z · R1 · beide Tests rot (exit 1) vorher, grün (exit 0, 27 Tests) nachher, test-all exit 0 · siehe Commit
