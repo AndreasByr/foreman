@@ -2,7 +2,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { stamp, parseState } from "./state.mjs";
-import { interventions } from "./intervention.mjs";
+import { CAUSES, interventions } from "./intervention.mjs";
 
 /** Suffix the delegate wrapper (tools/delegate/run_task.py) puts into the heading of a fallback attempt. */
 export const FALLBACK_TAG = "fallback after provider outage";
@@ -172,4 +172,60 @@ export function collect(opts = {}) {
     modelsByRole,
     gaps,
   };
+}
+
+const KIND_LABEL = { milestone: "Meilenstein", fixpack: "Fixpaket" };
+
+/**
+ * Markdown of collect() output (German labels; numbers, unit ids, category names, role and model names and gap texts only).
+ * Titles, question text and cause sentences are not part of the data, so they cannot be printed.
+ */
+export function render(data, { generatedAt } = {}) {
+  const at = generatedAt instanceof Date ? generatedAt.toISOString() : String(generatedAt);
+  const out = [
+    "# Messwerte",
+    "",
+    `Zeitraum: ${data.period.since} bis ${data.period.until}`,
+    `Erzeugt: ${at}`,
+    "Diese Datei wird von scripts/measure.mjs erzeugt. Nicht von Hand ändern.",
+    "",
+    "## Läufe",
+  ];
+  if (!data.units.length) out.push("Keine Units im Zeitraum.");
+  else {
+    out.push("| Unit | Art | Laufzeit (Min) | Wartezeit (Min) | Berichte |", "| --- | --- | --- | --- | --- |");
+    for (const u of data.units) {
+      out.push(`| ${u.id} | ${KIND_LABEL[u.kind] ?? u.kind} | ${u.minutes} | ${u.waitedMinutes} | ${u.reports} |`);
+    }
+    const sum = data.units.reduce((s, u) => s + u.minutes, 0);
+    out.push("", `Summe Laufzeit: ${sum} Min`);
+  }
+
+  out.push("", "## Eingriffe");
+  const counted = CAUSES.filter((c) => (data.interventionsByCause[c] ?? 0) > 0);
+  const without = data.interventionsWithoutCause;
+  if (!counted.length && !without) out.push("Keine Eingriffe im Zeitraum.");
+  else {
+    if (counted.length) {
+      out.push("| Ursache | Anzahl |", "| --- | --- |");
+      for (const c of counted) out.push(`| ${c} | ${data.interventionsByCause[c]} |`);
+      out.push("");
+    }
+    out.push(`Ohne gültige Ursache: ${without}`);
+  }
+
+  out.push("", "## Worker");
+  if (!data.attempts) out.push("Keine Worker-Läufe gefunden.");
+  else {
+    out.push(`Versuche: ${data.attempts}`, `Fallbacks auf Claude: ${data.fallbacks}`, "", "## Modelle je Rolle");
+    out.push("| Rolle | Modell | Versuche |", "| --- | --- | --- |");
+    for (const [role, models] of Object.entries(data.modelsByRole)) {
+      for (const [model, n] of Object.entries(models)) out.push(`| ${role} | ${model} | ${n} |`);
+    }
+  }
+
+  out.push("", "## Lücken");
+  if (!data.gaps.length) out.push("Keine.");
+  else for (const g of data.gaps) out.push(`- ${g}`);
+  return `${out.join("\n")}\n`;
 }

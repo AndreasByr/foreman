@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // Tests for measure.mjs and the intervention cause. Run: node scripts/test-measure.mjs
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { interventions, openQuestion } from "./lib/intervention.mjs";
-import { collect, FALLBACK_TAG } from "./lib/measure.mjs";
+import { collect, FALLBACK_TAG, render } from "./lib/measure.mjs";
 
 // The repo root holds template/ (from scripts/) or is the parent of template/ (from template/scripts/).
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -346,6 +347,230 @@ t("collect: FALLBACK_TAG equals the text the delegate wrapper writes", () => {
   const rel = rels.find((p) => existsSync(join(REPO, p)));
   if (!rel) { console.log("note: run_task.py not found, fallback tag check skipped"); return; }
   assert.ok(read(rel).includes(`, ${FALLBACK_TAG}"`), "run_task.py must write the tag the parser counts");
+});
+
+// ---- render() and the CLI ----
+
+const CLI = join(HERE, "measure.mjs");
+const GENERATED = "2026-11-21T10:00:00.000Z";
+const PERIOD_ARGS = ["--since", "2026-11-01", "--until", "2026-11-30"];
+const cli = (args) => spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8" });
+const metricsOf = (root) => readFileSync(join(root, "docs", "metrics.md"), "utf8");
+const linesOf = (root) => metricsOf(root).split("\n");
+
+/** The sample project with the question text and the cause sentence replaced by markers that must never be printed. */
+function sampleWithSecrets() {
+  const s = sample();
+  for (const [rel, from, to] of [
+    ["docs/milestones/M101/STATE.md", "Which format?", "SECRET-CAUSE-SENTENCE"],
+    ["docs/milestones/M102/STATE.md", "Which source?", "SECRET-QUESTION-TEXT"],
+  ]) {
+    const f = join(s.root, rel);
+    writeFileSync(f, readFileSync(f, "utf8").replace(from, to));
+  }
+  return s;
+}
+
+t("render: header, period and the fixed line come first, in this order", () => {
+  const { root } = sample();
+  const lines = render(collect({ root, ...PERIOD }), { generatedAt: GENERATED }).split("\n");
+  assert.equal(lines[0], "# Messwerte");
+  assert.equal(lines[1], "");
+  assert.equal(lines[2], "Zeitraum: 2026-11-01T00:00:00.000Z bis 2026-11-30T23:59:59.000Z");
+  assert.equal(lines[3], `Erzeugt: ${GENERATED}`);
+  assert.equal(lines[4], "Diese Datei wird von scripts/measure.mjs erzeugt. Nicht von Hand ändern.");
+  assert.equal(lines[5], "");
+  assert.equal(lines[6], "## Läufe");
+});
+
+t("render: generatedAt accepts a Date", () => {
+  const { root } = sample();
+  const md = render(collect({ root, ...PERIOD }), { generatedAt: new Date(GENERATED) });
+  assert.ok(md.includes(`\nErzeugt: ${GENERATED}\n`));
+});
+
+t("render: run table has one row per unit in id order, then the sum", () => {
+  const { root } = sample();
+  const lines = render(collect({ root, ...PERIOD }), { generatedAt: GENERATED }).split("\n");
+  const i = lines.indexOf("| Unit | Art | Laufzeit (Min) | Wartezeit (Min) | Berichte |");
+  assert.ok(i > 0);
+  assert.deepEqual(lines.slice(i + 1, i + 5), [
+    "| --- | --- | --- | --- | --- |",
+    "| FP1 | Fixpaket | 45 | 0 | 0 |",
+    "| M101 | Meilenstein | 180 | 150 | 2 |",
+    "| M102 | Meilenstein | 60 | 0 | 1 |",
+  ]);
+  assert.equal(lines[i + 5], "");
+  assert.equal(lines[i + 6], "Summe Laufzeit: 285 Min");
+});
+
+t("render: no units gives the single line and no table", () => {
+  const md = render(collect({ root: tmp(), ...PERIOD }), { generatedAt: GENERATED });
+  assert.ok(md.includes("\n## Läufe\nKeine Units im Zeitraum.\n"));
+  assert.ok(!md.includes("| Unit |"));
+  assert.ok(!md.includes("Summe Laufzeit"));
+});
+
+t("render: interventions by category in the fixed category order, then the ones without cause", () => {
+  const { root } = sample();
+  const lines = render(collect({ root, ...PERIOD }), { generatedAt: GENERATED }).split("\n");
+  const i = lines.indexOf("| Ursache | Anzahl |");
+  assert.ok(i > 0);
+  assert.deepEqual(lines.slice(i + 1, i + 4), ["| --- | --- |", "| open-decision | 1 |", "| missing-infra | 1 |"]);
+  assert.ok(lines.includes("Ohne gültige Ursache: 1"));
+});
+
+t("render: no interventions gives the single line", () => {
+  const md = render(collect({ root: tmp(), ...PERIOD }), { generatedAt: GENERATED });
+  assert.ok(md.includes("## Eingriffe\nKeine Eingriffe im Zeitraum.\n"));
+});
+
+t("render: worker section counts and the model table per role", () => {
+  const { root } = sample();
+  const lines = render(collect({ root, ...PERIOD }), { generatedAt: GENERATED }).split("\n");
+  const i = lines.indexOf("Versuche: 5");
+  assert.ok(i > 0);
+  assert.equal(lines[i + 1], "Fallbacks auf Claude: 1");
+  const m = lines.indexOf("## Modelle je Rolle");
+  assert.ok(m > i);
+  assert.deepEqual(lines.slice(m + 1, m + 7), [
+    "| Rolle | Modell | Versuche |",
+    "| --- | --- | --- |",
+    "| execution | claude/claude-sonnet-5-5 | 1 |",
+    "| execution_simple | claude/claude-haiku-5-5 | 2 |",
+    "| execution_simple | ollama/glm-x | 1 |",
+    "| research | claude/claude-haiku-5-5 | 1 |",
+  ]);
+});
+
+t("render: no attempts gives the single line, no counts", () => {
+  const md = render(collect({ root: tmp(), ...PERIOD }), { generatedAt: GENERATED });
+  assert.ok(md.includes("## Worker\nKeine Worker-Läufe gefunden.\n"));
+  assert.ok(!md.includes("## Modelle je Rolle"));
+});
+
+t("render: gaps are bullets, none gives Keine.", () => {
+  const { root } = sample();
+  const md = render(collect({ root, ...PERIOD }), { generatedAt: GENERATED });
+  assert.ok(md.includes("- M102: open needs-input wait not subtracted\n"));
+  const empty = render(collect({ root: tmp(), ...PERIOD }), { generatedAt: GENERATED });
+  assert.ok(empty.includes("## Lücken\n- worker result files not found ("));
+  const clean = tmp();
+  const mtime = new Date("2026-11-15T12:00:00Z");
+  utimesSync(put(clean, "tools/delegate/tasks/r.result.md", result("execution_simple (claude/claude-haiku-5-5) - ok, 60s")), mtime, mtime);
+  assert.ok(render(collect({ root: clean, ...PERIOD }), { generatedAt: GENERATED }).endsWith("## Lücken\nKeine.\n"));
+});
+
+t("render: titles, question text and cause sentences are never printed", () => {
+  const { root } = sampleWithSecrets();
+  const md = render(collect({ root, ...PERIOD }), { generatedAt: GENERATED });
+  for (const s of ["Export", "Import", "Fixes", "SECRET-QUESTION-TEXT", "SECRET-CAUSE-SENTENCE", "secret text"]) assert.ok(!md.includes(s), s);
+});
+
+t("cli: sample run writes docs/metrics.md with sums, fallbacks, causes and the summary line", () => {
+  const { root } = sample();
+  const r = cli(["--root", root, ...PERIOD_ARGS]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^metrics: 3 units, 3 interventions, 1 fallbacks, \d+ gaps -> docs\/metrics\.md\n$/);
+  const md = metricsOf(root);
+  for (const s of ["Summe Laufzeit: 285 Min", "Fallbacks auf Claude: 1", "Ohne gültige Ursache: 1", "open-decision"]) {
+    assert.ok(md.includes(s), s);
+  }
+});
+
+t("cli: question text and cause sentence appear nowhere in docs/metrics.md", () => {
+  const { root } = sampleWithSecrets();
+  assert.equal(cli(["--root", root, ...PERIOD_ARGS]).status, 0);
+  const md = metricsOf(root);
+  assert.ok(!md.includes("SECRET-QUESTION-TEXT"));
+  assert.ok(!md.includes("SECRET-CAUSE-SENTENCE"));
+});
+
+t("cli: two runs are equal except the Erzeugt line", () => {
+  const { root } = sample();
+  cli(["--root", root, ...PERIOD_ARGS]);
+  const first = linesOf(root);
+  cli(["--root", root, ...PERIOD_ARGS]);
+  const second = linesOf(root);
+  assert.equal(first.length, second.length);
+  const strip = (ls) => ls.filter((l) => !l.startsWith("Erzeugt: "));
+  assert.deepEqual(strip(first), strip(second));
+  assert.equal(first.filter((l) => l.startsWith("Erzeugt: ")).length, 1);
+  assert.equal(second.filter((l) => l.startsWith("Erzeugt: ")).length, 1);
+});
+
+t("cli: one-day period lists FP1 only", () => {
+  const { root } = sample();
+  assert.equal(cli(["--root", root, "--since", "2026-11-11", "--until", "2026-11-11"]).status, 0);
+  const md = metricsOf(root);
+  assert.ok(md.includes("| FP1 |"));
+  assert.ok(!md.includes("| M101 |"));
+  assert.ok(!md.includes("| M102 |"));
+});
+
+t("cli: invalid since exits 2 with measure: on stderr and writes nothing", () => {
+  const root = tmp();
+  const r = cli(["--root", root, "--since", "banana"]);
+  assert.equal(r.status, 2);
+  assert.ok(r.stderr.startsWith("measure:"), r.stderr);
+  assert.ok(!existsSync(join(root, "docs", "metrics.md")));
+});
+
+t("cli: impossible calendar day exits 2 and writes nothing", () => {
+  const root = tmp();
+  const r = cli(["--root", root, "--since", "2026-02-30"]);
+  assert.equal(r.status, 2);
+  assert.ok(r.stderr.startsWith("measure:"));
+  assert.ok(!existsSync(join(root, "docs", "metrics.md")));
+});
+
+t("cli: since after until exits 2 and writes nothing", () => {
+  const { root } = sample();
+  const r = cli(["--root", root, "--since", "2026-11-20", "--until", "2026-11-10"]);
+  assert.equal(r.status, 2);
+  assert.ok(r.stderr.startsWith("measure:"), r.stderr);
+  assert.ok(!existsSync(join(root, "docs", "metrics.md")));
+});
+
+t("cli: --strict exits 1 on the sample (gaps exist) and still writes the file", () => {
+  const { root } = sample();
+  const r = cli(["--root", root, "--strict", ...PERIOD_ARGS]);
+  assert.equal(r.status, 1, r.stderr);
+  assert.ok(existsSync(join(root, "docs", "metrics.md")));
+  assert.match(r.stdout, /metrics: .*gaps -> docs\/metrics\.md\n$/);
+});
+
+t("cli: --strict exits 0 on a project without gaps", () => {
+  const root = tmp();
+  const mtime = new Date("2026-11-15T12:00:00Z");
+  utimesSync(put(root, "tools/delegate/tasks/r1.result.md", result("execution_simple (claude/claude-haiku-5-5) - ok, 60s")), mtime, mtime);
+  const r = cli(["--root", root, "--strict", ...PERIOD_ARGS]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /0 gaps -> docs\/metrics\.md\n$/);
+});
+
+t("cli: unknown option, positional argument and missing value exit 2", () => {
+  const root = tmp();
+  for (const args of [["--root", root, "--verbose"], ["--root", root, "extra"], ["--root", root, "--since"]]) {
+    const r = cli(args);
+    assert.equal(r.status, 2, args.join(" "));
+    assert.ok(r.stderr.startsWith("measure:"), args.join(" "));
+  }
+  assert.ok(!existsSync(join(root, "docs", "metrics.md")));
+});
+
+t("cli: empty project exits 0, says no units and lists the missing result files as a gap", () => {
+  const root = tmp();
+  const r = cli(["--root", root, ...PERIOD_ARGS]);
+  assert.equal(r.status, 0, r.stderr);
+  const md = metricsOf(root);
+  assert.ok(md.includes("Keine Units im Zeitraum."));
+  assert.ok(md.includes("- worker result files not found ("));
+});
+
+t("docs: MODULES.md and learnings.md mention measure.mjs", () => {
+  assert.ok(read("docs/MODULES.md").includes("measure.mjs"));
+  assert.ok(read("docs/learnings.md").includes("measure.mjs"));
 });
 
 let failed = 0;
