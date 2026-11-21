@@ -225,7 +225,7 @@ Go/no-go: Limits greifen (Tests grün). Ohne das bleibt der Gateway-Betrieb übe
 **Goal:** `foreman-setup` erfasst Maschinen, Dienste und KI-Zugänge vollständig, speichert sie als `workspace.json` und erkennt einen laufenden Gateway.
 **Coding:** ~5 Tage (Agent)
 **Testing:** ~3 Tage (Mensch)
-**Status:** open
+**Status:** done
 
 ---
 

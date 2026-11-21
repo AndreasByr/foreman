@@ -15,7 +15,8 @@
       "tools/delegate/.gitignore",
       "tools/delegate/README.md",
       "tools/delegate/run_task.py",
-      "tools/delegate/test_run_task.py"
+      "tools/delegate/test_run_task.py",
+      "docs/docs-rules.md"
     ],
     "project": [
       "docs/learnings.md",
