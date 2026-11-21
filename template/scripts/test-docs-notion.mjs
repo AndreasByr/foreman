@@ -48,8 +48,9 @@ const bodyViolations = (body) => {
   return out;
 };
 
-async function startFake({ pageSize = 3, token = TOKEN } = {}) {
+async function startFake({ pageSize = 3, token = TOKEN, delayMs = 0 } = {}) {
   let seq = 0;
+  let delay = delayMs; // every response is held back this long
   const newId = (p) => `${p}-${++seq}`;
   const pages = new Map(); // id -> { id, title, parent, archived, items }
   pages.set(ROOT_ID, { id: ROOT_ID, title: "root", parent: null, archived: false, items: [] });
@@ -130,8 +131,9 @@ async function startFake({ pageSize = 3, token = TOKEN } = {}) {
     }
     const rec = { method: req.method, path: url.pathname, query: Object.fromEntries(url.searchParams), headers: req.headers, body, status: 0, t: Date.now() };
     requests.push(rec);
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
 
-    const send = (status, obj, headers = {}) => {
+    const send =(status, obj, headers = {}) => {
       rec.status = status;
       res.writeHead(status, { "content-type": "application/json", ...headers });
       res.end(JSON.stringify(obj));
@@ -240,6 +242,9 @@ async function startFake({ pageSize = 3, token = TOKEN } = {}) {
       pages.set(page.id, page);
       parent.items.push({ child_page: page.id });
       return page.id;
+    },
+    setDelay(ms) {
+      delay = ms;
     },
     mark: () => requests.length,
     since: (mark) => requests.slice(mark),
@@ -1060,6 +1065,101 @@ t("30 directory symlink out of the repo is skipped and named on stderr", async (
   } finally {
     rmSync(target, { recursive: true, force: true });
   }
+});
+
+t("31 part at the root, overview added later: part moves under the overview, no duplicates", async () => {
+  await scenario(async ({ fake, dir, run }) => {
+    expectSummary(await run(), 1, 0, 0, 0);
+    assert.deepEqual(fake.tree(), ["docs/x/y.md < root"]);
+    const oldId = fake.pageByTitle("docs/x/y.md");
+    writeFileSync(join(dir, "docs/x.md"), "# X\n\nInvented overview.\n");
+    const r = await run();
+    assert.equal(r.status, 0, info(r));
+    assert.deepEqual(fake.rejected, []);
+    assert.ok(!fake.requests.some((q) => q.status === 400), `fake answered 400\n${info(r)}`);
+    assert.deepEqual(fake.tree(), ["docs/x.md < root", "docs/x/y.md < docs/x.md"]);
+    const newId = fake.pageByTitle("docs/x/y.md");
+    assert.notEqual(newId, oldId, "part must be a new page");
+    assert.ok(fake.isArchived(oldId), "old part page not archived");
+    const titles = fake.tree().map((l) => l.split(" < ")[0]);
+    assert.equal(new Set(titles).size, titles.length, "duplicate active titles");
+    expectMarkers(fake, dir);
+    const again = await run();
+    expectSummary(again, 0, 0, 0, 2);
+    assert.deepEqual(fake.rejected, []);
+  }, { files: { "docs/x/y.md": "# Y\n\nInvented part.\n" } });
+});
+
+t("32 overview deleted, parts stay: parts are re-created directly under the root", async () => {
+  await scenario(async ({ fake, dir, run }) => {
+    expectSummary(await run(), 3, 0, 0, 0);
+    const oldA = fake.pageByTitle("docs/x/a.md");
+    const oldB = fake.pageByTitle("docs/x/b.md");
+    const beforeA = norm(fake.blocksOf(oldA));
+    const beforeB = norm(fake.blocksOf(oldB));
+    rmSync(join(dir, "docs/x.md"));
+    const r = await run();
+    assert.equal(r.status, 0, info(r));
+    assert.deepEqual(fake.rejected, []);
+    assert.ok(!fake.requests.some((q) => q.status === 400), `fake answered 400\n${info(r)}`);
+    assert.deepEqual(fake.tree(), ["docs/x/a.md < root", "docs/x/b.md < root"]);
+    const newA = fake.pageByTitle("docs/x/a.md");
+    const newB = fake.pageByTitle("docs/x/b.md");
+    assert.ok(newA && newB && newA !== oldA && newB !== oldB, "parts must be re-created");
+    assert.ok(fake.isArchived(oldA) && fake.isArchived(oldB), "old part pages not archived");
+    assert.equal(fake.pageByTitle("docs/x.md"), undefined, "overview still active");
+    assert.deepEqual(norm(fake.blocksOf(newA)), beforeA);
+    assert.deepEqual(norm(fake.blocksOf(newB)), beforeB);
+    expectMarkers(fake, dir);
+    const again = await run();
+    expectSummary(again, 0, 0, 0, 2);
+    assert.deepEqual(fake.rejected, []);
+  }, { files: { "docs/x.md": "# X\n\nInvented overview.\n", "docs/x/a.md": "# A\n\nInvented part a.\n", "docs/x/b.md": "# B\n\nInvented part b.\n" } });
+});
+
+t("33 foreign child under a mirror page that gets archived: page is kept and named", async () => {
+  await scenario(async ({ fake, dir, run }) => {
+    expectSummary(await run(), 2, 0, 0, 0);
+    const goneId = fake.pageByTitle("docs/gone.md");
+    fake.addPage("My notes", goneId, [para("Invented private note.")]);
+    rmSync(join(dir, "docs/gone.md"));
+    const r = await run();
+    assert.equal(r.status, 0, info(r));
+    assert.equal(fake.isArchived(goneId), false, `docs/gone.md was archived\n${info(r)}`);
+    assert.ok(r.stderr.includes("docs/gone.md"), `page not named\n${info(r)}`);
+    assert.ok(r.stderr.includes("has foreign child pages"), `missing 'has foreign child pages'\n${info(r)}`);
+    assert.ok(r.stderr.includes("My notes"), `foreign child not named\n${info(r)}`);
+    assert.ok(fake.tree().includes("My notes < docs/gone.md"), "foreign page gone");
+    assert.deepEqual(fake.rejected, []);
+  }, { files: { "docs/gone.md": "# Gone\n\nInvented.\n", "docs/keep.md": "# Keep\n\nInvented.\n" } });
+});
+
+t("34 run time budget: NOTION_MAX_RUN_S ends a slow run, unreached files named, rerun heals", async () => {
+  const files = {};
+  for (let i = 1; i <= 10; i++) files[`docs/f${String(i).padStart(2, "0")}.md`] = `# F${i}\n\nInvented text ${i}.\n`;
+  const all = Object.keys(files);
+  await scenario(async ({ fake, dir, run }) => {
+    const t0 = Date.now();
+    const r = await run([], { env: { NOTION_MAX_RUN_S: "2" } });
+    const took = Date.now() - t0;
+    assert.equal(r.status, 1, info(r));
+    assert.ok(took < 8000, `run took ${took} ms, expected < 8000\n${info(r)}`);
+    assert.ok(r.stderr.includes("run time budget"), `missing 'run time budget'\n${info(r)}`);
+    const done = new Set(fake.tree().map((l) => l.split(" < ")[0]));
+    const missing = all.filter((f) => !done.has(f));
+    assert.ok(missing.length > 0, "every file was reached, budget had no effect");
+    for (const f of missing) assert.ok(r.stderr.includes(f), `unreached file ${f} not named\n${info(r)}`);
+    // finished pages stay valid
+    for (const f of done) assert.equal(markerOf(fake, fake.pageByTitle(f)).hash, hashOf(dir, f), `marker hash of ${f}`);
+    assert.deepEqual(fake.rejected, []);
+
+    fake.setDelay(0);
+    const again = await run([], { env: { NOTION_MAX_RUN_S: "600" } });
+    assert.equal(again.status, 0, info(again));
+    assert.deepEqual(fake.tree(), all.map((f) => `${f} < root`).sort());
+    expectMarkers(fake, dir);
+    assert.deepEqual(fake.rejected, []);
+  }, { files }, { delayMs: 700 });
 });
 
 // ---------------------------------------------------------------- runner
