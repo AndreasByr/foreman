@@ -302,7 +302,7 @@ Go/no-go: `workspace.json` wird geschrieben und enthält den eigenen Aufbau korr
 **Goal:** „Neues Projekt“ führt in `foreman-project`, das nur die Projektschritte macht und Merge-Fenster, Ausführung und `main`-Regel pro Projekt erfragt.
 **Coding:** ~4 Tage (Agent)
 **Testing:** ~3 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT von Andreas abgenommen, 2026-11-21; PR #12 in dev)
 
 ---
 

@@ -1,4 +1,4 @@
-Status: uat-waiting · since 2026-11-21T19:02Z · PR #12 nach dev gemergt (2f6c075), CI grün; UAT bei Andreas (docs/uat/M004.md)
+Status: done · since 2026-11-21T19:05Z · UAT von Andreas abgenommen, PR #12 in dev (2f6c075)
 Target: dev
 Batch-branch: batch/m004
 Lock: free
@@ -64,3 +64,4 @@ Die Validierung Runde 3 fand einen mittleren Fund (P1-Zuordnung falsch, P2/P3/P5
 - 2026-11-21T18:30Z · R1 1e32242, R2 3da9544, R3 4a54a00 (Antrag); Validierung Runde 3: A/C needs-attention (1 mittel), B pass; test-all.sh Exit 0 auf 4a54a00; Status needs-input
 - 2026-11-21T18:55Z · Andreas gab die dritte Runde frei; R3b 148cd1d; test-all.sh Exit 0; Status batch-pr
 - 2026-11-21T19:02Z · Batch-PR #12 gemergt nach dev (2f6c075), Checks test und guards grün · UAT offen
+- 2026-11-21T19:05Z · UAT M004 approved (Andreas) · Status done
