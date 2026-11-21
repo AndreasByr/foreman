@@ -1,4 +1,4 @@
-Status: planning · since 2026-11-21T16:56Z · Brief geschrieben, Baseline folgt
+Status: batch-pr · since 2026-11-21T17:16Z · Validierung pass, Batch-PR nach dev
 Target: dev
 Batch-branch: batch/m011
 Lock: free
@@ -13,9 +13,9 @@ Start commit: c6b3149 (dev nach M001)
 
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
-| S1 | Eingriffs-Ursache | open | | template/scripts/lib/intervention.mjs (+ scripts/lib), STATE-Vorlagen, Skills, Tests | |
-| S2 | Mess-Skript | open | | template/scripts/measure.mjs, lib/measure.mjs (+ scripts/), Tests | |
-| S3 | Ausgabe und Doku | open | | docs/metrics.md-Erzeugung, docs/MODULES.md, docs/learnings.md, Tests | |
+| S1 | Eingriffs-Ursache | done | 7a7b658 | template/scripts/lib/intervention.mjs (+ scripts/lib), STATE-Vorlagen, Skills, Tests | |
+| S2 | Mess-Skript | done | 9870322 | template/scripts/measure.mjs, lib/measure.mjs (+ scripts/), Tests | |
+| S3 | Ausgabe und Doku | done | bdd61dd, d3a3036 | docs/metrics.md-Erzeugung, docs/MODULES.md, docs/learnings.md, Tests | |
 
 ## Check plan per slice
 
@@ -46,3 +46,8 @@ One question, options, recommendation.
 ## Log
 
 - 2026-11-21T16:56Z · Brief M011-CONTEXT.md und Role-Review-Bericht geschrieben · batch/m011
+- 2026-11-21T17:16Z · S1 done: test-measure rot 77d29ed (Exit 1) -> grün; test-all Exit 0 · 7a7b658
+- 2026-11-21T17:16Z · S2 done: rot gegen Stub 0096814, grün 32 Tests · 9870322
+- 2026-11-21T17:16Z · S3 done: CLI, Doku, 54 Tests grün; dev (M002) eingemergt beea95a · d3a3036
+- 2026-11-21T17:16Z · Validierung 1: needs-remediation (1 hoch, 2 mittel) -> R1 · efa3167
+- 2026-11-21T17:16Z · Validierung 2: pass (nur low); Abschlusslauf test-all Exit 0, check-config Exit 0 · Abschlussbericht docs/agent-reports/2026-11-21-M011.md, UAT docs/uat/M011.md
