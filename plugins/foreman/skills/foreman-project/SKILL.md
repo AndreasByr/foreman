@@ -39,7 +39,7 @@ Mixed signals: recommend Quick and say that the same repo can move to full later
 
 ### Project questions
 
-The questions come from `references/project-questions.md` (read it first): P1 to P9, each with a suggestion. Values from `workspace.json` are taken over and shown, not asked again, except the time zone. The time zone is asked per project, with a suggestion from `workspace.json` when it has one, else a guess for the human to confirm. The Autopilot-only questions (batch hours, wait, mainAutoMerge) are asked only for profile Autopilot; the time zone is asked for profiles Repo and Autopilot.
+The questions come from `references/project-questions.md` (read it first): P1 to P9, each with a suggestion. Values from `workspace.json` are taken over and shown, not asked again, except the time zone. The time zone is asked per project, the suggestion is the `timeZone` from `workspace.json`, otherwise ask without one; never invent a zone. The Autopilot-only questions (batch hours, wait, mainAutoMerge) are asked only for profile Autopilot; the time zone is asked for profiles Repo and Autopilot.
 
 Read `.foreman.json` in the repo (if the repo exists), the chat project's files and `docs/`. Ask only what is missing, at most 3 per round, beyond P1 to P9:
 

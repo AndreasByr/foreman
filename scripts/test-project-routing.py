@@ -62,6 +62,7 @@ FIRST_SETUP = {
     "install foreman for the first time": ["first time"],
     "my environment changed: new server": ["environment changed", "new server"],
     "I added a new machine": ["new machine"],
+    "I want to set up foreman": ["first setup"],
 }
 
 # Section 2: trigger keywords per skill, matched case-insensitively as substrings.
@@ -100,6 +101,7 @@ QUESTION_KEYWORDS = {
     "P9": ["mainAutoMerge", "Batch PR main"],
 }
 AUTOPILOT_ONLY_IDS = {"P7", "P8", "P9"}
+TRACKER_OPTIONS = {"itsaplan", "linear"}
 AUTOPILOT_ONLY = "autopilot only"
 QUESTION_FLAGS = ["--tz", "--batch-hours", "--wait-hours", "--main-auto-merge"]
 QUESTION_KEYS = [
@@ -359,6 +361,14 @@ def check_questions_file(text, failures):
         if "suggestion" not in block:
             failures.append(f"questions: {qid} has no 'Suggestion' line")
 
+    if "P3" in blocks:
+        p3 = blocks["P3"].lower()
+        for word in ["tracker", "itsaplan", "linear", "not in workspace.json"]:
+            if word not in p3:
+                failures.append(f"questions: P3 does not mention {word!r} (tracker is asked when it is not in workspace.json)")
+    if "P6" in blocks and "guess" in blocks["P6"].lower():
+        failures.append("questions: P6 must not contain the word 'guess'")
+
     for flag in QUESTION_FLAGS:
         if flag not in text:
             failures.append(f"questions: the file does not mention the installer flag {flag}")
@@ -418,6 +428,8 @@ def check_project_questions_section(body, failures):
         failures.append(
             "questions: no sentence says the time zone from workspace.json is a suggestion that is asked"
         )
+    if any("time zone" in s and "suggestion" in s and "guess" in s for s in all_sentences):
+        failures.append("questions: the time zone suggestion sentence in SKILL.md must not contain the word 'guess'")
     if any("time zone" in s and "do not ask it again" in s for s in all_sentences):
         failures.append("questions: a sentence claims the time zone is taken over and not asked again")
     if not any(re.search(r"\bempty\b|\bunknown\b", s) and re.search(r"stay empty|left empty", s)
@@ -460,6 +472,8 @@ def check_walkthrough(questions_md, failures):
             if isinstance(machine.get("name"), str):
                 names.append(machine["name"])
             names += [x for x in machine.get("services") or [] if isinstance(x, str)]
+    # The tracker options are legitimate answers of P3, so they are not forbidden fixture names.
+    names = [n for n in names if n.lower() not in TRACKER_OPTIONS]
     blocks = question_blocks(questions_md)
     for profile, expected in EXPECTED_ASKED.items():
         asked = asked_questions(questions_md, profile)

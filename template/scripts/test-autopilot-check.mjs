@@ -35,6 +35,25 @@ t("settings: defaults, .foreman.json and env override", () => {
   assert.equal(c.releaseWeekday, 4);
 });
 
+t("settings: empty, blank or non-string time zones count as not set", () => {
+  assert.equal(settingsFrom({}, { context: { timeZone: "" } }).tz, "UTC", "empty context zone");
+  assert.equal(settingsFrom({}, { context: { timeZone: "Europe/Berlin" }, autopilot: { timezone: "" } }).tz, "Europe/Berlin", "empty autopilot zone falls to context");
+  assert.equal(settingsFrom({}, { autopilot: { timezone: "  " } }).tz, "UTC", "whitespace zone");
+  assert.equal(settingsFrom({ FOREMAN_TZ: "" }, { context: { timeZone: "Europe/Berlin" } }).tz, "Europe/Berlin", "empty env falls through");
+  assert.equal(settingsFrom({ FOREMAN_TZ: "  " }, { context: { timeZone: "Europe/Berlin" } }).tz, "Europe/Berlin", "blank env falls through");
+  for (const v of [5, null, true]) {
+    assert.equal(settingsFrom({}, { context: { timeZone: v } }).tz, "UTC", `context ${String(v)}`);
+    assert.equal(settingsFrom({}, { context: { timeZone: "Europe/Berlin" }, autopilot: { timezone: v } }).tz, "Europe/Berlin", `autopilot ${String(v)}`);
+  }
+});
+
+t("check run with an empty time zone in the config does not throw", () => {
+  const s = settingsFrom({}, { context: { timeZone: "" } });
+  assert.equal(s.tz, "UTC");
+  const list = tasks({ units: [unit("A", "slice")], now: NOW, settings: s });
+  assert.deepEqual(kinds(list), ["coding:A"]);
+});
+
 t("settings: autopilot.waitHours sets the wait, env wins, invalid values fall back to 4 h", () => {
   const DEFAULT_WAIT_MS = 14400000;
   assert.equal(settingsFrom({}, {}).waitMs, DEFAULT_WAIT_MS, "no setting");

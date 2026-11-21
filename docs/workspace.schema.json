@@ -181,6 +181,11 @@
       "description": "Whether the human has a GitHub account for the repos.",
       "type": "string",
       "enum": ["yes", "no", "unbekannt"]
+    },
+    "timeZone": {
+      "description": "The human's IANA time zone, e.g. Europe/Berlin. Optional; foreman-project suggests it per project.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+){0,2}$"
     }
   }
 }

@@ -19,7 +19,7 @@ Ask which profile fits the project. Quick was already decided in step 1 of the s
 
 ### P3 Modules
 
-Ask which modules to enable. Offer only the modules that fit the chosen profile. The tracker comes from `workspace.json` and is not asked again.
+Ask which modules to enable. Offer only the modules that fit the chosen profile. The tracker (itsaplan, linear or none) is asked when it is not in workspace.json.
 
 **Suggestion:** the modules that the profile recommends.
 
@@ -39,7 +39,7 @@ Ask whether the project has a staging environment, separate from production, tha
 
 **Profiles Repo and Autopilot.** Ask the time zone, used for the merge window and the batch hours.
 
-**Suggestion:** the zone from `workspace.json` when it has one, otherwise the zone the human names. Always ask; the human confirms.
+**Suggestion:** the `timeZone` from `workspace.json`. If there is none, ask without a suggestion. Always ask; the human confirms.
 
 ### P7 Batch hours
 

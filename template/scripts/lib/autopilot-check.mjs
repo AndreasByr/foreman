@@ -21,7 +21,7 @@ export function settingsFrom(env = {}, conf = {}) {
   const hours = (env.FOREMAN_BATCH_HOURS ?? (Array.isArray(a.batchHours) ? a.batchHours.join(" ") : null) ?? "03 07 11 15 19 23")
     .split(/[\s,]+/).filter(Boolean).map(Number);
   return {
-    tz: env.FOREMAN_TZ ?? a.timezone ?? ctx.timeZone ?? "UTC",
+    tz: [env.FOREMAN_TZ, a.timezone, ctx.timeZone].find((v) => typeof v === "string" && v.trim() !== "") ?? "UTC",
     batchHours: hours,
     releaseWeekday: Number(env.FOREMAN_RELEASE_WEEKDAY ?? a.releaseWeekday ?? ctxDay ?? 5),
     releaseHour: Number(env.FOREMAN_RELEASE_HOUR ?? a.releaseHour ?? 9),
