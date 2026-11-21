@@ -78,3 +78,19 @@ The default period is the last 7 days, the root is the current directory. The ou
 Every "Open question" section of a STATE.md carries one cause line, `**Cause:** <category> · <one sentence>`. Categories: `missing-requirement`, `open-decision`, `missing-infra`, `merge-conflict`, `ui-deviation`, `limit-exceeded`, `security`, `other`. An intervention without a valid category counts as "without valid cause" and is listed as a gap.
 
 The result files (`tools/delegate/tasks/*.result.md`) exist only on the machine where the workers ran. On any other machine the report shows them as a gap, not as zero.
+
+## Updating a project
+
+Run `./install.sh <target> --update --dry-run` first. It lists what would change. Then run `./install.sh <target> --update` to apply it. The `foreman-update` chat skill guides both steps.
+
+Every file in `template/` has one class in `update-classes.json`:
+
+- `foreman`: replaced by the current version.
+- `project`: kept as it is.
+- `mixed`: `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`, `tools/delegate/config.toml`. Never overwritten, because a project's own edits must survive. A missing one is created. For the ones that differ, the update prints a diff against the rendered template.
+
+`version` in `.foreman.json` is written last. A failed update leaves it unchanged, so a rerun finishes the work. `--update` never adds modules. It stops when foreman-owned files have uncommitted changes. Foreman-owned files that a project patched and committed are replaced too, so read the `update` lines before you run it for real.
+
+The steps for each version are in the `### Upgrade` part of its section in `CHANGELOG.md`.
+
+Whoever adds a file to `template/` also adds it to `update-classes.json`. A test enforces this.
