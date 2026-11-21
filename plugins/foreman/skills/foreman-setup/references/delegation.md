@@ -43,6 +43,7 @@ Sessions and routines: work run and pretest on the strongest tier, repo sessions
 
 ## Rules for the session
 
+- **Model ID rule:** exact model IDs for the session and direct providers; `task-*` aliases for gateway roles; the IDs are written only in `tools/delegate/config.toml`.
 - Every task file names a `role`; a task without one exits with code 2.
 - Code changes go through `execution_simple` or `execution`, never `completion` or `subagent`.
 - Accept without believing the report: scope check, tests, typecheck, lint, a test that was red before and green after, then `validation`.
