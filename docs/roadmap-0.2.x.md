@@ -455,7 +455,7 @@ Go/no-go: Mirror-Trockenlauf gegen ein Projekt aus der Vorlage endet mit Exit 0.
 **Goal:** Ein installiertes Projekt lässt sich auf die aktuelle foreman-Version bringen, ohne projektspezifische Anpassungen zu verlieren.
 **Coding:** ~5 Tage (Agent)
 **Testing:** ~3 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT von Andreas abgenommen, 2026-11-21; PR #11 in dev)
 
 ---
 
