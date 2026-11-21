@@ -1,4 +1,4 @@
-Status: in progress · since 2026-11-21T16:10Z · Aufteilung fertig, S1 offen
+Status: in progress · since 2026-11-21T16:10Z · S1 fertig, S2 offen
 Target: dev
 Batch-branch: batch/m003
 Lock: free
@@ -13,7 +13,7 @@ Start commit: 2e5bc22
 
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
-| S1 | Bestandsaufnahme: Fragenkatalog | open | | plugins/foreman/skills/foreman-setup/SKILL.md, references/question-catalog.md, scripts/test-setup-catalog.py, scripts/test-all.sh | |
+| S1 | Bestandsaufnahme: Fragenkatalog | done | S1c | plugins/foreman/skills/foreman-setup/SKILL.md, references/question-catalog.md, scripts/test-setup-catalog.py, scripts/test-all.sh | |
 | S2 | workspace.json: Schema, Beispiel, Prüfung, infra-Block | open | | docs/workspace.schema.json, docs/workspace.example.json, scripts/check-workspace.py, scripts/test-workspace.py, install.sh (--workspace), references/workspace-format.md | |
 | S3 | Gateway erkennen: Preset im Installer, optionaler Einrichtungsblock | open | | install.sh, scripts/test-install.sh, gateway/README.md, references/gateway-block.md | |
 | S4 | Zusammenfassung vor der Empfehlung | open | | scripts/setup-summary.py, scripts/test-setup-summary.py, SKILL.md | |
@@ -49,3 +49,5 @@ One question, options, recommendation.
 ## Log
 
 - <UTC time> · <step> · <result> · <commit>
+
+- 2026-11-21T16:35Z · S1 fertig, test-all.sh grün (Exit 0) · S1c

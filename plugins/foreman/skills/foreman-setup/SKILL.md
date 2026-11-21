@@ -38,10 +38,10 @@ Read `references/question-catalog.md`. Four blocks, adaptive:
 
 - A. What do you know (decides how deep you explain)
 - B. What do you need (decides the profile)
-- C. What do you have (decides modules and missing prerequisites)
+- C. What do you have (full inventory for every profile except Quick; decides modules and missing prerequisites)
 - D. How do you work (decides schedule, release day, notifications)
 
-Ask block A first. Its answers set your explanation depth for the rest of the session. Ask one block per round, at most 3 questions. After each block, say what you now know in one line.
+Ask block A first. Its answers set your explanation depth for the rest of the session. Ask one block per round, at most 3 questions; block C takes three rounds. After each block, say what you now know in one line. Every "I don't know" or "weiß nicht" is recorded as `unbekannt`, never guessed, and named later as a gap.
 
 ### 3. Recommend a profile
 

@@ -36,23 +36,24 @@ If B1 is "stays" or B2 is "others" or B3 is "while I sleep", ask once more:
 
 ## C. What do you have?
 
-Decides modules and missing prerequisites. Ask in two rounds.
+Full inventory of what exists: machines, services, access, tracker, gateway, agent. Runs for profiles Repo and Autopilot; Quick skips it. Decides modules and missing prerequisites.
 
-Round 1:
+Rules:
 
-1. Coding agent and plan: Claude Code with a subscription / OpenCode / another agent. Which subscription or API access.
-2. GitHub account and a repo for the project: yes / no / unsure.
-3. A machine that is on all the time: server or VPS / home server / only my laptop.
+- Nothing is inferred. Every statement later in the summary comes from an answer. Never ask for key values, only whether one exists.
+- "none" is always allowed and means zero matches.
+- "I don't know" is always allowed. Record it as `unbekannt`, never guess it, and name it later as a gap. The same goes for "unknown".
 
-Round 2, only for Autopilot or Repo with a deploy:
+Ask in three rounds of at most three questions: C1 to C3, then C4 to C6, then C7 and C8. Multi-select where marked.
 
-4. Docker or a deploy tool (Coolify or similar) on that machine: yes / no.
-5. Domain name: yes / no. Needed only for a public app or a tracker reachable from outside.
-6. Tracker: itsaplan running / Linear account / none. 
-7. Worker access: Ollama Cloud key / ChatGPT subscription (for the gateway) / none, Claude only.
-8. Monitoring or notifications (mail, webhook, chat): optional.
-
-Never ask for key values. Ask only whether one exists.
+- **C1.** Machines, one entry per machine: a name and a role (server, home server, laptop, other). After each machine ask "another machine?" and repeat until the human says no.
+- **C2.** Services running on each machine from C1 (multi-select): Docker, Coolify or a similar deploy tool, itsaplan, LiteLLM gateway, dispatcher, other.
+- **C3.** Domain and HTTPS per service or machine from C1 and C2: yes / no / unknown.
+- **C4.** AI access with its tier (multi-select): Claude plan (Pro, Max, Team/Enterprise, API); Claude Code routines with API trigger available (yes / no / unknown); Ollama Cloud plan; ChatGPT plan; other providers. Ask for the tier, never for a key.
+- **C5.** Notification channel (multi-select): mail, Discord webhook, Slack webhook, push, none. For a webhook ask only whether one exists, never its URL.
+- **C6.** Tracker (single choice, one tracker module at a time): itsaplan, Linear, none. For itsaplan ask for its URL and only whether it is reachable, never for a key. For Linear ask only whether the account exists.
+- **C7.** Gateway: is a LiteLLM gateway running? Answer: its URL / no / unknown.
+- **C8.** Coding agent and GitHub: Claude Code with a subscription, OpenCode or another agent, and which subscription or API access; GitHub account and a repo for the project: yes / no / unsure.
 
 ## D. How do you work?
 
