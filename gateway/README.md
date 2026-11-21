@@ -37,4 +37,4 @@ Map them to wrapper roles in `tools/delegate/config.toml` (preset "gateway"): fo
 - The `chatgpt/` provider is not an official Codex client. Automatic use may violate the terms of use and may get your subscription blocked.
 - OpenAI recommends an API key for automation. Alternatives: the official Codex CLI as worker, an API key with its own budget, or Ollama and Claude only.
 - You decide this explicitly. The decision is stored as `chatgptViaGateway` in workspace.json and is not asked again for every project.
-- The installer maps `task-normal` only after `--chatgpt-via-gateway accepted-risk`; without it no ChatGPT target is written.
+- The installer maps `task-normal` only with `accepted-risk`, given as `--chatgpt-via-gateway accepted-risk` or stored as `chatgptViaGateway` in the workspace file (when `gateway.running` is `yes`). `declined` (flag or workspace) keeps it off, and the flag beats the workspace value. Without a gateway there is no preset and no ChatGPT target.

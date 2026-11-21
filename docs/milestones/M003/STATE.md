@@ -1,4 +1,4 @@
-Status: in progress · since 2026-11-21T16:10Z · Validierung Runde 1: needs-remediation, Rework R1 und R2
+Status: in progress · since 2026-11-21T16:10Z · Rework R1 und R2 fertig, Validierung Runde 2 offen
 Target: dev
 Batch-branch: batch/m003
 Lock: free
@@ -18,7 +18,7 @@ Start commit: 2e5bc22
 | S3 | Gateway erkennen: Preset im Installer, optionaler Einrichtungsblock | done | 12a8289 | install.sh, scripts/test-install.sh, gateway/README.md, references/gateway-block.md | |
 | S4 | Zusammenfassung vor der Empfehlung | done | eb25e6b | scripts/setup-summary.py, scripts/test-setup-summary.py, SKILL.md | |
 | R1 | Rework Runde 1, Inhalt: ChatGPT-Zustimmung im Katalog (C9), Maschinen-Zwecke, Lücken für unbeantwortete Felder, C8 in der Zusammenfassung, altes Result-Block raus, Variablennamen, Skill-Beschreibung, stärkere Tests | done | 96c5ef7 | plugins/foreman/skills/foreman-setup/**, docs/workspace.schema.json, docs/workspace.example.json, scripts/check-workspace.py, scripts/setup-summary.py, scripts/test-setup-catalog.py, scripts/test-workspace.py, scripts/test-setup-summary.py | |
-| R2 | Rework Runde 1, Installer: einheitliche strenge URL-Prüfung, kein Teil-Install, Probe ohne Redirect/Proxy mit 200-Prüfung, infra-Update bei vorhandener .foreman.json, `declined`, ehrliche Dry-Run-Meldung, Tests | open | | install.sh, scripts/gateway-preset.py, scripts/test-install.sh, gateway/README.md, docs/MODULES.md, references/gateway-block.md | |
+| R2 | Rework Runde 1, Installer: einheitliche strenge URL-Prüfung, kein Teil-Install, Probe ohne Redirect/Proxy mit 200-Prüfung, infra-Update bei vorhandener .foreman.json, `declined`, ehrliche Dry-Run-Meldung, Tests | done | R2c | install.sh, scripts/gateway-preset.py, scripts/test-install.sh, gateway/README.md, docs/MODULES.md, references/gateway-block.md | |
 
 ## Check plan per slice
 
@@ -44,6 +44,8 @@ Start commit: 2e5bc22
 
 Failures that existed before this milestone, each with the run on the start commit (command, exit code, SHA).
 
+Keine: `bash scripts/test-all.sh` auf dem Startstand 2e5bc22 lief mit Exit 0.
+
 ## Open question (when `needs-input`)
 
 One question, options, recommendation.
@@ -56,3 +58,4 @@ One question, options, recommendation.
 - 2026-11-21T16:55Z · S2 fertig, test-all.sh grün (Exit 0) · 12ec325
 - 2026-11-21T17:25Z · S3 fertig, test-all.sh grün (Exit 0) · 12a8289
 - 2026-11-21T17:50Z · S4 fertig, test-all.sh grün (Exit 0) · eb25e6b
+- 2026-11-21T18:45Z · Validierung Runde 1: A needs-remediation, B needs-attention, C needs-attention; Rework R1, R2 fertig, test-all.sh grün (Exit 0) · R2c

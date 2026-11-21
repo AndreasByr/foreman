@@ -18,9 +18,13 @@
 # --workspace <file> is checked with scripts/check-workspace.py before anything is written. A valid file becomes the
 # top-level "infra" block of a newly created .foreman.json; a missing or invalid file exits 2 and writes nothing.
 # --gateway-url <url> activates the gateway preset (adds modules delegate and gateway) and needs --fallback-model
-# <exact claude/id>; plain http only for localhost or 127.0.0.1. Without flags, gateway.url, gateway.keyEnv and
+# <exact claude/id>. URL rule: https (http only for localhost or 127.0.0.1), plain host name, optional port, path of
+# [A-Za-z0-9._~/%-] only, no secret-like path segment (32+ characters); the same rule applies to a workspace URL and
+# the preset needs --scope repo or autopilot. Without flags, gateway.url, gateway.keyEnv and
 # chatgptViaGateway come from --workspace when gateway.running is yes and --fallback-model is given; flags win.
-# --chatgpt-via-gateway accepted-risk routes normal coding to the ChatGPT plan; any other value exits 2.
+# --chatgpt-via-gateway accepted-risk routes normal coding to the ChatGPT plan, declined keeps it off (the flag beats
+# the workspace value); any other value exits 2. accepted-risk needs a gateway URL.
+# An existing .foreman.json is kept, except its infra block, which --workspace replaces.
 # The key value is never read or printed: the preset stores only the variable name (default FOREMAN_GATEWAY_KEY).
 set -euo pipefail
 
@@ -29,7 +33,7 @@ TEMPLATE="$HERE/template"
 VERSION="$(cat "$HERE/VERSION" 2>/dev/null || echo 0.2.0)"
 
 target="" project="" name="" modules="" scope="" model="" agent=claude-code rec="" skills_scope="" workspace="" staging=yes force=no dry=no
-gateway_url="" fallback_model="" chatgpt_via_gateway="" gw_key_env="" gw_on=no
+gateway_url="" fallback_model="" chatgpt_via_gateway="" gw_key_env="" gw_on=no preset_written=no
 while [ $# -gt 0 ]; do
   case "$1" in
     --project) project="$2"; shift 2 ;;
@@ -47,7 +51,7 @@ while [ $# -gt 0 ]; do
     --gateway-url) gateway_url="$2"; shift 2 ;;
     --fallback-model) fallback_model="$2"; shift 2 ;;
     --chatgpt-via-gateway) chatgpt_via_gateway="$2"; shift 2 ;;
-    -h|--help) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) target="$1"; shift ;;
   esac
@@ -101,6 +105,26 @@ fi
 
 # ---- gateway preset: everything checked here, before anything is written ----
 gw_fail() { echo "gateway: $1; nothing written" >&2; exit 2; }
+# One strict URL rule (same text in scripts/gateway-preset.py). Prints a reason and returns 1 on failure; never echoes the path.
+gw_check_url() {
+  local LC_ALL=C url="$1" label='[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?' re rest hostport host port="" path seg
+  re="^https?://${label}(\\.${label})*(:[0-9]{1,5})?(/[A-Za-z0-9._~/%-]*)?\$"
+  if ! [[ "$url" =~ $re ]]; then
+    echo "gateway URL must be https://host[:port][/path] with plain host and path characters (no quotes, backslash, ?, # or spaces)"; return 1
+  fi
+  rest="${url#*://}"; hostport="${rest%%/*}"; path="${rest#$hostport}"; host="${hostport%%:*}"
+  [ "$host" = "$hostport" ] || port="${hostport#*:}"
+  if [ "${url%%://*}" = http ] && [ "$host" != localhost ] && [ "$host" != 127.0.0.1 ]; then
+    echo "plain http is allowed only for localhost or 127.0.0.1; use https"; return 1
+  fi
+  if [[ "$host" != *.* ]] && [ "$host" != localhost ]; then echo "gateway URL host must be a full host name with at least one dot"; return 1; fi
+  if [ -n "$port" ] && { [ "$((10#$port))" -lt 1 ] || [ "$((10#$port))" -gt 65535 ]; }; then echo "gateway URL port must be 1-65535"; return 1; fi
+  local IFS=/
+  for seg in $path; do
+    if [[ "$seg" =~ ^[A-Za-z0-9+_=-]{32,}$ ]]; then echo "gateway URL has a secret-like path segment; put no key or token into the URL"; return 1; fi
+  done
+  return 0
+}
 ws_gw=()
 if [ -n "$workspace" ]; then
   mapfile -t ws_gw < <(python3 - "$workspace" <<'PY'
@@ -114,10 +138,10 @@ PY
   )
 fi
 ws_gw_url="${ws_gw[0]:-}"; ws_gw_key="${ws_gw[1]:-}"; ws_gw_chatgpt="${ws_gw[2]:-}"
-case "$chatgpt_via_gateway" in ""|accepted-risk) ;; *) gw_fail "--chatgpt-via-gateway accepts only accepted-risk" ;; esac
+case "$chatgpt_via_gateway" in ""|accepted-risk|declined) ;; *) gw_fail "--chatgpt-via-gateway accepts only accepted-risk or declined" ;; esac
 if [ -n "$fallback_model" ]; then
   if [[ "$fallback_model" == *"<"* || "$fallback_model" == *">"* ]] || ! [[ "$fallback_model" =~ ^claude/[A-Za-z0-9._:-]+$ ]]; then
-    gw_fail "--fallback-model must be an exact model ID like claude/<id>, not a placeholder"
+    gw_fail "--fallback-model (fallback model) must be an exact model ID like claude/ID, not a placeholder"
   fi
 fi
 if [ -n "$gateway_url" ]; then
@@ -128,12 +152,8 @@ elif [ -n "$ws_gw_url" ]; then
 fi
 if [ "$gw_on" = yes ]; then
   [ -n "$fallback_model" ] || gw_fail "--gateway-url needs --fallback-model <claude/id>"
-  gw_re='^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[^[:space:]]*)?$'
-  [[ "$gateway_url" =~ $gw_re ]] || gw_fail "--gateway-url must look like http(s)://host[:port][/path]"
-  if [[ "$gateway_url" == http://* ]]; then
-    gw_host="${gateway_url#http://}"; gw_host="${gw_host%%[:/]*}"
-    case "$gw_host" in localhost|127.0.0.1) ;; *) gw_fail "plain http is allowed only for localhost or 127.0.0.1; use https" ;; esac
-  fi
+  gw_reason="$(gw_check_url "$gateway_url")" || gw_fail "$gw_reason"
+  [ "$scope" != docs ] || { echo "gateway: the preset needs --scope repo or autopilot (tools/delegate is not installed with scope docs)" >&2; exit 2; }
   gw_key_env="${ws_gw_key:-FOREMAN_GATEWAY_KEY}"
   [[ "$gw_key_env" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || gw_fail "gateway keyEnv must be a variable name (letters, digits, underscore)"
   [ -n "$chatgpt_via_gateway" ] || chatgpt_via_gateway="$ws_gw_chatgpt"
@@ -141,7 +161,7 @@ if [ "$gw_on" = yes ]; then
   for m in delegate gateway; do has "$m" || modules="${modules:+$modules,}$m"; done
   echo "note: gateway URL set; modules now include delegate and gateway"
 else
-  [ -z "$chatgpt_via_gateway" ] || gw_fail "--chatgpt-via-gateway needs --gateway-url"
+  [ "$chatgpt_via_gateway" != accepted-risk ] || gw_fail "--chatgpt-via-gateway accepted-risk needs a gateway URL (--gateway-url, or a running gateway in --workspace with --fallback-model)"
 fi
 
 installed=() kept=() skipped=()
@@ -254,6 +274,17 @@ PY
     if [ -n "$workspace" ]; then echo "  workspace: infra block written to .foreman.json"; fi
   else
     kept+=(".foreman.json")
+    if [ -n "$workspace" ]; then
+      python3 - "$target/.foreman.json" "$workspace" <<'PY'
+import json, sys
+path, workspace = sys.argv[1:3]
+conf = json.load(open(path, encoding="utf-8"))
+conf["infra"] = json.load(open(workspace, encoding="utf-8"))
+json.dump(conf, open(path, "w"), indent=2)
+open(path, "a").write("\n")
+PY
+      echo "  workspace: infra block updated in .foreman.json"
+    fi
   fi
   if has gateway; then
     mkdir -p "$target/tools/gateway"
@@ -267,15 +298,19 @@ PY
   fi
 fi
 
+if [ "$dry" = yes ] && [ -n "$workspace" ] && [ -f "$target/.foreman.json" ] && [ "$force" = no ]; then
+  echo "  workspace: would update the infra block in .foreman.json"
+fi
 if [ "$gw_on" = yes ]; then
   if [ "$dry" = yes ]; then
     echo "  would write gateway preset to tools/delegate/config.toml ($gateway_url, key variable $gw_key_env, chatgpt: ${chatgpt_via_gateway:-no})"
-  elif [ "$force" = yes ] || in_installed tools/delegate/config.toml; then
+  elif [ -f "$target/tools/delegate/config.toml" ] && { [ "$force" = yes ] || in_installed tools/delegate/config.toml; }; then
     gw_args=("$target/tools/delegate/config.toml" --url "$gateway_url" --key-env "$gw_key_env" --fallback-model "$fallback_model")
     [ "$chatgpt_via_gateway" = accepted-risk ] && gw_args+=(--chatgpt)
     python3 "$HERE/scripts/gateway-preset.py" "${gw_args[@]}"
+    preset_written=yes
   else
-    echo "  gateway: tools/delegate/config.toml kept (exists); use --force to write the gateway preset"
+    echo "  gateway: config.toml kept (exists); preset not applied. Re-run with --force or run: python3 $HERE/scripts/gateway-preset.py tools/delegate/config.toml --url $gateway_url --key-env $gw_key_env --fallback-model $fallback_model"
   fi
 fi
 
@@ -344,7 +379,7 @@ if has tracker-itsaplan; then echo "  Tracker itsaplan: create the columns and l
 if has tracker-linear; then echo "  Tracker linear: set LINEAR_API_KEY, fill mirror.linear.teamKey, then: node scripts/state-mirror.mjs --dry-run"; fi
 if [ "$tracker" = none ]; then echo "  Tracker none: answers go to docs/answers/<unit>.md, UAT approval to docs/uat/<unit>.md (docs/trackers.md)."; fi
 if has pretest; then echo "  Pretest: fill pretest.* in .foreman.json and build the test login (docs/test-login.md)."; fi
-if has gateway; then if [ -n "$gateway_url" ]; then echo "  Gateway preset written to tools/delegate/config.toml; fill the exact model IDs and read tools/gateway/README.md."; else echo "  Gateway: read tools/gateway/README.md, then enable the gateway preset in tools/delegate/config.toml."; fi; fi
+if has gateway; then if [ "$preset_written" = yes ]; then echo "  Gateway preset written to tools/delegate/config.toml; fill the exact model IDs and read tools/gateway/README.md."; elif [ -n "$gateway_url" ]; then echo "  Gateway: preset not written (see above); read tools/gateway/README.md."; else echo "  Gateway: read tools/gateway/README.md, then enable the gateway preset in tools/delegate/config.toml."; fi; fi
 if has autopilot; then
   echo "  Autopilot needs GitHub (or similar), a Claude Code routine for the work run (docs/routines/work-run.md, about 20 min) and a machine that is on for the dispatcher"
   echo "  (dispatcher/ of the foreman repo, about 15 min; Plan B without a server: docs/routines/delegation.md). Create routines from a Claude Code cloud session or the routines UI, never from a chat."

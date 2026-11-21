@@ -8,9 +8,13 @@ Usage: python3 scripts/gateway-preset.py <config.toml> --url URL --key-env NAME 
 - removes an earlier foreman gateway region (between the marker comments) and writes one new region
   before the line "# ===== Roles the session plays itself ====="
 - never writes the key value: only the variable NAME goes into the file
-- checks reachability with GET <url>/health/liveliness (5 s); any HTTP answer counts as reachable.
-  Reachable: a dry run of the wrapper with a temporary copy of the config (placeholders replaced by the
-  fallback model). A failed dry run is reported and marks the check as "no"; the script still exits 0.
+- checks reachability with GET <url>/health/liveliness (5 s, no proxy, no redirects): HTTP 200 is reachable,
+  401 or 403 is reachable but needs auth (marker "yes"), any other answer or a connection error marks the check "no".
+  Reachable: a dry run of the wrapper with a temporary copy of the config (other model placeholders replaced by
+  the fallback model). A failed dry run is reported and marks the check as "no"; the script still exits 0.
+- URL rule (same as install.sh): https, or http only for localhost/127.0.0.1; host labels [A-Za-z0-9-]; optional
+  port 1-65535; path of [A-Za-z0-9._~/%-] only; no secret-like path segment (32+ characters of [A-Za-z0-9+/_=-]).
+- the result must parse as TOML (checked before writing); a config that did not parse before is not checked.
 
 Exit 0 when the config was written, 2 for invalid arguments, 1 when the config cannot be used.
 Python stdlib only.
@@ -27,16 +31,45 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+try:
+    import tomllib
+except ImportError:  # Python < 3.11: the TOML check is skipped
+    tomllib = None
+
 BEGIN = "# >>> foreman gateway preset"
 END = "# <<< foreman gateway preset"
 ROLES_MARK = "# ===== Roles the session plays itself ====="
 CLAUDE_ONLY = ["research", "execution_simple", "completion", "subagent"]
 TIMEOUT = 5
-URL_RE = re.compile(r"^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[^\s\"]*)?$")
+LABEL = r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?"
+URL_RE = re.compile(rf"(https?)://({LABEL}(?:\.{LABEL})*)(?::([0-9]{{1,5}}))?(/[A-Za-z0-9._~/%-]*)?")
+SECRET_SEG_RE = re.compile(r"[A-Za-z0-9+_=-]{32,}")
 KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 MODEL_RE = re.compile(r"^claude/[A-Za-z0-9._:-]+$")
 PLACEHOLDER_RE = re.compile(r"<[^<>\n]*-model-id>")
 TABLE_RE = re.compile(r"^\[")
+
+
+def check_url(url):
+    """Returns None when the URL passes the strict rule, else a short reason (never contains the URL path)."""
+    m = URL_RE.fullmatch(url)
+    if not m:
+        return "URL must be https://host[:port][/path] with plain host and path characters (no quotes, backslash, ?, # or spaces)"
+    scheme, host, port, path = m.group(1), m.group(2), m.group(3), m.group(4) or ""
+    local = host in ("localhost", "127.0.0.1")
+    if scheme == "http" and not local:
+        return "plain http is allowed only for localhost or 127.0.0.1; use https"
+    if "." not in host and host != "localhost":
+        return "URL host must be a full host name with at least one dot"
+    if port is not None and not 1 <= int(port) <= 65535:
+        return "URL port must be 1-65535"
+    if any(SECRET_SEG_RE.fullmatch(seg) for seg in path.split("/")):
+        return "URL has a secret-like path segment; put no key or token into the URL"
+    return None
+
+
+def toml_str(value):
+    return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def fail(msg, code=2):
@@ -76,24 +109,26 @@ def set_active(lines):
     return lines
 
 
-def table_span(lines, header):
-    """Index range of an active table (header line up to the next blank line or table), or None."""
+def table_span(lines, role):
+    """Index range of an active table (header line, a trailing comment is fine, up to the next line starting with "["), or None."""
+    header = re.compile(r"^\[roles\." + re.escape(role) + r"\]\s*(#.*)?$")
     for i, line in enumerate(lines):
-        if line.strip() == header:
+        if header.match(line):
             j = i + 1
-            while j < len(lines) and lines[j].strip() and not TABLE_RE.match(lines[j]) and not lines[j].startswith("#"):
+            while j < len(lines) and not TABLE_RE.match(lines[j]):
                 j += 1
             return i, j
     return None
 
 
 def comment_out(lines, role):
-    span = table_span(lines, f"[roles.{role}]")
+    span = table_span(lines, role)
     if span is None:
         return lines
     i, j = span
     for k in range(i, j):
-        lines[k] = "# " + lines[k]
+        if lines[k].strip() and not lines[k].lstrip().startswith("#"):  # blank and comment lines stay as they are
+            lines[k] = "# " + lines[k]
     return lines
 
 
@@ -112,9 +147,9 @@ def region(url, key_env, fallback, chatgpt, reachable):
         BEGIN,
         f"# foreman: gateway preset, reachability checked: {'yes' if reachable else 'no'}",
         "[gateway]",
-        f'base_url = "{url}"',
-        f'api_key_env = "{key_env}"',
-        f'fallback_model = "{fallback}"',
+        f'base_url = "{toml_str(url)}"',
+        f'api_key_env = "{toml_str(key_env)}"',
+        f'fallback_model = "{toml_str(fallback)}"',
         "",
     ]
     roles = [("research", "gateway/task-research", True), ("execution_simple", "gateway/task-simple", False),
@@ -131,15 +166,28 @@ def region(url, key_env, fallback, chatgpt, reachable):
     return block
 
 
-def reachable(url):
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def probe(url):
+    """GET <url>/health/liveliness without proxy and without redirects. Returns (kind, code):
+    kind is "ok" (200), "auth" (401, 403), "other" (any other HTTP answer) or "down" (no answer)."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
     req = urllib.request.Request(url.rstrip("/") + "/health/liveliness", method="GET")
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT):
-            return True
-    except urllib.error.HTTPError:
-        return True  # any HTTP answer, even 401 or 404, means the server is there
+        with opener.open(req, timeout=TIMEOUT) as resp:
+            code = resp.status
+    except urllib.error.HTTPError as e:
+        code = e.code
     except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException):
-        return False
+        return "down", 0
+    if code == 200:
+        return "ok", code
+    if code in (401, 403):
+        return "auth", code
+    return "other", code
 
 
 def dry_run(config, fallback):
@@ -173,18 +221,19 @@ def main(argv):
     ap.add_argument("--chatgpt", action="store_true")
     a = ap.parse_args(argv)
 
-    if not URL_RE.match(a.url) or (a.url.startswith("http://") and
-            a.url[len("http://"):].split("/")[0].split(":")[0] not in ("localhost", "127.0.0.1")):
-        fail("URL must be https://host[:port][/path] (http only for localhost or 127.0.0.1); nothing written")
+    reason = check_url(a.url)
+    if reason:
+        fail(f"{reason}; nothing written")
     if not KEY_RE.match(a.key_env):
         fail("key variable name must be a plain name (letters, digits, underscore); nothing written")
-    if "<" in a.fallback_model or ">" in a.fallback_model or not MODEL_RE.match(a.fallback_model):
-        fail("fallback model must be an exact ID like claude/<id>; nothing written")
+    if not MODEL_RE.match(a.fallback_model):
+        fail("fallback model must be an exact ID like claude/ID (no placeholder); nothing written")
 
     config = Path(a.config)
     if not config.is_file():
         fail(f"config not found: {config}", 1)
-    lines = config.read_text(encoding="utf-8").splitlines()
+    original = config.read_text(encoding="utf-8")
+    lines = original.splitlines()
     if ROLES_MARK not in lines:
         fail(f"config has no line '{ROLES_MARK}'", 1)
 
@@ -197,19 +246,37 @@ def main(argv):
     else:
         lines = restore_execution(lines)
 
-    ok = reachable(a.url)
+    kind, code = probe(a.url)
+    ok = kind in ("ok", "auth")
     block = region(a.url, a.key_env, a.fallback_model, a.chatgpt, ok)
     at = lines.index(ROLES_MARK)
     lines[at:at] = block
-    config.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    text = "\n".join(lines) + "\n"
+    if tomllib is not None:
+        try:
+            tomllib.loads(original)
+            was_valid = True
+        except tomllib.TOMLDecodeError:
+            was_valid = False
+        if was_valid:
+            try:
+                tomllib.loads(text)
+            except tomllib.TOMLDecodeError as e:
+                fail(f"the result would not parse as TOML ({e}); config left untouched", 1)
+    config.write_text(text, encoding="utf-8")
 
-    if not ok:
+    if kind == "down":
         print(f"gateway unreachable at {a.url}: preset written but NOT checked")
         return 0
+    if kind == "other":
+        print(f"gateway at {a.url} answers but does not look like a gateway (HTTP {code}): preset written but NOT checked")
+        return 0
+    if kind == "auth":
+        print("gateway answers (auth required)")
 
     passed, tail = dry_run(config, a.fallback_model)
     if passed:
-        print("gateway dry-run: ok (other roles still need exact model IDs)")
+        print("gateway dry-run: ok on a copy with the other model placeholders replaced; other roles still need exact model IDs")
         return 0
     print("gateway dry-run: FAILED")
     for line in tail:

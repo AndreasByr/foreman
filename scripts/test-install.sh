@@ -2,7 +2,7 @@
 # Installer smoke test: fresh repo, module combinations, agents, notion refused, existing files, idempotence, skills.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-T=$(mktemp -d); trap '[ -z "${GW_PID:-}" ] || kill "$GW_PID" 2>/dev/null || true; rm -rf "$T"' EXIT
+T=$(mktemp -d); trap '[ -z "${GW_PID:-}" ] || kill "$GW_PID" 2>/dev/null || true; [ -z "${EXTRA_PIDS:-}" ] || kill $EXTRA_PIDS 2>/dev/null || true; rm -rf "$T"' EXIT
 fail() { echo "install test FAIL: $*"; exit 1; }
 inst() { "$HERE/install.sh" "$@"; }
 # field of .foreman.json
@@ -201,17 +201,47 @@ cmp -s "$T/fj.before" "$T/w/.foreman.json" || fail ".foreman.json changed on sec
 # The fake key is assembled at runtime so no key-like literal sits in this file.
 GW_KEY_HEAD="sk-test"; GW_KEY_TAIL="value0123456789abcdef"
 export FOREMAN_GATEWAY_KEY="$GW_KEY_HEAD$GW_KEY_TAIL"
-GW_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
+free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()'; }
+wait_port() {
+  for _ in $(seq 100); do
+    python3 -c 'import socket,sys; socket.create_connection(("127.0.0.1",int(sys.argv[1])),1).close()' "$1" >/dev/null 2>&1 && return 0
+    sleep 0.1
+  done
+  return 1
+}
+GW_PORT=$(free_port)
 GW_URL="http://127.0.0.1:$GW_PORT"
 mkdir "$T/gw"
-python3 -m http.server "$GW_PORT" --bind 127.0.0.1 --directory "$T/gw" >/dev/null 2>&1 &
+# stub gateway: 200 on /health/liveliness, 404 elsewhere; mode "redirect" answers 302 to another port instead
+cat > "$T/gw-stub.py" <<'PY'
+import http.server, sys
+mode, port = sys.argv[1], int(sys.argv[2])
+other = sys.argv[3] if len(sys.argv) > 3 else ""
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.rstrip("/") == "/health/liveliness":
+            if mode == "redirect":
+                self.send_response(302)
+                self.send_header("Location", f"http://127.0.0.1:{other}/health/liveliness")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            body = b'"alive"'
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        self.send_response(404)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+    def log_message(self, *a):
+        pass
+http.server.ThreadingHTTPServer(("127.0.0.1", port), H).serve_forever()
+PY
+python3 "$T/gw-stub.py" ok "$GW_PORT" >/dev/null 2>&1 &
 GW_PID=$!
-up=no
-for _ in $(seq 100); do
-  if python3 -c 'import sys,urllib.request; urllib.request.urlopen(sys.argv[1], timeout=1)' "$GW_URL/" >/dev/null 2>&1; then up=yes; break; fi
-  sleep 0.1
-done
-[ "$up" = yes ] || fail "stub gateway did not answer on $GW_URL"
+wait_port "$GW_PORT" || fail "stub gateway did not answer on $GW_URL"
 
 # case 1: reachable stub, no ChatGPT target without consent
 mkdir "$T/g1" && git -C "$T/g1" init -q
@@ -312,6 +342,156 @@ cmp -s "$T/g7-before.toml" "$T/g7/tools/delegate/config.toml" || fail "config.to
 inst "$T/g7" --project g --modules delegate --session-model m --gateway-url "$GW_URL" --fallback-model claude/test-model --force >/dev/null 2>&1 || fail "idempotence: --force run failed"
 [ "$(grep -cE '^\[gateway\][[:space:]]*$' "$T/g7/tools/delegate/config.toml")" = 1 ] || fail "--force left not exactly one [gateway] table"
 
+# ---- rework round 2 ----
+valid_toml() { python3 -c 'import sys,tomllib; tomllib.load(open(sys.argv[1],"rb"))' "$1" 2>/dev/null; }
+TPL_CFG="$HERE/template/tools/delegate/config.toml"
+GWM="--fallback-model claude/test-model"
+LIVE_NO='^[[:space:]]*# foreman: gateway preset, reachability checked: no[[:space:]]*$'
+LIVE_YES='^[[:space:]]*# foreman: gateway preset, reachability checked: yes[[:space:]]*$'
+
+# R1: strict URL check, installer and script agree
+HEX40=$(python3 -c 'import os; print(os.urandom(20).hex())')
+n=0
+for bad in 'https://gw.example.com/a"b' 'https://gw.example.com/a\q' 'https://gw.example.com/?token=XYZ' 'https://gw.example.com/#x' \
+           'https://.' 'https://gw.example.com:99999' "https://gw.example.com/$HEX40"; do
+  n=$((n+1)); d="$T/r1-$n"; mkdir "$d" && git -C "$d" init -q; rc=0
+  err=$(inst "$d" --project g --gateway-url "$bad" $GWM 2>&1) || rc=$?
+  [ "$rc" = 2 ] || fail "R1 '$bad': exit $rc, expected 2"
+  echo "$err" | grep -q gateway || fail "R1 '$bad': no gateway message: $err"
+  echo "$err" | grep -qF "$HEX40" && fail "R1 '$bad': message echoes the secret-like segment" || true
+  [ ! -e "$d/tools" ] || fail "R1 '$bad': wrote tools/"
+  [ ! -e "$d/.foreman.json" ] || fail "R1 '$bad': wrote .foreman.json"
+done
+mkdir "$T/r1-script" && cp "$TPL_CFG" "$T/r1-script/config.toml" && cp "$TPL_CFG" "$T/r1-script/orig.toml"
+rc=0; python3 "$HERE/scripts/gateway-preset.py" "$T/r1-script/config.toml" --url 'https://gw.example.com/a"b' --key-env FOREMAN_GATEWAY_KEY --fallback-model claude/x >/dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] || fail "R1 script: exit $rc, expected 2"
+cmp -s "$T/r1-script/config.toml" "$T/r1-script/orig.toml" || fail "R1 script changed the config on a bad URL"
+mkdir "$T/r1-ok" && git -C "$T/r1-ok" init -q
+inst "$T/r1-ok" --project g --gateway-url "$GW_URL/v1" $GWM --dry-run >/dev/null 2>&1 || fail "R1: /v1 path refused"
+
+# R2: --scope docs with a gateway URL
+mkdir "$T/r2" && git -C "$T/r2" init -q; rc=0
+err=$(inst "$T/r2" --project g --scope docs --gateway-url "$GW_URL" $GWM 2>&1) || rc=$?
+[ "$rc" = 2 ] || fail "R2: exit $rc, expected 2"
+echo "$err" | grep -q gateway || fail "R2: no gateway message: $err"
+[ -z "$(ls -A "$T/r2" | grep -v '^\.git$' || true)" ] || fail "R2: wrote files: $(ls -A "$T/r2")"
+
+# R3: consent value handling
+mkdir "$T/r3a" && git -C "$T/r3a" init -q
+inst "$T/r3a" --project g --modules delegate --session-model m --workspace "$T/ws-gw-accepted.json" $GWM --chatgpt-via-gateway declined >/dev/null 2>&1 || fail "R3: declined refused"
+valid_toml "$T/r3a/tools/delegate/config.toml" || fail "R3a: config.toml is not valid TOML"
+! grep -vE '^[[:space:]]*#' "$T/r3a/tools/delegate/config.toml" | grep -q 'task-normal' || fail "R3: declined did not override workspace accepted-risk"
+mkdir "$T/r3b" && git -C "$T/r3b" init -q; rc=0
+inst "$T/r3b" --project g --modules delegate --chatgpt-via-gateway accepted-risk >/dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] || fail "R3: accepted-risk without gateway URL: exit $rc, expected 2"
+python3 - "$T/ws-gw-accepted.json" "$T/ws-gw-off.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d["gateway"]["running"] = "no"; d["chatgptViaGateway"] = "accepted-risk"
+json.dump(d, open(sys.argv[2], "w"), indent=2)
+PY
+mkdir "$T/r3c" && git -C "$T/r3c" init -q
+inst "$T/r3c" --project g --modules delegate --session-model m --workspace "$T/ws-gw-off.json" $GWM >/dev/null 2>&1 || fail "R3: workspace with gateway.running no failed"
+cmp -s "$T/r3c/tools/delegate/config.toml" "$TPL_CFG" || fail "R3: preset written although gateway.running is no"
+valid_toml "$T/r3c/tools/delegate/config.toml" || fail "R3c: config.toml is not valid TOML"
+mkdir "$T/r3d" && git -C "$T/r3d" init -q; rc=0
+inst "$T/r3d" --project g --gateway-url "$GW_URL" $GWM --chatgpt-via-gateway yes >/dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] || fail "R3: consent 'yes': exit $rc, expected 2"
+
+# R4: probe needs a 200 on /health/liveliness; no redirects; no proxies
+P404=$(free_port); python3 -m http.server "$P404" --bind 127.0.0.1 --directory "$T/gw" >/dev/null 2>&1 &
+EXTRA_PIDS="${EXTRA_PIDS:-} $!"
+P302=$(free_port); python3 "$T/gw-stub.py" redirect "$P302" "$GW_PORT" >/dev/null 2>&1 &
+EXTRA_PIDS="$EXTRA_PIDS $!"
+wait_port "$P404" || fail "R4: 404 server did not start"
+wait_port "$P302" || fail "R4: 302 server did not start"
+mkdir "$T/r4a" && git -C "$T/r4a" init -q
+out=$(inst "$T/r4a" --project g --modules delegate --session-model m --gateway-url "http://127.0.0.1:$P404" $GWM 2>&1) || fail "R4 404: install failed: $out"
+echo "$out" | grep -q 'does not look like a gateway' || fail "R4 404: no 'does not look like a gateway': $out"
+echo "$out" | grep -q 'gateway dry-run: ok' && fail "R4 404: dry-run ok for a non-gateway" || true
+grep -qE "$LIVE_NO" "$T/r4a/tools/delegate/config.toml" || fail "R4 404: marker is not 'no'"
+valid_toml "$T/r4a/tools/delegate/config.toml" || fail "R4a: config.toml is not valid TOML"
+mkdir "$T/r4b" && git -C "$T/r4b" init -q
+out=$(inst "$T/r4b" --project g --modules delegate --session-model m --gateway-url "http://127.0.0.1:$P302" $GWM 2>&1) || fail "R4 302: install failed: $out"
+grep -qE "$LIVE_NO" "$T/r4b/tools/delegate/config.toml" || fail "R4 302: redirect was followed or counted (marker not 'no')"
+valid_toml "$T/r4b/tools/delegate/config.toml" || fail "R4b: config.toml is not valid TOML"
+mkdir "$T/r4c" && git -C "$T/r4c" init -q
+out=$(HTTP_PROXY=http://127.0.0.1:1 http_proxy=http://127.0.0.1:1 HTTPS_PROXY=http://127.0.0.1:1 https_proxy=http://127.0.0.1:1 NO_PROXY= no_proxy= \
+  inst "$T/r4c" --project g --modules delegate --session-model m --gateway-url "$GW_URL" $GWM 2>&1) || fail "R4 proxy: install failed: $out"
+grep -qE "$LIVE_YES" "$T/r4c/tools/delegate/config.toml" || fail "R4 proxy: proxy was used (marker not 'yes')"
+valid_toml "$T/r4c/tools/delegate/config.toml" || fail "R4c: config.toml is not valid TOML"
+
+# R5: dry-run honesty
+mkdir "$T/r5" && git -C "$T/r5" init -q
+out=$(inst "$T/r5" --project g --modules delegate --session-model m --gateway-url "$GW_URL" $GWM 2>&1) || fail "R5: install failed: $out"
+echo "$out" | grep -q 'still need exact model IDs' || fail "R5: output lacks 'still need exact model IDs': $out"
+grep -q 'means the config resolves' "$HERE/plugins/foreman/skills/foreman-setup/references/gateway-block.md" && fail "R5: gateway-block.md still says 'means the config resolves'" || true
+
+# R6: dry-run red path, direct script call
+cp -r "$HERE/template/tools/delegate" "$T/r6"
+echo 'this is not toml' >> "$T/r6/config.toml"
+rc=0; out=$(python3 "$HERE/scripts/gateway-preset.py" "$T/r6/config.toml" --url "$GW_URL" --key-env FOREMAN_GATEWAY_KEY --fallback-model claude/test-model 2>&1) || rc=$?
+[ "$rc" = 0 ] || fail "R6: exit $rc, expected 0: $out"
+echo "$out" | grep -q 'gateway dry-run: FAILED' || fail "R6: no 'gateway dry-run: FAILED': $out"
+grep -qE "$LIVE_NO" "$T/r6/config.toml" || fail "R6: marker is not 'no'"
+
+# R7: hand-edited table header
+cp -r "$HERE/template/tools/delegate" "$T/r7"
+sed -i 's/^\[roles\.research\]$/[roles.research]  # mine/' "$T/r7/config.toml"
+grep -q '^\[roles\.research\]  # mine$' "$T/r7/config.toml" || fail "R7: setup: header not edited"
+python3 "$HERE/scripts/gateway-preset.py" "$T/r7/config.toml" --url "$GW_URL" --key-env FOREMAN_GATEWAY_KEY --fallback-model claude/test-model >/dev/null 2>&1 || fail "R7: preset failed"
+python3 - "$T/r7/config.toml" <<'PY' || fail "R7: config wrong (see above)"
+import re, sys, tomllib
+raw = open(sys.argv[1], encoding="utf-8").read()
+d = tomllib.loads(raw)
+assert "research" in d["roles"], "no active [roles.research]"
+n = len(re.findall(r"^\[roles\.research\]", raw, re.M))
+assert n == 1, f"{n} active [roles.research] headers"
+assert d["roles"]["research"]["model"] == "gateway/task-research", d["roles"]["research"]
+PY
+
+# R8: existing install, changed environment
+mkdir "$T/r8" && git -C "$T/r8" init -q
+inst "$T/r8" --project w --workspace "$T/ws-ok.json" >/dev/null 2>&1 || fail "R8: first install failed"
+python3 - "$T/ws-ok.json" "$T/ws-new.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d["machines"][0]["name"] = "renamed-box"
+json.dump(d, open(sys.argv[2], "w"), indent=2)
+PY
+cp "$T/r8/.foreman.json" "$T/r8-before.json"
+rc=0; out=$(inst "$T/r8" --project w --workspace "$T/ws-new.json" 2>&1) || rc=$?
+[ "$rc" = 0 ] || fail "R8: second install exit $rc: $out"
+echo "$out" | grep -q 'infra block updated' || fail "R8: no 'infra block updated': $out"
+python3 - "$T/r8/.foreman.json" "$T/r8-before.json" "$T/ws-new.json" <<'PY' || fail "R8: .foreman.json wrong (see above)"
+import json, sys
+n, o, w = (json.load(open(f)) for f in sys.argv[1:4])
+assert n["infra"] == w, "infra is not the new workspace file"
+o.pop("infra", None); n.pop("infra")
+assert n == o, "other keys changed"
+PY
+cp "$T/r8/.foreman.json" "$T/r8-mid.json"
+echo '{"schema": 1, "broken": ' > "$T/ws-bad.json"
+rc=0; inst "$T/r8" --project w --workspace "$T/ws-bad.json" >/dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] || fail "R8: invalid workspace: exit $rc, expected 2"
+cmp -s "$T/r8-mid.json" "$T/r8/.foreman.json" || fail "R8: invalid workspace changed .foreman.json"
+
+# R9: closing message
+mkdir "$T/r9" && git -C "$T/r9" init -q
+inst "$T/r9" --project g --modules delegate --session-model m --gateway-url "$GW_URL" $GWM >/dev/null 2>&1 || fail "R9: first run failed"
+out=$(inst "$T/r9" --project g --modules delegate --session-model m --gateway-url "$GW_URL" $GWM 2>&1) || fail "R9: second run failed: $out"
+echo "$out" | grep -q 'kept' || fail "R9: second run does not say 'kept': $out"
+echo "$out" | grep -q 'Gateway preset written' && fail "R9: second run claims 'Gateway preset written'" || true
+mkdir "$T/r9d" && git -C "$T/r9d" init -q
+out=$(inst "$T/r9d" --project g --modules delegate --session-model m --gateway-url "$GW_URL" $GWM --dry-run 2>&1) || fail "R9: dry run failed: $out"
+echo "$out" | grep -q 'Gateway preset written' && fail "R9: dry run claims 'Gateway preset written'" || true
+echo "$out" | grep -q 'would write gateway preset' || fail "R9: dry run lacks 'would write gateway preset': $out"
+
+# R10: fallback model shape
+mkdir "$T/r10" && git -C "$T/r10" init -q; rc=0
+err=$(inst "$T/r10" --project g --gateway-url "$GW_URL" --fallback-model nonsense 2>&1) || rc=$?
+[ "$rc" = 2 ] || fail "R10: exit $rc, expected 2"
+echo "$err" | grep -qi fallback || fail "R10: no fallback message: $err"
+[ ! -e "$T/r10/tools" ] || fail "R10: wrote tools/"
+
 # case 8: docs
 grep -qE 'accepted-risk|terms' "$HERE/gateway/README.md" || fail "gateway/README.md has neither accepted-risk nor terms"
 REF="$HERE/plugins/foreman/skills/foreman-setup/references/gateway-block.md"
@@ -320,6 +500,6 @@ for s in '45 minutes' 'terms of use' 'Codex CLI' 'API key' 'Ollama and Claude on
   grep -qF "$s" "$REF" || fail "gateway-block.md does not mention '$s'"
 done
 
-kill "$GW_PID" 2>/dev/null || true; wait "$GW_PID" 2>/dev/null || true; GW_PID=""
+kill "$GW_PID" ${EXTRA_PIDS:-} 2>/dev/null || true; wait "$GW_PID" 2>/dev/null || true; GW_PID=""
 
 echo "install tests: ok"

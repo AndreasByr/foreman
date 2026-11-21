@@ -19,8 +19,8 @@ The decision is yours. Nothing is enabled without your explicit acceptance.
 2. Set up the gateway on your server as described in `gateway/README.md` (sections Setup and Rules).
 3. Create the virtual key limited to the `task-*` aliases and put its value into the variable named `FOREMAN_GATEWAY_KEY` in the work run's environment.
 4. The decision (C9) is already in workspace.json as `chatgptViaGateway`: `accepted-risk` or `declined`. It is stored once and not asked again.
-5. Run the installer with `--gateway-url <https URL> --fallback-model <claude/id>`; add `--chatgpt-via-gateway accepted-risk` only if you accepted the risk. Without that flag no ChatGPT target is written.
-6. Check the output: `gateway dry-run: ok` means the config resolves. Other roles still need exact model IDs.
+5. Run the installer with `--gateway-url <https URL> --fallback-model <claude/id>`; add `--chatgpt-via-gateway accepted-risk` only if you accepted the risk. ChatGPT routing (`task-normal`) happens only with `accepted-risk`, given by the flag or stored as `chatgptViaGateway` in the workspace file; `declined` overrides it, and without a gateway no preset is written at all.
+6. Check the output: `gateway dry-run: ok` only means that the gateway answered and the wrapper accepted a temporary copy of the config in which the other model placeholders were replaced by the fallback model. The installed `config.toml` still needs exact model IDs: fill them in, then run `python3 tools/delegate/run_task.py --dry-run <task file>` yourself.
 
 ## Records
 
