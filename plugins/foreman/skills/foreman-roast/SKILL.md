@@ -68,7 +68,7 @@ Ask until you are 99 percent sure what the project must build. Cover:
 
 ### 6. Write `docs/requirements.md`
 
-When you are 99 percent sure, write the file from `references/requirements-template.md`. Read that file now. Fill every section; write "none" instead of leaving a section out. The accessibility line is mandatory. If WCAG is required, the level binds design, roadmap, milestone briefs and role reviews.
+When you are 99 percent sure, write the file from `references/requirements-template.md`. Read that file now. Fill every section; write "none" instead of leaving a section out. The accessibility line is mandatory. If WCAG is required, the level binds design, roadmap, milestone briefs and role reviews. The document follows `docs/docs-rules.md` (without the repo: `template/docs/docs-rules.md` of the foreman repo).
 
 ## Output
 
