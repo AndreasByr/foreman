@@ -1,4 +1,4 @@
-Status: slice · since 2026-11-21T19:35Z · S1 bis S3 done, S4 (Doku) als Nächstes
+Status: validation · since 2026-11-21T19:45Z · S1 bis S4 und R1 done, Re-Validierung
 Target: dev
 Batch-branch: batch/m007
 Lock: free
@@ -16,7 +16,8 @@ Start commit: 7f8c84c (dev, Baseline: bash scripts/test-all.sh exit 0)
 | S1 | Versionsvergleich und Quelle | done | e9dc13c | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
 | S2 | Ticket (itsaplan) | done | 28d045a | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
 | S3 | Webhook | done | 28d045a | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
-| S4 | Doku und Learnings | open | | dispatcher/README.md, dispatcher/config.example.json, docs/MODULES.md, CHANGELOG.md, docs/learnings.md, scripts/test-dispatcher-docs.sh | |
+| S4 | Doku und Learnings | done | 43d0b81 | dispatcher/README.md, dispatcher/config.example.json, docs/MODULES.md, CHANGELOG.md, docs/learnings.md, scripts/test-dispatcher-docs.sh | |
+| R1 | Rework Runde 1 (Validierung A/C needs-attention): Testläufer pro Test, Fehlerpfade und Zwei-Projekte-Tests, retire robust, Dry-Run meldet Schließen, Zustandsdatei-Schutz, Ticketsuche ohne N+1, CHANGELOG-Check nur Unreleased | done | R1SHA | dispatcher/dispatch.mjs, Tests | |
 
 ## Check plan per slice
 
@@ -51,3 +52,6 @@ Keine.
 - 2026-11-21T19:10Z · Brief, Role Review und STATE.md geschrieben · batch/m007
 - 2026-11-21T19:20Z · S1 rot vor Änderung: `node dispatcher/tests/test-dispatch.mjs` Exit 1 (TypeError cmp is not a function) auf 7f8c84c; grün danach: Exit 0, 47 Tests; `bash scripts/test-all.sh` Exit 0 · e9dc13c
 - 2026-11-21T19:35Z · S2+S3 (ein Commit, gemeinsamer Zustandscode): rot vor Änderung `node dispatcher/tests/test-dispatch.mjs` Exit 1 (14 neue Tests) auf e9dc13c+Tests; grün danach Exit 0, 61 Tests; `bash scripts/test-all.sh` Exit 0 · 28d045a
+- 2026-11-21T19:45Z · S4 Doku: rot `bash scripts/test-dispatcher-docs.sh` Exit 1 vor der Doku, grün danach Exit 0 · 43d0b81
+- 2026-11-21T19:45Z · Validierung Runde 1: A needs-attention, B pass, C needs-attention (mittel: Testläufer stoppt beim ersten Fehler, Fehlerpfad-Tests, CHANGELOG-Check zu lose)
+- 2026-11-21T19:50Z · R1: rot `node dispatcher/tests/test-dispatch.mjs` Exit 1 (4 FAIL mit neuem Läufer) auf 43d0b81+Tests; grün danach Exit 0, 72 Tests; `bash scripts/test-all.sh` Exit 0 · R1SHA

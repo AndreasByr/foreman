@@ -76,7 +76,7 @@ need template/.claude/skills/foreman-dispatch-run/references/batch-run.md 'The `
 
 # M007 S4: foreman update notice (version source, update_notice, releases/latest)
 # dispatcher/README.md
-for term in foreman_version_source foreman_repo update_notice "foreman update available" releases/latest ITSAPLAN_URL "Action Required"; do
+for term in foreman_version_source foreman_repo update_notice "foreman update available" releases/latest ITSAPLAN_URL ITSAPLAN_API_KEY "Action Required"; do
   need dispatcher/README.md "$term"
 done
 
@@ -86,14 +86,24 @@ for term in foreman_version_source foreman_repo update_notice; do
 done
 
 # docs/MODULES.md
-for term in foreman_version_source update_notice "foreman update available"; do
+for term in foreman_version_source foreman_repo update_notice "foreman update available"; do
   need docs/MODULES.md "$term"
 done
 
-# CHANGELOG.md
-for term in foreman_version_source update_notice "foreman update available"; do
-  need CHANGELOG.md "$term"
+# CHANGELOG.md: only the Unreleased section counts. Its parts run from the heading to the next ## or ### heading.
+[ -f CHANGELOG.md ] || fail "missing file CHANGELOG.md"
+unreleased=$(awk '/^## /{on = ($0 ~ /^## Unreleased/)} on' CHANGELOG.md)
+[ -n "$unreleased" ] || fail "CHANGELOG.md has no ## Unreleased section"
+# part HEADING: the lines under HEADING inside the Unreleased section
+part() { awk -v h="$1" '$0 == h {on = 1; next} /^#{2,3} / {on = 0} on' <<<"$unreleased"; }
+upgrade=$(part "### Upgrade")
+new=$(part "### New")
+for term in foreman_version_source foreman_repo update_notice ITSAPLAN_API_KEY "dispatcher machine"; do
+  grep -q -F -- "$term" <<<"$upgrade" || fail "CHANGELOG.md Unreleased ### Upgrade does not contain '$term'"
+  echo "ok CHANGELOG.md Unreleased ### Upgrade contains '$term'"
 done
+grep -q -F -- "foreman update available" <<<"$new" || fail "CHANGELOG.md Unreleased ### New does not contain 'foreman update available'"
+echo "ok CHANGELOG.md Unreleased ### New contains 'foreman update available'"
 
 # docs/learnings.md
 need docs/learnings.md "foreman update available"

@@ -522,7 +522,8 @@ t("run: a webhook that answers an error status is logged with the status only", 
 });
 
 // ---- foreman version check (M007 slice S1): these tests fail until the functions exist ----
-// Every new export is reached through dispatchModule.<name>, so a missing one fails only its own test.
+// Every new export is reached through dispatchModule.<name>: a missing one fails only the tests that use it,
+// because the runner at the end catches each failure and goes on.
 const RELEASE_URL = "https://api.github.com/repos/AndreasByr/foreman/releases/latest";
 const FIRE = "https://fire.example/api";
 
@@ -814,6 +815,10 @@ t("run: foreman_version_source local reads versionFile and makes no GitHub call"
 // One injected fetch answers the GitHub release, the itsaplan fake and the webhook hosts.
 const ITS_URL = "https://itsaplan.example/api";
 const ITS_KEY = "itsa-key-SECRET-987654";
+const ITS_URL_B = "https://itsaplan-b.example/api";
+const ITS_KEY_B = "itsa-key-B-SECRET-456789";
+const FIRE_B = "https://fire-b.example/api";
+const TOKEN_B = "tok_B_SECRET_0987654321";
 const HOOK_URL = "https://discord.com/api/webhooks/abc-secret-token";
 const HOOK_UNKNOWN = "https://hook.example/abc-secret";
 const CHANGELOG = "https://github.com/AndreasByr/foreman/blob/main/CHANGELOG.md";
@@ -822,13 +827,13 @@ const TITLE_024 = "foreman update available: 0.2.1 → 0.2.4";
 const TITLE_025 = "foreman update available: 0.2.1 → 0.2.5";
 
 /** In-memory itsaplan: routes by method and path as scripts/lib/itsaplan-api.mjs calls them; records every request. */
-function makeItsaplan(columnNames = ["Backlog", "In Progress", "Action Required", "Done"]) {
+function makeItsaplan(columnNames = ["Backlog", "In Progress", "Action Required", "Done"], base = ITS_URL) {
   const columns = columnNames.map((name, i) => ({ id: `col-${i}`, name }));
   const issues = [], requests = [];
   let seq = 0;
   const issueOf = (id) => issues.find((i) => i.id === decodeURIComponent(id));
   const fake = {
-    columns, issues, requests, failCreate: false,
+    base, columns, issues, requests, failCreate: false, failComment: false,
     columnId(name) {
       const c = columns.find((x) => x.name === name);
       if (!c) throw new Error(`fake has no column ${name}`);
@@ -846,7 +851,7 @@ function makeItsaplan(columnNames = ["Backlog", "In Progress", "Action Required"
     },
     async handle(url, o = {}) {
       const method = o.method ?? "GET";
-      const path = url.slice(ITS_URL.length);
+      const path = url.slice(base.length);
       requests.push({ method, url, path, headers: lowerKeys(o.headers), body: o.body });
       const data = o.body ? JSON.parse(o.body) : {};
       let m;
@@ -871,6 +876,7 @@ function makeItsaplan(columnNames = ["Backlog", "In Progress", "Action Required"
         return jsonResponse(200, { ...i });
       }
       if (method === "POST" && (m = /^\/issues\/([^/?]+)\/comments$/.exec(path))) {
+        if (fake.failComment) return jsonResponse(403, { error: "comments are closed for this project" });
         const i = issueOf(m[1]);
         if (!i) return jsonResponse(404, { error: "issue not found" });
         i.comments.push(data.body);
@@ -883,15 +889,18 @@ function makeItsaplan(columnNames = ["Backlog", "In Progress", "Action Required"
 }
 
 /** One fetch for run(): GitHub release (tag and failure set per test), itsaplan fake, webhook hosts; anything else answers 200. */
-function makeWorld(itsaplan) {
-  const world = { calls: [], itsaplan, tag: "v0.2.4", releaseDown: false, webhookStatus: 204 };
+function makeWorld(itsaplan, extraFakes = []) {
+  const world = { calls: [], itsaplan, tag: "v0.2.4", releaseDown: false, releaseReply: null, webhookStatus: 204 };
+  const fakes = [itsaplan, ...extraFakes];
   world.fetch = async (url, o = {}) => {
     world.calls.push({ url, o });
     if (url.startsWith("https://api.github.com/")) {
       if (world.releaseDown) throw new Error("network down");
+      if (world.releaseReply) return world.releaseReply();
       return jsonResponse(200, { tag_name: world.tag });
     }
-    if (url.startsWith(`${ITS_URL}/`)) return itsaplan.handle(url, o);
+    const fake = fakes.find((f) => url.startsWith(`${f.base}/`));
+    if (fake) return fake.handle(url, o);
     if (["https://discord.com/", "https://hooks.slack.com/", "https://hook.example/"].some((h) => url.startsWith(h))) {
       return jsonResponse(world.webhookStatus, "");
     }
@@ -922,7 +931,8 @@ async function runUpdate(s, extra = {}) {
   return { code, logs };
 }
 const resetCalls = (s) => { s.world.calls.length = 0; s.itsaplan.requests.length = 0; };
-const hookPosts = (s) => s.world.calls.filter((c) => c.o.method === "POST" && !c.url.startsWith(ITS_URL));
+const trackerUrl = (u) => [ITS_URL, ITS_URL_B].some((b) => u.startsWith(`${b}/`));
+const hookPosts = (s) => s.world.calls.filter((c) => c.o.method === "POST" && !trackerUrl(c.url) && c.url !== FIRE && c.url !== FIRE_B);
 const writesOf = (s) => s.itsaplan.requests.filter((q) => q.method !== "GET");
 const createsOf = (s) => s.itsaplan.requests.filter((q) => q.method === "POST" && q.path === "/projects/TST/issues");
 const readState = (s) => (existsSync(s.statePath) ? JSON.parse(readFileSync(s.statePath, "utf8")) : null);
@@ -1232,6 +1242,275 @@ t("update with an invalid .foreman.json version: no ticket, no webhook, log 'for
   } finally { cleanup(s); }
 });
 
-let n = 0;
-for (const [name, fn] of queue) { await fn(); n++; console.log(`ok ${name}`); }
-console.log(`${n} tests passed`);
+// ---- review round 1 of M007: release answers, two projects, secrets, retire, dry run, state file, ticket lookup ----
+/** Appends `text` as .foreman.json to the origin at `origin` (a path, not a project name). */
+function commitJsonTo(origin, text) {
+  writeFileSync(join(origin, ".foreman.json"), text);
+  sh(origin, "add", ".foreman.json");
+  sh(origin, "commit", "-qm", "foreman version");
+}
+
+/**
+ * Two projects: "p" (tracker when trackerP, keys from SRC_*) and "q" (own origin, own fire URL, own keys from SRC_*_B,
+ * tracker when trackerQ). Both at foreman 0.2.1, so both are outdated against the release 0.2.4.
+ */
+function twoProjects({ trackerP = true, trackerQ = false, outputB = SAMPLE, webhookUrl = HOOK_URL, columnsA = undefined } = {}) {
+  const base = setupNotice(SAMPLE, { project: { pass_env: { ITSAPLAN_URL: "SRC_URL", ITSAPLAN_API_KEY: "SRC_KEY" } } });
+  const originB = makeRemote(join(base.dir, "b"), outputB);
+  const json = (tracker) => JSON.stringify({ foreman: "0.2.1", modules: tracker ? ["tracker-itsaplan"] : [], mirror: { itsaplan: { projectKey: "TST" } } });
+  commitForemanJson(base.dir, json(trackerP));
+  commitJsonTo(originB, json(trackerQ));
+  base.cfg.projects.push({
+    name: "q", repo: originB, branch: "dev", fire_url_env: "Q_URL", fire_token_env: "Q_TOKEN",
+    pass_env: { ITSAPLAN_URL: "SRC_URL_B", ITSAPLAN_API_KEY: "SRC_KEY_B" },
+  });
+  const env = {
+    ...base.env, SRC_URL: ITS_URL, SRC_KEY: ITS_KEY, SRC_URL_B: ITS_URL_B, SRC_KEY_B: ITS_KEY_B,
+    Q_URL: FIRE_B, Q_TOKEN: TOKEN_B, OTHER_PROJECT_TOKEN: OTHER_SECRET, DISPATCHER_ERROR_WEBHOOK_URL: webhookUrl,
+  };
+  const itsaplan = makeItsaplan(columnsA), itsaplanB = makeItsaplan(undefined, ITS_URL_B);
+  return {
+    ...base, env, itsaplan, itsaplanB, world: makeWorld(itsaplan, [itsaplanB]),
+    statePath: join(base.cfg.workdir, "state", "p.json"),
+  };
+}
+
+/**
+ * Requests that carry a secret where it does not belong: an API key outside its own project's x-api-key header
+ * (keyOf maps each tracker base URL to its key), the webhook URL or token outside the webhook request, or
+ * the other project's dispatcher token. Only URLs and header values are looked at.
+ */
+function requestLeaks(calls, keyOf, hookUrl) {
+  const leaks = [];
+  for (const { url, o } of calls) {
+    const h = lowerKeys(o?.headers);
+    const base = Object.keys(keyOf).find((b) => url.startsWith(`${b}/`));
+    const visible = [url, ...Object.entries(h).filter(([k]) => k !== "x-api-key").map(([, v]) => String(v))];
+    if ("x-api-key" in h && h["x-api-key"] !== keyOf[base]) leaks.push(`${url}: x-api-key is not this project's key`);
+    for (const [b, key] of Object.entries(keyOf)) if (visible.some((v) => v.includes(key))) leaks.push(`${url}: carries the key of ${b}`);
+    if (url !== hookUrl && visible.some((v) => v.includes(hookUrl) || v.includes("abc-secret-token"))) leaks.push(`${url}: carries the webhook URL`);
+    if (visible.some((v) => v.includes(OTHER_SECRET))) leaks.push(`${url}: carries another secret`);
+  }
+  return leaks;
+}
+
+const fireTo = (s, url) => s.world.calls.filter((c) => c.url === url).length;
+const getIssueCalls = (s) => s.itsaplan.requests.filter((q) => q.method === "GET" && /^\/issues\//.test(q.path));
+
+t("release answers 404, 403, 429, a bad body or a bad tag at run level: exit 0, no webhook, no tracker request, tasks start", async () => {
+  const replies = [
+    ["404", () => jsonResponse(404, { message: "Not Found" })],
+    ["403", () => jsonResponse(403, { message: "API rate limit exceeded" })],
+    ["429", () => jsonResponse(429, { message: "slow down" })],
+    ["bad body", async () => ({ ok: true, status: 200, text: async () => "<html>", json: async () => { throw new SyntaxError("Unexpected token <"); } })],
+    ["bad tag", () => jsonResponse(200, { tag_name: "latest" })],
+  ];
+  const cases = [["release down", (w) => { w.releaseDown = true; }], ...replies.map(([name, reply]) => [name, (w) => { w.releaseReply = reply; }])];
+  for (const [name, setRelease] of cases) {
+    const s = updateScenario({ output: SAMPLE });
+    try {
+      setRelease(s.world);
+      const r = await runUpdate(s);
+      assert.equal(r.code, 0, name);
+      assert.equal(r.logs.filter((l) => l.includes("foreman version unknown")).length, 1, `${name}: one 'foreman version unknown' line`);
+      assert.equal(hookPosts(s).length, 0, `${name}: no webhook`);
+      assert.equal(s.itsaplan.requests.length, 0, `${name}: no tracker request`);
+      assert.equal(fireTo(s, FIRE), 2, `${name}: tasks still start`);
+    } finally { cleanup(s); }
+  }
+});
+
+t("two projects: p's ticket fails (500): both webhooks go out, both projects' tasks start, exit 1", async () => {
+  const s = twoProjects();
+  try {
+    s.itsaplan.failCreate = true;
+    const r = await runUpdate(s);
+    assert.equal(r.code, 1);
+    assert.ok(r.logs.some((l) => l.includes("p: update ticket failed")), r.logs.join(" | "));
+    const contents = hookPosts(s).map((c) => JSON.parse(c.o.body).content);
+    assert.equal(contents.length, 2, "one webhook per project");
+    assert.ok(contents.some((c) => c.includes("for p:")) && contents.some((c) => c.includes("for q:")));
+    assert.equal(fireTo(s, FIRE), 2, "p's tasks start despite the failed ticket");
+    assert.equal(fireTo(s, FIRE_B), 2, "q's tasks start");
+    assert.equal(s.itsaplan.issues.length, 0, "no ticket created");
+    assert.equal(stateTicket(s, "0.2.4"), undefined);
+  } finally { cleanup(s); }
+});
+
+t("two projects with different ITSAPLAN_* sources: every ticket request carries its own project's key and URL", async () => {
+  const s = twoProjects({ trackerQ: true });
+  try {
+    const r = await runUpdate(s);
+    assert.equal(r.code, 0);
+    assert.ok(s.itsaplan.requests.length > 0 && s.itsaplanB.requests.length > 0, "both trackers were used");
+    for (const q of s.itsaplan.requests) {
+      assert.ok(q.url.startsWith(`${ITS_URL}/`), q.url);
+      assert.equal(q.headers["x-api-key"], ITS_KEY, `${q.method} ${q.path}: p's key`);
+    }
+    for (const q of s.itsaplanB.requests) {
+      assert.ok(q.url.startsWith(`${ITS_URL_B}/`), q.url);
+      assert.equal(q.headers["x-api-key"], ITS_KEY_B, `${q.method} ${q.path}: q's key`);
+    }
+    assert.equal(createsOf(s).length, 1, "p's ticket");
+    assert.equal(s.itsaplanB.requests.filter((q) => q.method === "POST" && q.path === "/projects/TST/issues").length, 1, "q's ticket");
+  } finally { cleanup(s); }
+});
+
+t("update ticket skipped without ITSAPLAN_URL (key present): 'update ticket skipped', webhook sent, exit 0", async () => {
+  const s = updateScenario({ passEnv: { ITSAPLAN_API_KEY: "SRC_KEY" } });
+  try {
+    const r = await runUpdate(s);
+    assert.equal(r.code, 0);
+    assert.ok(r.logs.some((l) => l.includes("update ticket skipped")), r.logs.join(" | "));
+    assert.equal(s.itsaplan.requests.length, 0, "no tracker request");
+    assert.equal(hookPosts(s).length, 1, "webhook sent");
+  } finally { cleanup(s); }
+});
+
+t("secrets: no request carries the other project's key or the webhook URL, no log line carries a key or the webhook URL (failure paths and dry run)", async () => {
+  const cases = [
+    ["webhook answers 500", { trackerQ: true }, (s) => { s.world.webhookStatus = 500; }, {}, "update webhook failed"],
+    ["ticket creation answers 500", { trackerQ: true }, (s) => { s.itsaplan.failCreate = true; }, {}, "update ticket failed"],
+    ["missing column", { trackerQ: true, columnsA: ["Backlog", "In Progress", "Done"] }, () => {}, {}, 'no column "Action Required"'],
+    ["dry run", { trackerQ: true }, () => {}, { dryRun: true }, "would report update"],
+  ];
+  for (const [name, opts, prepare, extra, expectLog] of cases) {
+    const s = twoProjects(opts);
+    try {
+      prepare(s);
+      const { logs } = await runUpdate(s, extra);
+      const text = logs.join("\n");
+      assert.ok(text.includes(expectLog), `${name}: the path ran (expected "${expectLog}")`);
+      for (const secret of [ITS_KEY, ITS_KEY_B, HOOK_URL, "abc-secret-token", OTHER_SECRET]) {
+        assert.ok(!text.includes(secret), `${name}: a log line contains a secret`);
+      }
+      assert.deepEqual(requestLeaks(s.world.calls, { [ITS_URL]: ITS_KEY, [ITS_URL_B]: ITS_KEY_B }, HOOK_URL), [], `${name}: request leaks`);
+    } finally { cleanup(s); }
+  }
+});
+
+t("retire: a ticket the tracker no longer has (404 on move) is dropped from the state with a note, exit 0, no request on the next run", async () => {
+  const s = updateScenario();
+  try {
+    await runUpdate(s);
+    s.itsaplan.issues.length = 0;   // the ticket is gone from the tracker
+    commitForemanJson(s.dir, JSON.stringify({ foreman: "0.2.4", modules: ["tracker-itsaplan"], mirror: { itsaplan: { projectKey: "TST" } } }));
+    resetCalls(s);
+    const r = await runUpdate(s);
+    assert.equal(r.code, 0, "no exit failure");
+    assert.ok(r.logs.some((l) => l.includes("not found, dropped from the state")), r.logs.join(" | "));
+    assert.equal(stateTicket(s, "0.2.4"), undefined, "state entry removed");
+    resetCalls(s);
+    const r2 = await runUpdate(s);
+    assert.equal(r2.code, 0);
+    assert.deepEqual(s.itsaplan.requests, [], "next run makes no itsaplan request");
+  } finally { cleanup(s); }
+});
+
+t("retire: the comment answers 403 after a successful move: the ticket stays in Done, the state entry goes, exit 0, no endless exit 1", async () => {
+  const s = updateScenario();
+  try {
+    await runUpdate(s);
+    const ticket = s.itsaplan.issues[0];
+    s.itsaplan.failComment = true;
+    commitForemanJson(s.dir, JSON.stringify({ foreman: "0.2.4", modules: ["tracker-itsaplan"], mirror: { itsaplan: { projectKey: "TST" } } }));
+    const r = await runUpdate(s);
+    assert.equal(r.code, 0, "exit 0");
+    assert.equal(ticket.columnId, s.itsaplan.columnId("Done"), "ticket moved to Done");
+    assert.equal(stateTicket(s, "0.2.4"), undefined, "state entry removed");
+    resetCalls(s);
+    const r2 = await runUpdate(s);
+    assert.equal(r2.code, 0, "the next run is green");
+    assert.deepEqual(s.itsaplan.requests, [], "next run makes no itsaplan request");
+  } finally { cleanup(s); }
+});
+
+t("dry run with a recorded ticket and a project at the release: 'would close update ticket', no PATCH or POST, state file unchanged", async () => {
+  const s = updateScenario();
+  try {
+    await runUpdate(s);
+    commitForemanJson(s.dir, JSON.stringify({ foreman: "0.2.4", modules: ["tracker-itsaplan"], mirror: { itsaplan: { projectKey: "TST" } } }));
+    const before = readFileSync(s.statePath, "utf8");
+    resetCalls(s);
+    const r = await runUpdate(s, { dryRun: true });
+    assert.equal(r.code, 0);
+    assert.ok(r.logs.some((l) => l.includes("would close update ticket")), r.logs.join(" | "));
+    assert.deepEqual(writesOf(s), [], "no PATCH or POST");
+    assert.equal(hookPosts(s).length, 0, "no webhook");
+    assert.equal(readFileSync(s.statePath, "utf8"), before, "state file unchanged");
+  } finally { cleanup(s); }
+});
+
+t("dry run with an existing state file and an outdated project: the state file bytes are identical before and after", async () => {
+  const s = updateScenario();
+  try {
+    await runUpdate(s);                       // real run: ticket and webhook recorded in the state file
+    const before = readFileSync(s.statePath, "utf8");
+    resetCalls(s);
+    const r = await runUpdate(s, { dryRun: true });
+    assert.equal(r.code, 0);
+    assert.ok(r.logs.some((l) => l.includes("would report update")), r.logs.join(" | "));
+    assert.deepEqual(writesOf(s), [], "no write request");
+    assert.equal(readFileSync(s.statePath, "utf8"), before, "state file bytes unchanged");
+  } finally { cleanup(s); }
+});
+
+t("state file holding null, an array or a string for a project is treated as empty: no throw, the check runs, tasks start, exit 0", async () => {
+  for (const content of ["null\n", "[]\n", "\"text\"\n"]) {
+    const { dir, cfg, env } = setup(SAMPLE);
+    try {
+      mkdirSync(join(cfg.workdir, "state"), { recursive: true });
+      writeFileSync(join(cfg.workdir, "state", "p.json"), content);
+      const calls = [], logs = [];
+      const fetch = async (url, o) => { calls.push({ url, o }); return jsonResponse(200, {}); };
+      const code = await run({ config: cfg, env, fetch, log: (m) => logs.push(m), now: NOW });
+      const label = content.trim();
+      assert.equal(code, 0, label);
+      assert.ok(logs.every((l) => !l.includes("Nothing was started")), `${label}: the run threw`);
+      assert.equal(calls.filter((c) => c.url === FIRE).length, 2, `${label}: tasks start`);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }
+});
+
+t("ticket lookup: 30 existing issues cost one list request and no GET per issue; a closed ticket is found in the list", async () => {
+  const s = updateScenario();
+  try {
+    for (let i = 0; i < 30; i++) s.itsaplan.add({ title: `Other ticket ${i}` });
+    const r = await runUpdate(s);
+    assert.equal(r.code, 0);
+    assert.equal(getIssueCalls(s).length, 0, "no GET /issues/<id>");
+    const lists = s.itsaplan.requests.filter((q) => q.method === "GET" && q.path.startsWith("/projects/TST/issues?"));
+    assert.equal(lists.length, 1, "one list request");
+    assert.match(lists[0].path, /includeArchived=true/);
+    assert.equal(createsOf(s).length, 1, "one ticket created");
+    assert.equal(s.itsaplan.issues.length, 31);
+  } finally { cleanup(s); }
+
+  const closed = updateScenario();
+  try {
+    for (let i = 0; i < 30; i++) closed.itsaplan.add({ title: `Other ticket ${i}` });
+    const id = closed.itsaplan.add({ title: TITLE_024, column: "Done" });
+    const r = await runUpdate(closed);
+    assert.equal(r.code, 0);
+    assert.equal(createsOf(closed).length, 0, "the closed ticket is found in the list");
+    assert.equal(stateTicket(closed, "0.2.4"), id);
+    assert.equal(getIssueCalls(closed).length, 0, "no GET /issues/<id>");
+  } finally { cleanup(closed); }
+});
+
+// ---- runner: every test runs; a failure prints FAIL with its message and the run goes on ----
+let passed = 0;
+const failures = [];
+for (const [name, fn] of queue) {
+  try {
+    await fn();
+    passed++;
+    console.log(`ok ${name}`);
+  } catch (e) {
+    failures.push(name);
+    console.log(`FAIL ${name}`);
+    console.log(`  ${String(e?.message ?? e).split("\n").join("\n  ")}`);
+  }
+}
+console.log(failures.length ? `${passed} tests passed, ${failures.length} failed` : `${passed} tests passed`);
+if (failures.length) process.exitCode = 1;

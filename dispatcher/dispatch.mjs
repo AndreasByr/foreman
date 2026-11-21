@@ -64,7 +64,10 @@ export function redact(text, secrets) {
 }
 
 function loadState(path) {
-  try { return JSON.parse(readFileSync(path, "utf8")); } catch { return { fired: {} }; }
+  try {
+    const data = JSON.parse(readFileSync(path, "utf8"));
+    return data && typeof data === "object" && !Array.isArray(data) ? data : { fired: {} };
+  } catch { return { fired: {} }; }
 }
 
 /** Picks the tasks to start: at most `max` (never above 3), one per unit, none fired within the cooldown. */
@@ -329,7 +332,7 @@ function itsaplanApi(url, key, fetchImpl) {
   }
   return {
     project: (k) => request(`/projects/${id(k)}`),
-    async issues(k) {
+    async list(k) {
       const list = [];
       let cursor;
       do {
@@ -341,7 +344,7 @@ function itsaplanApi(url, key, fetchImpl) {
         cursor = data.nextCursor;
         if (!cursor && page.length === 500) throw new Error("More than 500 issues and no cursor, cannot page");
       } while (cursor);
-      return Promise.all(list.map(async (i) => ({ ...i, ...(await request(`/issues/${id(i.id)}`)) })));
+      return list;
     },
     create: (k, body) => request(`/projects/${id(k)}/issues`, "POST", body),
     move: (issueId, columnId) => request(`/issues/${id(issueId)}`, "PATCH", { columnId }),
@@ -369,6 +372,12 @@ async function updateStep(project, config, env, dir, state, statePath, { old, cu
   try {
     if (dryRun) {
       const ticket = tracker && pk && url && key && !u.ticket[current];
+      if (tracker) {
+        for (const [v, issueId] of Object.entries(u.ticket)) {
+          if (compareVersions(old, v) >= 0) say(`${name}: would close update ticket ${issueId} (the project is on foreman ${old})`);
+          else if (outdated && v !== current) say(`${name}: would close update ticket ${issueId} (superseded by foreman ${current})`);
+        }
+      }
       if (outdated) say(`${name}: would report update ${old} → ${current} (ticket: ${ticket ? "yes" : "no"}, webhook: ${!u.webhook[current] && env[hookEnv] ? "yes" : "no"})`);
       return false;
     }
@@ -390,11 +399,16 @@ async function updateStep(project, config, env, dir, state, statePath, { old, cu
           // moves a recorded ticket to Done with a comment; a missing issue (404) is dropped from the state
           const retire = async (v, issueId, text) => {
             const done = await columnId("Done", []);
-            try { await api.move(issueId, done); await api.comment(issueId, text); } catch (e) {
+            try { await api.move(issueId, done); } catch (e) {
               if (e.status !== 404) throw e;
               say(`${name}: update ticket ${issueId} not found, dropped from the state`);
+              delete u.ticket[v];
+              return;
             }
             delete u.ticket[v];
+            try { await api.comment(issueId, text); } catch (e) {
+              say(`${name}: update ticket comment failed: ${redact(String(e?.message ?? e).split("\n")[0], secrets)}`);
+            }
           };
           for (const [v, issueId] of Object.entries(u.ticket)) {
             if (compareVersions(old, v) >= 0) await retire(v, issueId, `Closed by the dispatcher: the project is on foreman ${old}.`);
@@ -403,7 +417,7 @@ async function updateStep(project, config, env, dir, state, statePath, { old, cu
             if (!u.ticket[current]) {
               const title = `foreman update available: ${old} → ${current}`;
               const column = await columnId("Action Required", ["Intervention needed"]);
-              const found = (await api.issues(pk)).find((i) => i.title === title);
+              const found = (await api.list(pk)).find((i) => i.title === title);
               const description = [
                 `The project is on foreman ${old}; the current version is ${current}.`, "",
                 "1. Open the project chat and run `foreman-update`. It compares the versions and lists the changes.",
