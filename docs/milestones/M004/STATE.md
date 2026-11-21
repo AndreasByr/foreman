@@ -13,8 +13,8 @@ Start commit: c3fb926
 
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
-| S1 | Erkennen statt neu einrichten (foreman-project liest workspace.json, eine Rückfrage, Regel „not installed → setup“ fällt weg) | done | S1S2COMMIT | plugins/foreman/skills/foreman-project/SKILL.md | |
-| S2 | Skill-Beschreibungen abgrenzen, Routing-Test | done | S1S2COMMIT | plugins/foreman/skills/foreman-project/SKILL.md, foreman-setup/SKILL.md (nur Beschreibung), scripts/test-project-routing.py, scripts/test-all.sh | |
+| S1 | Erkennen statt neu einrichten (foreman-project liest workspace.json, eine Rückfrage, Regel „not installed → setup“ fällt weg) | done | 4f684ed | plugins/foreman/skills/foreman-project/SKILL.md | |
+| S2 | Skill-Beschreibungen abgrenzen, Routing-Test | done | 4f684ed | plugins/foreman/skills/foreman-project/SKILL.md, foreman-setup/SKILL.md (nur Beschreibung), scripts/test-project-routing.py, scripts/test-all.sh | |
 | S4 | Installer-Werte (Flags, autopilot.waitHours im Check, check-config) | open | | install.sh, template/scripts/lib/autopilot-check.mjs, template/scripts/check-config.sh, scripts/check-config.sh, Tests | |
 | S3 | Projektfragen und Zusammenfassung (nach S4) | open | | plugins/foreman/skills/foreman-project/SKILL.md, references/project-questions.md, scripts/test-project-routing.py, docs/MODULES.md, README.md, docs/CONVENTIONS.md | |
 
@@ -54,4 +54,4 @@ One question, options, recommendation.
 
 - 2026-11-21T17:50Z · Brief und STATE geschrieben · (Commit folgt)
 - 2026-11-21T17:50Z · Rot vor der Änderung: `python3 scripts/test-project-routing.py` Exit 1 (9 FAIL) auf c377703 + Test
-- 2026-11-21T17:58Z · S1+S2 fertig: test-project-routing.py Exit 0, test-all.sh Exit 0 · S1S2COMMIT
+- 2026-11-21T17:58Z · S1+S2 fertig: test-project-routing.py Exit 0, test-all.sh Exit 0 · 4f684ed
