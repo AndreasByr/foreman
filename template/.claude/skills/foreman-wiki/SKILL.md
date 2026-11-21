@@ -19,7 +19,7 @@ description: Write and maintain the user wiki in docs/wiki/ when wiki.enabled is
 
 ## Audience and language
 
-- One folder per audience: `docs/wiki/<audience-slug>/<page>.md`. Audience names come from `wiki.audiences` in `.foreman.json`.
+- One folder per audience: `docs/wiki/<audience-slug>/<page>.md`. A page directly in `docs/wiki/` is refused. Audience names come from `wiki.audiences` in `.foreman.json`.
 - Slug (same rule as `audienceSlug`): lowercase; ä becomes ae, ö oe, ü ue, ß ss; other accents are dropped; every run of non-alphanumeric characters becomes one `-`; leading and trailing `-` are trimmed. An empty slug or two names with one slug are config errors. Example: "Spieler und Tester" becomes `spieler-und-tester`.
 - Language: `wiki.language`, else `context.language`.
 - Write for that audience's level. Short sentences. No internal vocabulary: no milestone, slice, fix pack, brief, ticket or STATE.
@@ -37,7 +37,7 @@ checked: no-ai-slop, humanizer
 ```
 
 - The head is removed before upload. Readers see only the body.
-- The page title in Notion is the first `# ` heading of the body, so every page needs exactly one. Without a heading the file name is the title. A heading used in two audiences becomes `<heading> (<audience name>)`; two pages of one audience with the same title are refused.
+- The page title in Notion is the first `# ` heading of the body, so every page needs a heading. Without one the file name is the title. Titles are unique over the whole wiki (case-insensitive): a heading equal to an audience name or another page's title becomes `<heading> (<audience name>)`; if it is still not unique, the run is refused (`duplicate title`).
 - Write the `checked` line only after the text check below has run.
 
 ## Text check

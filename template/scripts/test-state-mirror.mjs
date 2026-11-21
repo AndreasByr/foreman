@@ -319,13 +319,20 @@ t("wiki: only milestones in the wiki statuses are checked", () => {
   }
 });
 
+t("wiki: onlyId restricts the check to one unit", () => {
+  const units = [wu("batch-pr", "Wiki: no change", "milestone", "M001"), wu("batch-pr", "Status: batch-pr", "milestone", "M002")];
+  assert.deepEqual(mirror.wikiProblems(units, wikiOn, "M001"), []);
+  assert.deepEqual(mirror.wikiProblems(units, wikiOn, "M002"), ["M002: Wiki line missing in STATE.md (wiki is on)"]);
+  assert.equal(mirror.wikiProblems(units, wikiOn).length, 1, "without onlyId every matching unit is checked");
+});
+
 t("wiki: off (enabled false or no wiki key) means no problems", () => {
   const units = [wu("batch-pr"), wu("done")];
   assert.deepEqual(mirror.wikiProblems(units, { wiki: { enabled: false } }), []);
   assert.deepEqual(mirror.wikiProblems(units, {}), []);
 });
 
-t("wiki: CLI --local fails on a missing Wiki line, passes once it is set, and ignores wiki when off", () => {
+t("wiki: CLI without --unit only warns on a missing Wiki line; --unit M001 makes it a problem", () => {
   const dir = mkdtempSync(join(tmpdir(), "wiki-todo-"));
   try {
     spawnSync("git", ["init", "-q"], { cwd: dir });
@@ -337,33 +344,82 @@ t("wiki: CLI --local fails on a missing Wiki line, passes once it is set, and ig
     const statePath = join(dir, "docs/milestones/M001/STATE.md");
     mkdirSync(join(dir, "docs/milestones/M001"), { recursive: true });
     const head = "Status: batch-pr · since 2026-01-01T00:00Z\nTarget: dev\n";
-    const run = () => spawnSync(process.execPath, [join(HERE, "state-mirror.mjs"), "--local"], { cwd: dir, encoding: "utf8", env });
+    const run = (args) => spawnSync(process.execPath, [join(HERE, "state-mirror.mjs"), ...args], { cwd: dir, encoding: "utf8", env });
+    const lines = (r) => r.stdout.split("\n");
+    const WARN = "WARN|M001: Wiki line missing in STATE.md (wiki is on)";
+    const hasWarn = (r) => lines(r).includes(WARN);
+    const hasProblem = (r) => lines(r).some((l) => l.startsWith("PROBLEM|M001:") && l.includes("Wiki"));
 
     cfg({ enabled: true, language: "de", audiences: [{ name: "Tester" }], rootPageId: "x" });
     writeFileSync(statePath, `${head}\n# M001: x\n`);
-    let r = run();
+    // no --unit: missing line is a WARN, exit code unchanged
+    let r = run(["--local"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(hasWarn(r), r.stdout);
+    assert.ok(!hasProblem(r), r.stdout);
+    r = run(["--check", "--local"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(hasWarn(r), r.stdout);
+    // --unit M001: the same missing line is a PROBLEM and exits 1
+    r = run(["--local", "--unit", "M001"]);
     assert.equal(r.status, 1, r.stdout + r.stderr);
-    assert.ok(r.stdout.split("\n").some((l) => l.startsWith("PROBLEM|M001:") && l.includes("Wiki")), r.stdout);
+    assert.ok(hasProblem(r), r.stdout);
+    r = run(["--check", "--local", "--unit", "M001"]);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok(hasProblem(r), r.stdout);
+    r = run(["--local", "--dry-run", "--unit", "M001"]);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok(hasProblem(r), r.stdout);
 
     writeFileSync(statePath, `${head}Wiki: no change\n\n# M001: x\n`);
-    r = run();
+    r = run(["--local", "--unit", "M001"]);
     assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(!hasWarn(r) && !hasProblem(r), r.stdout);
+    r = run(["--local"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(!hasWarn(r), r.stdout);
 
     // a Wiki line only in the Log below the title does not count as the header line
     writeFileSync(statePath, `${head}\n# M001: x\n\n## Log\n\nWiki: no change\n`);
-    r = run();
-    assert.equal(r.status, 1, r.stdout + r.stderr);
-    assert.ok(r.stdout.split("\n").some((l) => l.startsWith("PROBLEM|M001:") && l.includes("Wiki")), r.stdout);
-
-    // an old done milestone without a Wiki line is no problem
-    writeFileSync(statePath, "Status: done · since 2026-01-01T00:00Z\nTarget: dev\n\n# M001: x\n");
-    r = run();
+    r = run(["--local"]);
     assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(hasWarn(r), r.stdout);
+    r = run(["--local", "--unit", "M001"]);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok(hasProblem(r), r.stdout);
 
+    // other units are not examined for wiki: an old batch-pr milestone without a Wiki line does not block --unit M001
+    writeFileSync(statePath, `${head}Wiki: no change\n\n# M001: x\n`);
+    mkdirSync(join(dir, "docs/milestones/M002"), { recursive: true });
+    writeFileSync(join(dir, "docs/milestones/M002/STATE.md"), `${head}\n# M002: old\n`);
+    r = run(["--local", "--unit", "M001"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(!hasProblem(r), r.stdout);
+    r = run(["--local", "--unit", "M002"]);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok(lines(r).some((l) => l.startsWith("PROBLEM|M002:") && l.includes("Wiki")), r.stdout);
+    rmSync(join(dir, "docs/milestones/M002"), { recursive: true, force: true });
+
+    // unknown unit id: exit 2 with a message naming it
+    r = run(["--local", "--unit", "M999"]);
+    assert.equal(r.status, 2, r.stdout + r.stderr);
+    assert.ok((r.stdout + r.stderr).includes("M999"), r.stdout + r.stderr);
+
+    // an old done milestone without a Wiki line is no problem, not even with --unit
+    writeFileSync(statePath, "Status: done · since 2026-01-01T00:00Z\nTarget: dev\n\n# M001: x\n");
+    r = run(["--local", "--unit", "M001"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(!hasWarn(r), r.stdout);
+
+    // wiki off: exit 0 and no WARN, also with --unit
     cfg({ enabled: false });
     writeFileSync(statePath, `${head}\n# M001: x\n`);
-    r = run();
+    r = run(["--local"]);
     assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(!hasWarn(r), r.stdout);
+    r = run(["--local", "--unit", "M001"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(!hasWarn(r) && !hasProblem(r), r.stdout);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

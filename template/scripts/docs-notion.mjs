@@ -17,7 +17,7 @@ import { resolve } from "node:path";
 import { buildPlan, buildTree, CliError, collectFiles, createClient, HttpError, loadConfig, readExisting, runSync } from "./lib/docs-notion.mjs";
 import { collectWikiPages, loadWikiConfig } from "./lib/docs-wiki.mjs";
 import { publishWiki } from "./lib/docs-wiki-publish.mjs";
-import { scanText, validatePages } from "./lib/docs-wiki-scan.mjs";
+import { hasSecret, scanText, validatePages } from "./lib/docs-wiki-scan.mjs";
 
 const USAGE = "usage: node scripts/docs-notion.mjs [--dry-run] [--wiki] [--root <dir>] [--help]";
 const out = (s) => process.stdout.write(`${s}\n`);
@@ -48,8 +48,14 @@ function docsRootPageId(root) {
   }
 }
 
+// Page ids compare without dashes and case.
+const sameId = (a, b) => a.replace(/-/g, "").toLowerCase() === b.replace(/-/g, "").toLowerCase();
+// A name that holds a secret shape is never printed: the label shows a mask instead.
+const maskPath = (s) => (!hasSecret(s) ? s : s.startsWith("audience ") ? "audience <hidden: secret in name>" : "docs/wiki/<hidden: secret in name>");
+const maskText = (s) => (hasSecret(s) ? "<hidden: secret in name>" : s);
+
 function checkSameRoot(wiki, docsRoot) {
-  if (wiki.enabled && wiki.rootPageId && wiki.rootPageId === docsRoot) {
+  if (wiki.enabled && wiki.rootPageId && docsRoot && sameId(wiki.rootPageId, docsRoot)) {
     throw new CliError("docs-notion: same root page: wiki.rootPageId equals docsNotion.rootPageId (use two different pages)", 2);
   }
 }
@@ -66,7 +72,7 @@ async function runWiki(root, dryRun, token) {
     if (missing.length) throw new CliError(`docs-notion: missing ${missing.join(" and ")}`, 3);
   }
   const { pages, skipped } = collectWikiPages(root);
-  for (const s of skipped) err(`docs-notion: skipped ${s}`);
+  for (const s of skipped) err(`docs-notion: skipped ${maskPath(s)}`);
   if (!pages.length) {
     out("nothing to publish");
     return 0;
@@ -78,12 +84,12 @@ async function runWiki(root, dryRun, token) {
     scans.push({ path: `audience ${a.name}`, text: `${a.name}\n${a.description}` });
   }
   for (const sc of scans) for (const f of scanText(sc.text, wiki.forbidden)) problems.push({ path: sc.path, problem: f.rule, line: f.line });
-  // File and folder names below docs/wiki are published as part of the page path: scan them too. A secret is never echoed.
+  // File and folder names below docs/wiki are published as part of the page path: scan them too.
   for (const p of pages) {
-    for (const f of scanText(p.path, wiki.forbidden)) problems.push({ path: f.rule === "secret" ? "docs/wiki/ (a file or folder name)" : p.path, problem: `${f.rule} (in the name)` });
+    for (const f of scanText(p.path, wiki.forbidden)) problems.push({ path: p.path, problem: `${f.rule} (in the name)` });
   }
   if (problems.length) {
-    for (const p of problems) err(`docs-notion: ${p.path}: ${p.problem}${p.line ? ` (line ${p.line})` : ""}`);
+    for (const p of problems) err(`docs-notion: ${maskPath(p.path)}: ${maskText(p.problem)}${p.line ? ` (line ${p.line})` : ""}`);
     return 4;
   }
   if (dryRun) {

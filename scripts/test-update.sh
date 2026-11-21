@@ -176,6 +176,9 @@ for f in scripts/autopilot-check.sh docs/routines scripts/pretest-run.mjs tools/
   [ -e "$d/$f" ] && fail "7: $f exists without its module"
 done
 [ "$(jf "$d/.foreman.json" modules)" = "$mods" ] || fail "7: modules changed"
+for f in scripts/docs-notion.mjs scripts/lib/docs-notion.mjs scripts/lib/docs-notion-md.mjs scripts/lib/docs-wiki.mjs scripts/lib/docs-wiki-scan.mjs scripts/lib/docs-wiki-publish.mjs scripts/test-docs-wiki.mjs .claude/skills/foreman-wiki; do
+  [ -e "$d/$f" ] && fail "7: $f exists without its module (wiki)"
+done
 
 # 8. missing files come back
 d="$T/miss"; mkdir "$d"

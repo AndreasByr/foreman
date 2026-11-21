@@ -23,11 +23,12 @@ has plugins/foreman/skills/foreman-brief/references/brief-template.md "Check whe
 for f in .claude/skills/foreman-milestone/SKILL.md template/.claude/skills/foreman-milestone/SKILL.md; do
   has "$f" "Wiki:"
   has "$f" "wiki.enabled"
+  has "$f" "--unit"
 done
 
-# batch skill: both copies run the wiki check and name the Wiki line
+# batch skill: both copies run the wiki check for the milestone unit and name the Wiki line
 for f in .claude/skills/foreman-batch/SKILL.md template/.claude/skills/foreman-batch/SKILL.md; do
-  has "$f" "state-mirror.mjs --local"
+  has "$f" "state-mirror.mjs --local --dry-run --unit"
   has "$f" "Wiki:"
 done
 cmp -s .claude/skills/foreman-batch/SKILL.md template/.claude/skills/foreman-batch/SKILL.md || fail "foreman-batch SKILL.md differs between .claude/ and template/.claude/"

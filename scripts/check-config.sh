@@ -274,7 +274,8 @@ if wk_on:
     else:
         dn = cfg.get("docs" + "N" + "otion")  # key built in parts: the word must not appear in files installed without the module
         dn_root = dn.get("rootPageId") if isinstance(dn, dict) else None
-        if nonempty_str(dn_root) and dn_root.strip() == wk["rootPageId"].strip():
+        norm = lambda s: s.replace("-", "").strip().lower()  # ids compare without dashes and case
+        if nonempty_str(dn_root) and norm(dn_root) == norm(wk["rootPageId"]):
             print("FAIL: wiki.rootPageId must differ from the mirror rootPageId (same root page)")
             bad = True
 

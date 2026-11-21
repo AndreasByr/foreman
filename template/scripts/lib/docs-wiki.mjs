@@ -102,12 +102,15 @@ export function pageTitle(page) {
   return page.path.split("/").pop().replace(/\.md$/i, "");
 }
 
-// Map path -> Notion title. A heading that occurs in more than one audience becomes "<heading> (<audience name>)".
+// Map path -> Notion title. A heading equal (case-insensitive) to an audience name or to another page's heading becomes
+// "<heading> (<audience name>)". Titles that are still not unique are reported by validatePages.
 export function pageTitles(pages) {
   const raw = pages.map((p) => ({ path: p.path, title: pageTitle(p), aud: p.head?.audience ?? "" }));
-  const auds = new Map();
-  for (const r of raw) auds.set(r.title, (auds.get(r.title) ?? new Set()).add(r.aud));
-  return new Map(raw.map((r) => [r.path, auds.get(r.title).size > 1 ? `${r.title} (${r.aud})` : r.title]));
+  const count = new Map();
+  for (const r of raw) count.set(r.title.toLowerCase(), (count.get(r.title.toLowerCase()) ?? 0) + 1);
+  const auds = new Set(raw.map((r) => r.aud.toLowerCase()));
+  const suffix = (r) => count.get(r.title.toLowerCase()) > 1 || auds.has(r.title.toLowerCase());
+  return new Map(raw.map((r) => [r.path, suffix(r) ? `${r.title} (${r.aud})` : r.title]));
 }
 
 // Every .md file below docs/wiki, sorted by path. Returns { pages: [{path, dir, head, body}], skipped: ["<path> (reason)"] }.

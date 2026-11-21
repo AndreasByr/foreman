@@ -3,8 +3,9 @@
 // Idempotent: a second run with unchanged STATE.md files changes nothing. With tracker `none` there is nothing to mirror;
 // the check still verifies that every `needs-input` unit carries its question in STATE.md.
 //
-//   node scripts/state-mirror.mjs [--dry-run] [--check] [--local] [--help]
+//   node scripts/state-mirror.mjs [--dry-run] [--check] [--local] [--unit <id>] [--help]
 //   --check: like --dry-run, exits 1 when the tracker differs from STATE.md (use after UAT approval and release)
+//   --unit <id>: checks the wiki line of that one unit only; an unknown id exits 2
 //
 // Reads STATE.md of every unit on origin/batch/* (default) or in the working tree (--local).
 // Config: "modules" (tracker-itsaplan | tracker-linear | none) and "mirror" in .foreman.json.
@@ -13,7 +14,8 @@
 // comment (question, options with consequences, recommendation, report link, how to answer). The mirror writes it from the
 // "Open question" section of STATE.md and `--check` fails while it is missing.
 // Wiki: with `wiki.enabled` in .foreman.json, a milestone from batch-pr on needs a `Wiki:` line in STATE.md (pages or
-// "no change"). A missing or placeholder line is a PROBLEM and the script exits 1 in every mode.
+// "no change"). Without --unit a missing or placeholder line is printed as WARN and does not change the exit code.
+// With --unit that unit is printed as PROBLEM and the script exits 1 in every mode.
 // Models never set tracker statuses by hand; they run this script.
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -68,10 +70,12 @@ export function interventionProblems(units) {
 
 const WIKI_STATUSES = ["batch-pr", "awaiting-merge", "pretest-waiting", "pretest-running", "uat-ready", "release-ready"];
 
-/** With wiki on: a milestone from batch-pr on needs its `Wiki:` line in STATE.md (pages affected or "no change"). */
-export function wikiProblems(units, conf) {
+/** With wiki on: a milestone from batch-pr on needs its `Wiki:` line in STATE.md (pages affected or "no change").
+ *  onlyId (optional) restricts the check to that one unit. */
+export function wikiProblems(units, conf, onlyId = null) {
   if (conf?.wiki?.enabled !== true) return [];
   return units
+    .filter((u) => !onlyId || u.id === onlyId)
     .filter((u) => u.kind === "milestone" && WIKI_STATUSES.includes(u.status))
     .filter((u) => {
       const wiki = parseState(u.stateText).wiki;
@@ -209,7 +213,9 @@ async function mirrorLinear(units, cfg, dry, client = linearClient()) {
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes("--help")) {
-    console.log(readFileSync(new URL(import.meta.url)).toString().split("\n").slice(1, 15).map((l) => l.replace(/^\/\/ ?/, "")).join("\n"));
+    const lines = readFileSync(new URL(import.meta.url)).toString().split("\n");
+    const end = lines.findIndex((l, i) => i > 0 && !l.startsWith("//"));
+    console.log(lines.slice(1, end).map((l) => l.replace(/^\/\/ ?/, "")).join("\n"));
     console.log(`Config (.foreman.json):
   "modules": ["tracker-itsaplan"],             // or "tracker-linear"; without a tracker module: none
   "tracker": { "columnAliases": { "Action Required": ["<other column name>"] } },   // optional
@@ -220,16 +226,28 @@ async function main() {
   }`);
     return;
   }
+  const unitAt = args.indexOf("--unit");
+  const onlyId = unitAt < 0 ? null : args[unitAt + 1];
+  if (unitAt >= 0 && (!onlyId || onlyId.startsWith("--"))) {
+    console.error("--unit needs a unit id, for example --unit M001");
+    process.exit(2);
+  }
   const check = args.includes("--check");
   const dry = check || args.includes("--dry-run");
   const conf = existsSync(".foreman.json") ? JSON.parse(readFileSync(".foreman.json", "utf8")) : {};
   const kind = trackerKind(conf);
   const units = args.includes("--local") ? unitsFromWorkingTree() : unitsFromBranches();
   console.log(`UNITS|${units.length}|tracker ${kind}`);
+  if (onlyId && !units.some((u) => u.id === onlyId)) {
+    console.error(`unknown unit id: ${onlyId} (no STATE.md for it)`);
+    process.exit(2);
+  }
   let failed = false;
-  const wikiIssues = wikiProblems(units, conf);
-  const problems = [...interventionProblems(units), ...wikiIssues];
+  const wikiMissing = wikiProblems(units, conf, onlyId);
+  const wikiBlocking = onlyId ? wikiMissing : [];
+  const problems = [...interventionProblems(units), ...wikiBlocking];
   for (const p of problems) { pending++; console.log(`PROBLEM|${p}`); }
+  if (!onlyId) for (const w of wikiMissing) console.log(`WARN|${w}`);
   if (kind === "itsaplan") {
     if (!process.env.ITSAPLAN_URL || !process.env.ITSAPLAN_API_KEY) console.log("SKIP|itsaplan|ITSAPLAN_URL or ITSAPLAN_API_KEY missing");
     else await mirrorItsaplan(units, conf.mirror?.itsaplan ?? {}, dry, undefined, conf.tracker?.columnAliases ?? {}).catch((e) => { failed = true; console.log(`ERROR|itsaplan|${e.message}`); });
@@ -239,7 +257,7 @@ async function main() {
     else await mirrorLinear(units, conf.mirror.linear, dry).catch((e) => { failed = true; console.log(`ERROR|linear|${e.message}`); });
   }
   if (check && pending > 0) console.log(`DIFF|${pending} changes pending`);
-  process.exit(failed || wikiIssues.length > 0 || (check && pending > 0) ? 1 : 0);
+  process.exit(failed || wikiBlocking.length > 0 || (check && pending > 0) ? 1 : 0);
 }
 
 export { mirrorItsaplan, mirrorLinear };

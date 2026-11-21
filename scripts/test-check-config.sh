@@ -503,6 +503,9 @@ bad_value l-forbidden-enabled-empty '{"wiki":{"enabled":true,"language":"de","au
 # l-root-*: with the wiki enabled, wiki.rootPageId must differ from docsNotion.rootPageId
 bad_value l-root-same '{"docsNotion":{"rootPageId":"123"},"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"123"}}' wiki.rootPageId
 good_value l-root-different '{"docsNotion":{"rootPageId":"456"},"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"123"}}'
+# l-root-same-normalized: the ids are equal once dashes are removed and case is ignored
+bad_value l-root-same-dashes '{"docsNotion":{"rootPageId":"0123456789abcdef0123456789abcdef"},"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"0123-4567-89AB-CDEF-0123-4567-89AB-CDEF"}}' wiki.rootPageId
+bad_value l-root-same-case '{"docsNotion":{"rootPageId":"0123456789ABCDEF0123456789ABCDEF"},"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"0123456789abcdef0123456789abcdef"}}' wiki.rootPageId
 
 # l-audience-slug-*: an audience name needs a non-empty slug, and two names must not share one
 bad_value l-audience-slug-empty '{"wiki":{"enabled":true,"language":"de","audiences":[{"name":"!!!"}],"rootPageId":"123"}}' wiki.audiences

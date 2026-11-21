@@ -57,7 +57,7 @@ Deploy watching and fix rounds follow `foreman-deploy`.
 1. **Pre-check.** `git fetch origin main dev batch/<target>`. If `git rev-list --count origin/<base>..origin/batch/<target>` is `0`: nothing to do; report "nothing to bring". Target `dev` or milestone: the start check from `foreman-delegation` must pass (`origin/dev..origin/main` is `0`), else bring `main` into `dev` first.
 2. **Update the batch branch:** `node scripts/batch-branch.mjs <target>`, resolve conflicts, `git push origin batch/<target>`.
 3. **Check locally** in the worktree: typecheck and unit tests. Red because of a fix: new commit on the batch branch. Red already on the base: prove it and report.
-   - With `wiki.enabled` true in `.foreman.json`: `node scripts/state-mirror.mjs --local` must exit 0; it needs the `Wiki:` line in the milestone's STATE.md.
+   - With `wiki.enabled` true in `.foreman.json` and a milestone batch: `node scripts/state-mirror.mjs --local --dry-run --unit <Mnnn>` must exit 0; it needs the `Wiki:` line in that milestone's STATE.md. Older milestones do not matter.
 4. **Remember the base:** `BEFORE=$(git rev-parse origin/<base>)` before the merge (needed for cleanup).
 5. **Open the PR** (head `batch/<target>`, base `<base>`). Use the repo's PR template headings. Title `Batch PR <target>: <n> fixes` (milestone: `M022: <title>`). Body: one point per commit (`git log --no-merges --format='- %s' origin/<base>..origin/batch/<target>`), note changed migrations.
 6. **Wait for CI.** Red: fix on the batch branch, push, wait again; at most 3 fix rounds, then stop and report. Never weaken, skip or delete tests.
