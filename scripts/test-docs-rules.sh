@@ -72,5 +72,22 @@ need "$CONV" "docs/docs-rules.md"
 cmp -s "$COPY" "$RULES" || fail "docs/docs-rules.md differs from the template"
 echo "ok $COPY is identical to $RULES"
 
-# 9. done
+# 9. skill pointers name the docs rule file
+SKILL_ROAST=plugins/foreman/skills/foreman-roast/SKILL.md
+SKILL_ROADMAP=plugins/foreman/skills/foreman-roadmap/SKILL.md
+need "$SKILL_ROAST" "docs/docs-rules.md"
+need "$SKILL_ROADMAP" "docs/docs-rules.md"
+
+# 10. skill pointers stay small (under 8192 bytes)
+for f in "$SKILL_ROAST" "$SKILL_ROADMAP"; do
+  [ -f "$f" ] || fail "missing file $f"
+  size=$(wc -c < "$f")
+  [ "$size" -lt 8192 ] || fail "$f is $size bytes (limit 8192)"
+  echo "ok $f is $size bytes (< 8192)"
+done
+
+# 11. learnings entry for the stand line
+need docs/learnings.md "Stand line"
+
+# 12. done
 echo "docs rules test: ok"
