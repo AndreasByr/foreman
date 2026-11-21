@@ -2,6 +2,7 @@
   "workdir": "~/.local/share/foreman-dispatcher",
   "cooldown_minutes": 45,
   "webhook_url_env": "DISPATCHER_ERROR_WEBHOOK_URL",
+  "webhook_format": "auto",
   "projects": [
     {
       "name": "my-project",
@@ -20,14 +21,13 @@
       }
     },
     {
-      "name": "my-opencode-project",
+      "name": "my-local-claude-project",
       "enabled": false,
       "repo": "git@github.com:OWNER/OTHER-REPO.git",
       "branch": "dev",
       "deploy_key_env": "MY_OTHER_DEPLOY_KEY_PATH",
       "max_tasks": 1,
-      "fire_command": "opencode run",
-      "fire_cwd": null
+      "fire_command": "ssh my-server bash ~/fire-claude.sh"
     }
   ]
 }

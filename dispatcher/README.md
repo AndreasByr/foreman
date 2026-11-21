@@ -7,13 +7,30 @@ Needs: Node 20+, git, a machine that is on (a small VPS, a home server, a Raspbe
 ## What it does per project
 
 1. Clones or updates a read-only checkout with a deploy key (read access only).
-2. Runs the project's check script (`scripts/autopilot-check.sh --no-fetch`). Exit code not 0: nothing is started, the error is logged and sent to the webhook.
+2. Runs the project's check script (`scripts/autopilot-check.sh --no-fetch`) with a clean environment: only PATH, HOME, LANG and the variables listed in the project's `pass_env` (`NAME` -> name of the variable in the dispatcher environment). Other projects' tokens never reach it. Exit code not 0: nothing is started, the error is logged and sent to the webhook.
 3. Parses the output: `TASK|<kind>|<unit>|<info>` lines and `=== PROMPT n <kind> <unit> ===` ... `=== END n ===` blocks (`ENDE` is accepted too). `NOTHING|...` means nothing to do.
 4. Starts at most 3 tasks, at most one per unit, and none for a unit it started within `cooldown_minutes` (default 45), so two runs 10 minutes apart never start the same unit twice before the work run took its lock.
 5. Fire target:
    - **Claude Code routine (recommended):** `POST` to the routine's fire URL with the headers `Authorization: Bearer <token>`, `anthropic-beta: experimental-cc-routine-2026-04-01`, `anthropic-version: 2023-06-01` and the body `{"text": "<order text>"}`. The answer's session URL is logged.
-   - **Other agents:** `fire_command`, a shell command that receives the order text on stdin, for example `opencode run`. It runs detached in the project checkout with `FOREMAN_PROJECT`, `FOREMAN_KIND` and `FOREMAN_UNIT` set, output in `<workdir>/logs/`. Resuming a session, running several orders in parallel and cleaning up after a crashed agent are then your job: the dispatcher starts the command and does not watch it. The lock in `STATE.md` still protects each unit for 3 hours.
-6. Tokens and keys are never logged. A failed start goes to the optional webhook (`DISPATCHER_ERROR_WEBHOOK_URL`, JSON body `{"text": ..., "content": ...}`).
+   - **Other agents:** `fire_command`, a shell command that receives the order text on stdin, for example `opencode run`. It runs detached in the project checkout with the same environment rule (only PATH, HOME, LANG and the `pass_env` names) plus `FOREMAN_PROJECT`, `FOREMAN_KIND` and `FOREMAN_UNIT` set, output in `<workdir>/logs/`. Resuming a session, running several orders in parallel and cleaning up after a crashed agent are then your job: the dispatcher starts the command and does not watch it. The lock in `STATE.md` still protects each unit for 3 hours.
+6. Tokens and keys are never logged. A failed start goes to the optional webhook (`DISPATCHER_ERROR_WEBHOOK_URL`). The body depends on `webhook_format` in `config.json`: `discord` sends `{"content": ...}`, `slack` sends `{"text": ...}`, `auto` (default) decides by host (`discord.com`, `discordapp.com`, `hooks.slack.com`). Unknown host, an invalid or non-https URL or an unknown format is logged as `webhook not used: <reason>` without the URL, nothing is sent, the exit code stays 1.
+
+## Local run with Claude Code (fire_command)
+
+If you have no cloud routine, `fire_command` can start Claude Code on your own machine.
+
+1. Copy `fire-claude.example.sh` to that machine.
+2. In it, set the project directory and the EXACT model ID. Aliases like `opus` are refused.
+3. Keep `claude_login = "inherit"` in the project's `tools/delegate/config.toml`.
+4. In the project's entry in `config.json`, set `"fire_command": "ssh my-server bash ~/fire-claude.sh"`.
+5. Try `./dispatch.sh --dry-run` first. It prints `would start ... via command`.
+
+Know before you rely on it:
+
+- Environment variables do not cross `ssh`. The start script on the server holds the project's values.
+- The command gets no `SSH_AUTH_SOCK`, so `ssh` uses the key files in `~/.ssh` of the dispatcher's user (a systemd timer has no agent anyway). Add `SSH_AUTH_SOCK` to `pass_env` only if you need an agent.
+- The dispatcher does not watch the run. The lock in `STATE.md` protects the unit for 3 hours; measuring comes with a later milestone.
+- Unattended `claude -p` needs the project's `.claude/settings.json` to allow the commands it needs.
 
 ## Install
 
@@ -53,6 +70,10 @@ journalctl --user -u foreman-dispatcher.service -n 50
 ## Switch off
 
 Per project: `"enabled": false` in `config.json`. Everything: `systemctl --user disable --now foreman-dispatcher.timer` (or remove the cron line). Nothing is left running; a started work run finishes on its own and frees its lock.
+
+## Merging into main
+
+The check starts a batch for `main` only when `.foreman.json` has `autopilot.mainAutoMerge: true`. The default is `false`, and only the boolean `true` counts. Otherwise only the human's "Batch PR main" starts it. Units the human already merged are still closed.
 
 ## Without a server
 

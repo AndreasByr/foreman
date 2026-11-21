@@ -63,7 +63,7 @@ Engpass ist der UAT: Andreas nimmt jeden Milestone allein ab. Zum Start liegen b
 **Goal:** Der Dispatcher gibt Prüfskripten nur die nötige Umgebung, meldet an Discord oder Slack, behandelt `main` nach einer festen Regel und unterstützt lokale Claude-Code-Läufe offiziell.
 **Coding:** ~4 Tage (Agent)
 **Testing:** ~2 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT von Andreas abgenommen, 2026-11-21; PR #4 in dev)
 
 ---
 
@@ -102,30 +102,30 @@ Der Dispatcher verrät keine fremden Secrets, meldet in den Kanal der Wahl und m
 
 #### Acceptance criteria
 
-- [ ] **Umgebung** [agent]: Test beweist, dass das Prüfskript nur `PATH`, `HOME`, `LANG` und `pass_env` sieht.
-- [ ] **Webhook** [agent]: Tests für Discord- und Slack-Body grün.
-- [ ] **Webhook echt** [human]: Eine Testmeldung kommt im eigenen Discord-Kanal an.
-- [ ] **main-Regel** [agent]: Test zeigt: ohne `mainAutoMerge` kein automatischer Batch nach `main`.
-- [ ] **`--no-fetch`** [agent]: Vorlage akzeptiert die Option, Test grün.
-- [ ] **Lokaler Lauf** [agent]: Trockenlauf mit `fire_command` am Testprojekt ohne Secret im Log.
-- [ ] **Alle Tests** [agent]: `scripts/test-all.sh` grün.
+- [x] **Umgebung** [agent]: Test beweist, dass das Prüfskript nur `PATH`, `HOME`, `LANG` und `pass_env` sieht.
+- [x] **Webhook** [agent]: Tests für Discord- und Slack-Body grün.
+- [x] **Webhook echt** [human]: Eine Testmeldung kommt im eigenen Discord-Kanal an.
+- [x] **main-Regel** [agent]: Test zeigt: ohne `mainAutoMerge` kein automatischer Batch nach `main`.
+- [x] **`--no-fetch`** [agent]: Vorlage akzeptiert die Option, Test grün.
+- [x] **Lokaler Lauf** [agent]: Trockenlauf mit `fire_command` am Testprojekt ohne Secret im Log.
+- [x] **Alle Tests** [agent]: `scripts/test-all.sh` grün.
 
 Go/no-go: Umgebung begrenzt (Test grün). Ohne das startet M007 nicht.
 
 #### Test flow checklist
 
 **Flow A: Testmeldung**
-- [ ] Schritt 1: Auf myweby `dispatch.sh --dry-run` mit einem absichtlich kaputten Testprojekt-Eintrag ausführen.
-- [ ] Schritt 2: Erwartet: genau eine Fehlermeldung im Discord-Kanal, Text nennt das Projekt, kein Token im Text.
+- [x] Schritt 1: Auf myweby `dispatch.sh --dry-run` mit einem absichtlich kaputten Testprojekt-Eintrag ausführen.
+- [x] Schritt 2: Erwartet: genau eine Fehlermeldung im Discord-Kanal, Text nennt das Projekt, kein Token im Text.
 
 **Flow B: main ohne Freigabe**
-- [ ] Schritt 1: Im Testprojekt ein Fix-Paket mit `Target: main` auf `awaiting-merge` setzen, Uhrzeit im Merge-Fenster.
-- [ ] Schritt 2: `scripts/autopilot-check.sh --no-fetch` ausführen.
-- [ ] Schritt 3: Erwartet: kein `TASK|batch|batch:main`.
+- [x] Schritt 1: Im Testprojekt ein Fix-Paket mit `Target: main` auf `awaiting-merge` setzen, Uhrzeit im Merge-Fenster.
+- [x] Schritt 2: `scripts/autopilot-check.sh --no-fetch` ausführen.
+- [x] Schritt 3: Erwartet: kein `TASK|batch|batch:main`.
 
 **Flow C: lokaler Lauf**
-- [ ] Schritt 1: Testprojekt mit `fire_command` in `config.json`, `dispatch.sh --dry-run`.
-- [ ] Schritt 2: Erwartet: „would start … via command“, Log ohne Secret-Treffer.
+- [x] Schritt 1: Testprojekt mit `fire_command` in `config.json`, `dispatch.sh --dry-run`.
+- [x] Schritt 2: Erwartet: „would start … via command“, Log ohne Secret-Treffer.
 
 #### Feedback-loop protocol
 
@@ -477,6 +477,7 @@ Go/no-go: Mirror-Trockenlauf gegen ein Projekt aus der Vorlage endet mit Exit 0.
 | S2 | Upgrade-Abschnitte | `CHANGELOG.md` bekommt je Version einen Abschnitt „Upgrade“ (Dateien, Schritte, optional); ab 0.2.1 nachgetragen | Lint-Test: jede Version hat den Abschnitt |
 | S3 | `install.sh --update` | Update-Modus mit `--dry-run`, beachtet die Klassen, erhöht `version` in `.foreman.json` erst nach Erfolg | Test: Testprojekt mit angepasster `CLAUDE.md` und `config.toml` bleibt dort unverändert, foreman-eigene Dateien aktuell |
 | S4 | Skill | Chat-Skill `foreman-update`: Versionsvergleich, Liste der Änderungen, Checkliste für Schritte außerhalb des Repos, neue Module nur nach Ja | Plugin-Validierung grün; Durchlauf am Testprojekt erzeugt Auftrag und Checkliste |
+| S5 | Projektanweisung | `foreman-update` ruft am Ende `foreman-project-mode` im Auffrischen-Modus auf (Versionsvergleich der Markierung `foreman-project-block`); in einem Claude-Projekt steht die Checkliste-Zeile „Projektanweisung aktuell“ | Test: Testprojekt mit Block v0 meldet „veraltet“, mit aktuellem Block „aktuell“ |
 
 ---
 
@@ -498,6 +499,7 @@ Ein Projekt auf 0.2.1 kommt per `foreman-update` auf den neuen Stand, und alles 
 - [ ] **Anpassungen bleiben** [agent]: Test mit angepasster `CLAUDE.md` und `config.toml` grün.
 - [ ] **Version erst nach Erfolg** [agent]: abgebrochenes Update lässt `version` unverändert.
 - [ ] **Checkliste** [human]: Die Schritte außerhalb des Repos sind nummeriert und mit Minuten versehen.
+- [ ] **Projektanweisung** [agent]: veralteter Block wird erkannt, aktueller als „aktuell“ gemeldet.
 
 Go/no-go: Projekteigene Dateien bleiben beim Update unverändert.
 

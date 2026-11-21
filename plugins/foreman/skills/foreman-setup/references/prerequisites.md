@@ -10,7 +10,7 @@ Why: it does the work. Claude Code is recommended because routines and the API t
 2. Install the CLI or app by the provider's current instructions. Check with `claude --version` (or the agent's own command).
 3. Sign in once in a terminal.
 
-Alternative: OpenCode or another agent through `AGENTS.md`. Without routines there is no Claude-style unattended start; the dispatcher then runs a command on your machine (`fire_command`).
+Alternative: OpenCode or another agent through `AGENTS.md`. Without routines there is no Claude-style unattended start; the dispatcher then runs a command on your machine (`fire_command`). Claude Code without a cloud routine can also run through `fire_command` with the start script `dispatcher/fire-claude.example.sh` over ssh on your own machine (details in `dispatcher/README.md`).
 
 ## GitHub account and a repo (about 10 min)
 
@@ -82,7 +82,7 @@ Why: this is what the dispatcher fires. Create it in the routines UI or from a C
 3. Generate the token in the UI (shown once). Put URL and token into `dispatcher.env` under the names from `config.json`.
 4. Smoke test: fire it with the text "smoke test"; success is the reply "smoke test ok".
 
-Other agents: no routine. Set `fire_command` in the dispatcher config instead.
+Other agents: no routine. Set `fire_command` in the dispatcher config instead. Claude Code without a cloud routine can also run through `fire_command` with the start script `dispatcher/fire-claude.example.sh` over ssh on your own machine (details in `dispatcher/README.md`).
 
 ## Ollama Cloud key (about 5 min)
 

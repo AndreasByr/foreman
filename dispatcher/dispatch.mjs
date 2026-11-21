@@ -44,6 +44,20 @@ export function parseCheckOutput(text) {
   return { nothing: false, tasks };
 }
 
+// Minimal child environment: PATH, HOME, LANG plus the pass_env pairs (name -> source variable).
+// A project's script must not see another project's tokens, so nothing else is copied.
+const SAFE_BASE_VARS = ["PATH", "HOME", "LANG"];
+const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+export function safeEnv(env, passEnv = {}) {
+  const out = {};
+  for (const name of SAFE_BASE_VARS) if (env[name] !== undefined) out[name] = env[name];
+  for (const [name, source] of Object.entries(passEnv ?? {})) {
+    if (SAFE_BASE_VARS.includes(name) || !name || !ENV_NAME.test(name)) continue;
+    if (typeof env[source] === "string" && env[source] !== "") out[name] = env[source];
+  }
+  return out;
+}
+
 export function redact(text, secrets) {
   return [...secrets].filter((s) => s && s.length >= 6).sort((a, b) => b.length - a.length)
     .reduce((t, s) => String(t).split(s).join("***"), String(text));
@@ -90,19 +104,30 @@ async function fireHttp(project, task, env, fetchImpl) {
   return session ? `session ${session}` : "started (no session URL in the answer)";
 }
 
-function fireCommand(project, task, repoDir, logDir) {
+function fireCommand(project, task, repoDir, logDir, env) {
   mkdirSync(logDir, { recursive: true });
   const logFile = join(logDir, `${project.name}-${task.unit.replace(/[^\w.-]/g, "_")}.log`);
   const fd = openSync(logFile, "a");
   const child = spawn(project.fire_command, {
     shell: true, cwd: expandHome(project.fire_cwd) || repoDir, detached: true, stdio: ["pipe", fd, fd],
-    env: { ...process.env, FOREMAN_PROJECT: project.name, FOREMAN_KIND: task.kind, FOREMAN_UNIT: task.unit },
+    // only this project's pass_env values reach the command, not other projects' tokens
+    env: { ...safeEnv(env, project.pass_env), FOREMAN_PROJECT: project.name, FOREMAN_KIND: task.kind, FOREMAN_UNIT: task.unit },
   });
   child.stdin.on("error", () => {});
   child.stdin.end(task.prompt);
   child.unref();
   closeSync(fd);
   return `command started (pid ${child.pid}, log ${logFile})`;
+}
+
+/**
+ * The environment for git: the dispatcher's environment (SSH agent, proxy, GIT_* settings), no credential prompts,
+ * and GIT_SSH_COMMAND with the deploy key when a key is given.
+ */
+export function gitEnv(env, key) {
+  const e = { ...env, GIT_TERMINAL_PROMPT: "0" };
+  if (key) e.GIT_SSH_COMMAND = `ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=yes`;
+  return e;
 }
 
 function git(args, cwd, env) {
@@ -113,8 +138,8 @@ function git(args, cwd, env) {
 function updateRepo(project, workdir, env, log) {
   const dir = join(workdir, "repos", project.name);
   const key = project.deploy_key_env ? env[project.deploy_key_env] : expandHome(project.deploy_key);
-  const e = { ...env, GIT_TERMINAL_PROMPT: "0" };
-  if (key) e.GIT_SSH_COMMAND = `ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=yes`;
+  // git is not a project script: it gets the dispatcher environment (see gitEnv)
+  const e = gitEnv(env, key);
   if (!existsSync(join(dir, ".git"))) {
     mkdirSync(join(workdir, "repos"), { recursive: true });
     const r = git(["clone", "-q", project.repo, dir], workdir, e);
@@ -131,8 +156,8 @@ function updateRepo(project, workdir, env, log) {
 
 function runCheck(project, dir, env) {
   const cmd = project.check || "scripts/autopilot-check.sh";
-  const passEnv = { ...env };
-  for (const [name, from] of Object.entries(project.pass_env ?? {})) if (env[from]) passEnv[name] = env[from];
+  // the check script of one project must not see another project's tokens
+  const passEnv = safeEnv(env, project.pass_env);
   const r = spawnSync(cmd, ["--no-fetch"], { cwd: dir, env: passEnv, encoding: "utf8", timeout: 180000, shell: true });
   if (r.status !== 0) throw new Error(`check exited with ${r.status ?? "a signal"}: ${String(r.stderr ?? "").trim().split("\n")[0] || "no message"}`);
   return { stdout: r.stdout ?? "", stderr: String(r.stderr ?? "").trim() };
@@ -150,12 +175,46 @@ function acquireLock(path) {
   }
 }
 
-async function notify(config, env, message, fetchImpl, log) {
+const WEBHOOK_FORMATS = ["auto", "discord", "slack"];
+const DISCORD_DOMAINS = ["discord.com", "discordapp.com"];
+
+/** The webhook host of an https URL. Throws without showing the URL. */
+function webhookHost(url) {
+  let u = null;
+  try { u = new URL(url); } catch { /* not a URL */ }
+  if (!u || u.protocol !== "https:") throw new Error("invalid webhook URL: only https URLs are accepted");
+  return u.hostname;
+}
+
+/**
+ * The request for a failure webhook: { url, body } with body as a JSON string, or null when no URL is set.
+ * Format `discord` sends {"content"}, `slack` sends {"text"}; `auto` picks by host. Throws (without the URL) when the
+ * URL or the format is unusable.
+ */
+export function webhookRequest(config, env, message) {
   const url = env[config.webhook_url_env ?? "DISPATCHER_ERROR_WEBHOOK_URL"];
-  if (!url) return;
+  if (!url) return null;
+  const host = webhookHost(url);
+  const format = config.webhook_format ?? "auto";
+  if (!WEBHOOK_FORMATS.includes(format)) throw new Error("unknown webhook_format: use discord, slack or auto");
+  let kind = format;
+  if (format === "auto") {
+    if (DISCORD_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`))) kind = "discord";
+    else if (host === "hooks.slack.com") kind = "slack";
+    else throw new Error("unknown webhook host: set webhook_format to discord or slack");
+  }
+  return { url, body: JSON.stringify(kind === "discord" ? { content: message } : { text: message }) };
+}
+
+async function notify(config, env, message, fetchImpl, log) {
+  let req;
+  try { req = webhookRequest(config, env, message); } catch (e) { log(`webhook not used: ${e.message}`); return; }
+  if (!req) return;
   try {
-    await fetchImpl(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: message, content: message }), signal: AbortSignal.timeout(15000) });
-  } catch (e) { log(`webhook failed: ${e.message}`); }
+    // redirect: "error" keeps the request on the host that was checked
+    const res = await fetchImpl(req.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: req.body, redirect: "error", signal: AbortSignal.timeout(15000) });
+    if (res && res.ok === false) log(`webhook failed: answered ${res.status}`);
+  } catch (e) { log(`webhook failed: ${redact(e.message, [req.url])}`); }
 }
 
 /** Runs the dispatcher for all projects. Returns the exit code (1 when any project failed). */
@@ -187,7 +246,7 @@ export async function run({ config, env = process.env, dryRun = false, only = nu
         for (const task of chosen) {
           if (dryRun) { say(`${project.name}: would start ${task.kind} ${task.unit} (${task.info}) via ${project.fire_command ? "command" : "fire URL"}`); continue; }
           try {
-            const result = project.fire_command ? fireCommand(project, task, dir, join(workdir, "logs")) : await fireHttp(project, task, env, fetchImpl);
+            const result = project.fire_command ? fireCommand(project, task, dir, join(workdir, "logs"), env) : await fireHttp(project, task, env, fetchImpl);
             say(`${project.name}: started ${task.kind} ${task.unit}: ${result}`);
             state.fired[task.unit] = new Date(now).toISOString();
           } catch (e) {

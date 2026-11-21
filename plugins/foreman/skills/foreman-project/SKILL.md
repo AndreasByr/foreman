@@ -68,6 +68,8 @@ Present the steps once as a numbered list with minutes, then work through them o
 
 After each step: one line of what is done, then the next step with minutes.
 
+9. **Project instructions (2 min), Claude Code projects only.** Run `foreman-project-mode`: roles (chat triages, thread executes), fix flow and branch rules go into the project instructions. Skip when there is no project host.
+
 ## 5. Rules
 
 - Do not skip requirements. A project without them is not started.
