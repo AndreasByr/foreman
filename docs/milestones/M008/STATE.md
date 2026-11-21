@@ -1,4 +1,4 @@
-Status: needs-input · since 2026-11-21T19:15Z · Validierung nach 2 Rework-Runden noch needs-attention (1 mittlerer Fund)
+Status: batch-pr · since 2026-11-21T19:45Z · Validierung pass (Runde 4), Batch-PR nach dev folgt
 Target: dev
 Batch-branch: batch/m008
 Lock: free
@@ -17,6 +17,7 @@ Start commit: c6b3149 (Baseline: bash scripts/test-all.sh exit 0)
 | S2 | Aufteilen (Übersicht + Ordner, Tabelle, Konfliktreihenfolge, Schwelle) und Stand-Zeile | done | M008 S1+S2 | template/docs/docs-rules.md, scripts/test-docs-rules.sh | |
 | S3 | Prüfskript für Stand-Zeile mit Beispielen, in test-all | done | M008 S3 | template/scripts/docs-check.mjs, template/scripts/lib/docs-check.mjs, template/scripts/test-docs-check.mjs, scripts/test-all.sh (Beispiele inline im Test statt Fixture-Ordner) | |
 | S4 | Verweise in roast und roadmap, Learnings | done | M008 S4 | plugins/foreman/skills/foreman-roast/, plugins/foreman/skills/foreman-roadmap/, docs/learnings.md | |
+| R3 | docs-check: Bereich/Liste mit Wort danach, Uhrzeit, dd.mm.yy (51 Tests) | done | M008 R3 | template/scripts/lib/docs-check.mjs, template/scripts/test-docs-check.mjs | niedrige Funde im Bericht R3 |
 | R2 | docs-check: Bindewörter, Fences, Tests (44) | done | M008 R2 | template/scripts/lib/docs-check.mjs, template/scripts/test-docs-check.mjs | 1 mittlerer Fund offen (Bereich/Liste mit Wort danach) |
 | R1 | Korrekturen aus Validierung (Doppelung, docs-check-Lücken, Template-Stand-Zeile) | done | M008 R1 | template/docs/docs-rules.md, docs/docs-rules.md, template/scripts/lib/docs-check.mjs, Tests, beide SKILL.md, requirements-template.md | niedrige Funde im Bericht R1 |
 
@@ -46,11 +47,7 @@ Failures that existed before this milestone, each with the run on the start comm
 
 ## Open question (when `needs-input`)
 
-Dritte Rework-Runde R3 erlauben? Offen ist ein mittlerer Fund: `docs-check` akzeptiert „Versionen 9 bis 27 zusammengefasst“ (Bereich oder Liste mit einem Wort hinter der letzten Zahl) als eine Version. Fix ist klein (`bis`, `to`, `und`, `&` immer zählen, Wort-Regel nur für `,` und `-`; drei Tests).
-A) R3 erlauben (Empfehlung): Fix und Tests, danach ein Re-Review.
-B) Fund als bekannte Lücke stehen lassen, Batch-PR öffnen.
-C) Brief ändern (Heuristik streichen, nur Muster „Version N bis M“).
-Antwort: `docs/answers/M008.md` mit `Answer M008: ...` oder im Chat.
+none (R3 von Andreas am 2026-11-21 erlaubt, Entscheidungskarte)
 
 ## Log
 
@@ -60,3 +57,4 @@ Antwort: `docs/answers/M008.md` mit `Answer M008: ...` oder im Chat.
 - 2026-11-21T18:05Z · S4 · test-docs-rules.sh rot (exit 1) vorher, grün (exit 0) nachher, test-all exit 0 · siehe Commit
 - 2026-11-21T18:40Z · R1 · beide Tests rot (exit 1) vorher, grün (exit 0, 27 Tests) nachher, test-all exit 0 · siehe Commit
 - 2026-11-21T19:15Z · R2 · Test rot→grün (44), test-all exit 0 · Review Runde 3: needs-attention, Limit 2 Rework-Runden erreicht → needs-input · siehe Commit
+- 2026-11-21T19:45Z · R3 · Test rot→grün (51), test-all exit 0 · Review Runde 4: pass → batch-pr · siehe Commit

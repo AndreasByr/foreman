@@ -63,10 +63,6 @@ t("ok: comma and plain number in the note after a singular keyword", () => {
   expectOk("**Stand:** 14.10.2026, Version 3, 12 neue Milestones");
 });
 
-t("ok: bare number and a word after the comma (12 neue Milestones)", () => {
-  expectOk("**Stand:** 14.10.2026, Version 3, 12 neue Milestones");
-});
-
 t("ok: bare number after the comma is a date with a month name", () => {
   expectOk("**Stand:** Version 3, 21. November 2026");
 });
@@ -77,6 +73,18 @@ t("ok: hyphen range, then a bare number followed by a word", () => {
 
 t("ok: en-dash range, then a date with a month name", () => {
   expectOk("**Stand:** Version 3 – 21. November 2026");
+});
+
+t("ok: hyphen range without a date, then a bare number followed by a word", () => {
+  expectOk("**Stand:** Version 3 - 5 neue Milestones");
+});
+
+t("ok: en-dash range, then a time of day", () => {
+  expectOk("**Stand:** Version 3 – 14:30 Uhr");
+});
+
+t("ok: bare number with a two-digit year after the comma", () => {
+  expectOk("**Stand:** Version 3, 14.10.26");
 });
 
 t("ok: lowercase keyword version", () => {
@@ -172,6 +180,26 @@ t("problem: plural range with a hyphen", () => {
 
 t("problem: lowercase version und version", () => {
   expectProblem("**Stand:** 14.10.2026, version 3 und version 4", MULTI);
+});
+
+t("problem: range with Versionen and bis, word after the last number", () => {
+  expectProblem("**Stand:** 14.10.2026, Versionen 9 bis 27 zusammengefasst", MULTI);
+});
+
+t("problem: list with und, word after the last number", () => {
+  expectProblem("**Stand:** 14.10.2026, Version 2, 3 und 4 im Verlauf", MULTI);
+});
+
+t("problem: range with Versions and to, word after the last number", () => {
+  expectProblem("**Stand:** 14.10.2026, Versions 1 to 3 merged", MULTI);
+});
+
+t("problem: bare number after & and a word after it", () => {
+  expectProblem("**Stand:** 14.10.2026, Version 26 & 27 zusammen", MULTI);
+});
+
+t("problem: range with bis and a parenthesis after the last number", () => {
+  expectProblem("**Stand:** 14.10.2026, Version 9 bis 27 (Verlauf)", MULTI);
 });
 
 // ----- problem cases: Stand line count -----

@@ -13,10 +13,12 @@ const VERSION = /(?:\b(?:Versionen|Versions|Version|Fassungen|Fassung)\s*:?\s*|\
 const ITEM = /(?:,|-|–|&|\b(?:und|and|bis|to)\b)\s*([vV]?)\d+(?:\.\d+)*/gi;
 
 // Matches only where no word follows the number (", 12 neue" does not count; ", 21. November" does not either).
-const NO_WORD_AFTER = /^(?!\.?\s*[A-Za-zÄÖÜäöüß])/;
+// A time such as "14:30" counts as a word too.
+const NO_WORD_AFTER = /^(?!\.?\s*[A-Za-zÄÖÜäöüß]|:\d)/;
 
-// Dates in dd.mm.yyyy, d.m.yyyy, dd.mm. (no year) or yyyy-mm-dd are not versions.
-const DATE = /\b\d{1,2}\.\d{1,2}\.(?:\d{4}\b|(?!\d))|\b\d{4}-\d{2}-\d{2}\b/g;
+// Dates in dd.mm.yyyy, d.m.yyyy, dd.mm. (no year), dd.mm.yy or yyyy-mm-dd are not versions.
+// dd.mm.yy right after a version keyword stays a version (e.g. "Version 1.2.10").
+const DATE = /(?<!\b(?:[Vv]ersion(?:en|s)?|[Ff]assung(?:en)?)\s*:?\s*)\b\d{1,2}\.\d{1,2}\.\d{2}\b|\b\d{1,2}\.\d{1,2}\.(?:\d{4}\b|(?!\d))|\b\d{4}-\d{2}-\d{2}\b/g;
 
 // Backticked text (paths such as `docs/requirements.md`) is not counted.
 const CODE = /`[^`]*`/g;
@@ -26,13 +28,15 @@ function versionsIn(line) {
   const text = line.replace(DATE, " ").replace(CODE, " ");
   let count = 0;
   for (const m of text.matchAll(VERSION)) {
-    // The first number counts once. A connected item counts if it has a v prefix,
-    // or if its bare number is not followed by a word in the rest of the line.
+    // The first number counts once. A connected item counts if it has a v prefix, if the keyword is plural,
+    // if its connector is bis/to/und/and/&, or if its bare number (after , - –) is not followed by a word.
     count += 1;
+    const plural = /^(?:Versionen|Versions|Fassungen)\b/i.test(m[0]);
     const chainStart = m.index + m[0].length - m[1].length;
     for (const item of m[1].matchAll(ITEM)) {
       const rest = text.slice(chainStart + item.index + item[0].length);
-      if (item[1] || NO_WORD_AFTER.test(rest)) count += 1;
+      const softConnector = /^[,\-–]/.test(item[0]);
+      if (item[1] || plural || !softConnector || NO_WORD_AFTER.test(rest)) count += 1;
     }
   }
   return count;
