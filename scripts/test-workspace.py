@@ -230,6 +230,39 @@ def check_valid_fixtures(tmp, counter):
     expect_valid("tracker url with http is valid", tmp, next(counter), json.dumps(http_tracker))
 
 
+def check_time_zone(tmp, counter):
+    # Optional top-level timeZone (IANA name string).
+    try:
+        example = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        example = {}
+    check(
+        "example carries timeZone Europe/Berlin",
+        dig(example, "timeZone") == "Europe/Berlin",
+        f"timeZone={dig(example, 'timeZone')!r}",
+    )
+
+    without = base_workspace()
+    check("fixture without timeZone has no timeZone key", "timeZone" not in without)
+    expect_valid("workspace without timeZone is valid", tmp, next(counter), json.dumps(without))
+
+    with_zone = base_workspace()
+    with_zone["timeZone"] = "Europe/Berlin"
+    expect_valid("workspace with timeZone Europe/Berlin is valid", tmp, next(counter), json.dumps(with_zone))
+
+    for value in ["Mars/Base", "", 5, "Europe/Berlin; rm"]:
+        data = base_workspace()
+        data["timeZone"] = value
+        path = write_text(tmp, next(counter), json.dumps(data))
+        code, output = run_checker(path)
+        problems = problem_lines(output)
+        check(
+            f"timeZone {value!r} is rejected and the message names timeZone",
+            code == 1 and any("timeZone" in line for line in problems),
+            f"exit {code}, problems: {' | '.join(problems)[:300]}",
+        )
+
+
 def check_rejected(tmp, counter):
     # Case 3: each mutation of the base fixture must be rejected.
     def mutated(name, mutate):
@@ -357,6 +390,7 @@ def main():
         counter = iter(range(1, 10_000))
         check_valid_fixtures(tmp, counter)
         check_rejected(tmp, counter)
+        check_time_zone(tmp, counter)
 
     if failures:
         for line in failures:

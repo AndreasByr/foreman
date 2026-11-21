@@ -17,15 +17,16 @@ export function settingsFrom(env = {}, conf = {}) {
   const ctx = conf.context ?? {};
   const dayNames = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
   const ctxDay = dayNames.indexOf(String(ctx.releaseDay ?? "").toLowerCase()) + 1 || null;
+  const waitHours = typeof a.waitHours === "number" && Number.isFinite(a.waitHours) && a.waitHours > 0 && a.waitHours <= 168 ? a.waitHours : 4;
   const hours = (env.FOREMAN_BATCH_HOURS ?? (Array.isArray(a.batchHours) ? a.batchHours.join(" ") : null) ?? "03 07 11 15 19 23")
     .split(/[\s,]+/).filter(Boolean).map(Number);
   return {
-    tz: env.FOREMAN_TZ ?? a.timezone ?? ctx.timeZone ?? "UTC",
+    tz: [env.FOREMAN_TZ, a.timezone, ctx.timeZone].find((v) => typeof v === "string" && v.trim() !== "") ?? "UTC",
     batchHours: hours,
     releaseWeekday: Number(env.FOREMAN_RELEASE_WEEKDAY ?? a.releaseWeekday ?? ctxDay ?? 5),
     releaseHour: Number(env.FOREMAN_RELEASE_HOUR ?? a.releaseHour ?? 9),
     lockMs: Number(env.FOREMAN_LOCK_SECONDS ?? 10800) * 1000,
-    waitMs: Number(env.FOREMAN_WAIT_SECONDS ?? 14400) * 1000,
+    waitMs: Number(env.FOREMAN_WAIT_SECONDS ?? waitHours * 3600) * 1000,
     maxTasks: Number(env.FOREMAN_MAX_TASKS ?? 3),
     mainAutoMerge: a.mainAutoMerge === true,
   };

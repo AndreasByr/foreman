@@ -141,7 +141,41 @@ def check_block_d(text, failures):
             )
 
 
+def block_d_first_item(text):
+    """Return the first list item of block D (marker, first line and continuation lines), or None."""
+    match = section(text, "D")
+    if match is None:
+        return None
+    item = re.compile(r"\s*(?:[-*]|\d+[.)])\s")
+    parts = []
+    for line in match.group(1).splitlines():
+        if not parts:
+            if item.match(line):
+                parts.append(line)
+        elif not line.strip() or item.match(line):
+            break
+        else:
+            parts.append(line)
+    return " ".join(parts) if parts else None
+
+
+def check_time_zone_docs(text, failures):
+    first = block_d_first_item(text)
+    if first is None:
+        failures.append("question-catalog.md: block D has no first item")
+    else:
+        lower = first.lower()
+        for needle in ["workspace.json", "timezone", "per project"]:
+            if needle not in lower:
+                failures.append(f"question-catalog.md: block D item 1 does not mention '{needle}'")
+    fmt = REFERENCES / "workspace-format.md"
+    fmt_text = read_text(fmt, failures)
+    if fmt_text is not None and "timeZone" not in fmt_text:
+        failures.append("workspace-format.md: does not mention 'timeZone'")
+
+
 def check_catalog(text, failures):
+    check_time_zone_docs(text, failures)
     check_no_result_section(text, failures)
     check_beginner_answer(text, failures)
     check_block_d(text, failures)

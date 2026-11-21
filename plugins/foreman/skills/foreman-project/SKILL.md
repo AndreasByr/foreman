@@ -1,6 +1,6 @@
 ---
 name: foreman-project
-description: Guide a new project from idea to first milestone with foreman. Use when the human starts a project. Asks Quick or full first with a recommendation; full path runs roast, requirements, roadmap, design, repo setup, tracker, dispatcher entry and first milestone.
+description: "foreman-project guides a new project when the environment is already set up. New project and start a project always come here. First asks Quick or full, with a recommendation; full runs roast, requirements, roadmap, design, repo setup, tracker, dispatcher entry and first milestone. Not for first setup or a changed environment (machines, plans, gateway, tracker): that is foreman-setup."
 ---
 
 # foreman-project
@@ -28,17 +28,31 @@ Mixed signals: recommend Quick and say that the same repo can move to full later
 
 ## 2. Collect project data once
 
-Read `.foreman.json` in the repo (if the repo exists), the chat project's files and `docs/`. Ask only what is missing, one round of at most 3:
+### Detect the environment (before any question)
 
-- project name and slug, one-sentence goal
+- Read `workspace.json`: the copy in the chat project's docs (project "foreman"), else the `infra` block of `.foreman.json` in the repo. Use what it says (machines, tracker, gateway, plans, notification, language) and do not ask it again. Show each value in one short line so the human can object. The time zone is the exception: it is asked per project (see Project questions).
+- If `workspace.json` is missing, the question is always asked and never skipped; it is asked only then, and exactly once. Ask exactly one question. Put the hints into the one question: project docs, `.foreman.json`, `dispatcher/`, a reachable itsaplan, other repos with `.foreman.json`, earlier answers in this chat. For example: "I found `dispatcher/` in this repo. Is foreman already set up?" Never guess.
+- If `workspace.json` is invalid, empty or cannot be read (no access in this chat), ask the same one question.
+- On "yes": do not start `foreman-setup`; continue below and ask only the project questions. Values the human does not know stay empty.
+- On "no": hand over to `foreman-setup` and return here when it is done.
+- An empty new repo does not mean a new environment.
+
+### Project questions
+
+The questions come from `references/project-questions.md` (read it first): P1 to P9, each with a suggestion. Values from `workspace.json` are taken over and shown, not asked again, except the time zone. The time zone is asked per project, the suggestion is the `timeZone` from `workspace.json`, otherwise ask without one; never invent a zone. The Autopilot-only questions (batch hours, wait, mainAutoMerge) are asked only for profile Autopilot; the time zone is asked for profiles Repo and Autopilot.
+
+Read `.foreman.json` in the repo (if the repo exists), the chat project's files and `docs/`. Ask only what is missing, at most 3 per round, beyond P1 to P9:
+
+- one-sentence goal
 - repo (or "none yet"), stack, hosting
 - who tests and approves; test environment URL and test tenant or account; what is off limits (production data, other tenants)
-- release day, time zone, document language
-- tracker: itsaplan, linear or none (from `.foreman.json` modules)
+- release day, document language
 
 Offer to record the answers under `context` in `.foreman.json` (keys: `name`, `goal`, `stagingUrl`, `devUrl`, `testTenant`, `offLimits`, `language`, `timeZone`, `releaseDay`, `workRun`). Never store tokens or secrets there.
 
-If foreman is not installed in the repo yet, run `foreman-setup` first (or at least give the install command) and return here.
+### Summary before the install
+
+Before the install, show a summary of all answers as one list: each answer given, and each value taken over from `workspace.json`, shown once. Ask the human to confirm the summary. Only after the confirmation show the install command. The install command contains only values from answers or `workspace.json`, never a guessed one.
 
 ## 3. Check what exists
 
