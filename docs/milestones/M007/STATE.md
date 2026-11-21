@@ -1,4 +1,4 @@
-Status: validation · since 2026-11-21T19:45Z · S1 bis S4 und R1 done, Re-Validierung
+Status: batch-pr · since 2026-11-21T19:55Z · alle Gates grün, Validierung pass, Merge nach dev wartet auf Freigabe des Koordinators (Historie wird umgeschrieben)
 Target: dev
 Batch-branch: batch/m007
 Lock: free
