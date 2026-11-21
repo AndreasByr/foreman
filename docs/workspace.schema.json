@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "foreman workspace.json (version 1)",
+  "description": "Names and roles only. Never a secret value: no keys, tokens, passwords or webhook URLs. Every enum also accepts the string \"unbekannt\" (\"I don't know\"); an unknown value is never guessed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "machines", "ai", "notification", "tracker", "gateway"],
+  "properties": {
+    "schema": {
+      "description": "Format version of this file. Must be 1.",
+      "type": "integer",
+      "const": 1
+    },
+    "machines": {
+      "description": "The machines the human works with or runs foreman on. May be empty.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "role", "services"],
+        "properties": {
+          "name": {
+            "description": "Short machine name in lowercase letters, digits and hyphens. A name, not an address.",
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "role": {
+            "description": "What the machine is used for.",
+            "type": "string",
+            "enum": ["server", "home-server", "laptop", "other", "unbekannt"]
+          },
+          "services": {
+            "description": "Services running on this machine. May be empty.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["docker", "coolify", "itsaplan", "litellm", "dispatcher", "other", "unbekannt"]
+            }
+          },
+          "purposes": {
+            "description": "What the machine is used for. Optional; may be empty.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["dispatcher-host", "local-runs", "app-hosting", "tracker-host", "gateway-host", "other", "unbekannt"]
+            }
+          },
+          "domain": {
+            "description": "Whether the machine has a domain name pointing to it.",
+            "type": "string",
+            "enum": ["yes", "no", "unbekannt"]
+          },
+          "https": {
+            "description": "Whether the machine's services are served over HTTPS.",
+            "type": "string",
+            "enum": ["yes", "no", "unbekannt"]
+          }
+        }
+      }
+    },
+    "ai": {
+      "description": "AI subscriptions and tools the human has.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claude", "ollamaCloud", "chatgpt"],
+      "properties": {
+        "claude": {
+          "description": "Claude subscription or API access.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["plan"],
+          "properties": {
+            "plan": {
+              "description": "Claude plan or access type.",
+              "type": "string",
+              "enum": ["none", "pro", "max", "team", "enterprise", "api", "unbekannt"]
+            },
+            "routinesApiTrigger": {
+              "description": "Whether the Claude routines API trigger is available for the dispatcher.",
+              "type": "string",
+              "enum": ["yes", "no", "unbekannt"]
+            }
+          }
+        },
+        "ollamaCloud": {
+          "description": "Ollama cloud plan.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["plan"],
+          "properties": {
+            "plan": {
+              "description": "Ollama cloud plan.",
+              "type": "string",
+              "enum": ["none", "free", "pro", "max", "unbekannt"]
+            }
+          }
+        },
+        "chatgpt": {
+          "description": "ChatGPT subscription.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["plan"],
+          "properties": {
+            "plan": {
+              "description": "ChatGPT plan.",
+              "type": "string",
+              "enum": ["none", "plus", "pro", "team", "enterprise", "unbekannt"]
+            }
+          }
+        },
+        "other": {
+          "description": "Other AI tools by name only, for example a provider name. No keys.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9 ._-]{1,40}$"
+          }
+        }
+      }
+    },
+    "notification": {
+      "description": "Notification channels the human uses. Empty means no channel matches; use \"none\" to say explicitly that there is none.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["mail", "discord-webhook", "slack-webhook", "push", "none", "unbekannt"]
+      }
+    },
+    "tracker": {
+      "description": "Task tracker used for the work.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "description": "Tracker type.",
+          "type": "string",
+          "enum": ["itsaplan", "linear", "none", "unbekannt"]
+        },
+        "url": {
+          "description": "Base URL of the tracker. No userinfo, no query string, no fragment.",
+          "type": "string",
+          "pattern": "^https?://[^/?#@\\s]+(/[^?#\\s]*)?$"
+        }
+      }
+    },
+    "gateway": {
+      "description": "LLM gateway (proxy) the human runs or uses.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["running"],
+      "properties": {
+        "running": {
+          "description": "Whether the gateway is running.",
+          "type": "string",
+          "enum": ["yes", "no", "unbekannt"]
+        },
+        "url": {
+          "description": "Base URL of the gateway. https with a host that has dots, or http only for localhost or 127.0.0.1. No userinfo, no query string, no fragment.",
+          "type": "string",
+          "pattern": "^(https://[^/?#@:\\s.]+(\\.[^/?#@:\\s.]+)+(:[0-9]{1,5})?|http://(localhost|127\\.0\\.0\\.1)(:[0-9]{1,5})?)(/[^?#\\s]*)?$"
+        },
+        "keyEnv": {
+          "description": "Name of the environment variable that holds the gateway key. The name only, never the key.",
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        }
+      }
+    },
+    "chatgptViaGateway": {
+      "description": "Whether ChatGPT models are routed through the gateway: accepted-risk, declined, not-asked, or unbekannt.",
+      "type": "string",
+      "enum": ["accepted-risk", "declined", "not-asked", "unbekannt"]
+    },
+    "agent": {
+      "description": "Coding agent the human works with.",
+      "type": "string",
+      "enum": ["claude-code", "opencode", "other", "unbekannt"]
+    },
+    "github": {
+      "description": "Whether the human has a GitHub account for the repos.",
+      "type": "string",
+      "enum": ["yes", "no", "unbekannt"]
+    }
+  }
+}

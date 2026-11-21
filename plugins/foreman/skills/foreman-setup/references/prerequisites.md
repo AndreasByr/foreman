@@ -97,7 +97,9 @@ This route needs the human's informed consent (risk notice in `gateway/README.md
 1. Run the proxy in Docker on a machine reachable from the work run.
 2. Avoid LiteLLM versions 1.82.7 and 1.82.8.
 3. Create virtual keys for the `task-*` roles only. Do not log prompts.
-4. Set `FOREMAN_GATEWAY_URL` and `FOREMAN_GATEWAY_KEY` in the cloud environment.
+4. Set `FOREMAN_GATEWAY_KEY` in the cloud environment. The gateway URL is `[gateway] base_url` in `tools/delegate/config.toml` (the installer writes it); if `base_url` is empty, the wrapper reads `FOREMAN_GATEWAY_URL`.
+
+Risk notice: this is not an official Codex client, and automatic use may violate the terms of use and get the subscription blocked. Alternatives: the official Codex CLI as worker, an API key with its own budget, or Ollama and Claude only; the human decides (see `gateway-block.md`).
 
 ## No deploy knowledge
 

@@ -61,6 +61,10 @@ Claude Code is the recommended agent: routines with API trigger are the dispatch
 | completion, subagent | small | Ollama or `task-simple` |
 | fallback on provider outage | – | small Claude through `claude -p` |
 
+## Gateway options
+
+`install.sh --gateway-url <url> --fallback-model <claude/id>` writes the gateway preset into `tools/delegate/config.toml` and adds modules `delegate` and `gateway` if they are missing. The URL must be `https://`; plain `http` is accepted only for `localhost` or `127.0.0.1`. The fallback model is the exact Claude model ID that the wrapper uses when the gateway is down. ChatGPT routing (`task-normal`) happens only with `accepted-risk`, given as `--chatgpt-via-gateway accepted-risk` or stored as `chatgptViaGateway` in the workspace file; read the risk notice in `gateway/README.md` first. `declined` overrides a stored value, and without a gateway no preset is written. The URL rule is strict (https, plain host, no query, no secret-like path segment) and the preset needs `--scope repo` or `autopilot`. For an existing install (config.toml is kept without `--force`), run by hand: `python3 <foreman-repo>/scripts/gateway-preset.py tools/delegate/config.toml --url <url> --key-env FOREMAN_GATEWAY_KEY --fallback-model <claude/id> [--chatgpt]`. A changed workspace file updates only the `infra` block of an existing `.foreman.json` when you re-run the installer with `--workspace`. Defaults for URL, key variable (`FOREMAN_GATEWAY_KEY` unless set) and the ChatGPT choice come from `--workspace` when `gateway.running` is `yes`; flags win. The installer never reads or prints the key value: the config holds only the variable name.
+
 ## Measurement (M011)
 
 `scripts/measure.mjs` measures a period. Per unit (milestone or fix pack): run minutes, minutes waited on a human, and reports. Per intervention: its cause. Per worker attempt: role, model and fallbacks. It reads `docs/milestones/*/STATE.md`, `docs/fixpacks/*/STATE.md`, `docs/agent-reports/` and the worker result files in `tools/delegate/tasks/`. No network, no environment variables, and no writes except its output.
