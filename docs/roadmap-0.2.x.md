@@ -63,7 +63,7 @@ Engpass ist der UAT: Andreas nimmt jeden Milestone allein ab. Zum Start liegen b
 **Goal:** Der Dispatcher gibt Prüfskripten nur die nötige Umgebung, meldet an Discord oder Slack, behandelt `main` nach einer festen Regel und unterstützt lokale Claude-Code-Läufe offiziell.
 **Coding:** ~4 Tage (Agent)
 **Testing:** ~2 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT von Andreas abgenommen, 2026-11-21; PR #4 in dev)
 
 ---
 
@@ -102,30 +102,30 @@ Der Dispatcher verrät keine fremden Secrets, meldet in den Kanal der Wahl und m
 
 #### Acceptance criteria
 
-- [ ] **Umgebung** [agent]: Test beweist, dass das Prüfskript nur `PATH`, `HOME`, `LANG` und `pass_env` sieht.
-- [ ] **Webhook** [agent]: Tests für Discord- und Slack-Body grün.
-- [ ] **Webhook echt** [human]: Eine Testmeldung kommt im eigenen Discord-Kanal an.
-- [ ] **main-Regel** [agent]: Test zeigt: ohne `mainAutoMerge` kein automatischer Batch nach `main`.
-- [ ] **`--no-fetch`** [agent]: Vorlage akzeptiert die Option, Test grün.
-- [ ] **Lokaler Lauf** [agent]: Trockenlauf mit `fire_command` am Testprojekt ohne Secret im Log.
-- [ ] **Alle Tests** [agent]: `scripts/test-all.sh` grün.
+- [x] **Umgebung** [agent]: Test beweist, dass das Prüfskript nur `PATH`, `HOME`, `LANG` und `pass_env` sieht.
+- [x] **Webhook** [agent]: Tests für Discord- und Slack-Body grün.
+- [x] **Webhook echt** [human]: Eine Testmeldung kommt im eigenen Discord-Kanal an.
+- [x] **main-Regel** [agent]: Test zeigt: ohne `mainAutoMerge` kein automatischer Batch nach `main`.
+- [x] **`--no-fetch`** [agent]: Vorlage akzeptiert die Option, Test grün.
+- [x] **Lokaler Lauf** [agent]: Trockenlauf mit `fire_command` am Testprojekt ohne Secret im Log.
+- [x] **Alle Tests** [agent]: `scripts/test-all.sh` grün.
 
 Go/no-go: Umgebung begrenzt (Test grün). Ohne das startet M007 nicht.
 
 #### Test flow checklist
 
 **Flow A: Testmeldung**
-- [ ] Schritt 1: Auf myweby `dispatch.sh --dry-run` mit einem absichtlich kaputten Testprojekt-Eintrag ausführen.
-- [ ] Schritt 2: Erwartet: genau eine Fehlermeldung im Discord-Kanal, Text nennt das Projekt, kein Token im Text.
+- [x] Schritt 1: Auf myweby `dispatch.sh --dry-run` mit einem absichtlich kaputten Testprojekt-Eintrag ausführen.
+- [x] Schritt 2: Erwartet: genau eine Fehlermeldung im Discord-Kanal, Text nennt das Projekt, kein Token im Text.
 
 **Flow B: main ohne Freigabe**
-- [ ] Schritt 1: Im Testprojekt ein Fix-Paket mit `Target: main` auf `awaiting-merge` setzen, Uhrzeit im Merge-Fenster.
-- [ ] Schritt 2: `scripts/autopilot-check.sh --no-fetch` ausführen.
-- [ ] Schritt 3: Erwartet: kein `TASK|batch|batch:main`.
+- [x] Schritt 1: Im Testprojekt ein Fix-Paket mit `Target: main` auf `awaiting-merge` setzen, Uhrzeit im Merge-Fenster.
+- [x] Schritt 2: `scripts/autopilot-check.sh --no-fetch` ausführen.
+- [x] Schritt 3: Erwartet: kein `TASK|batch|batch:main`.
 
 **Flow C: lokaler Lauf**
-- [ ] Schritt 1: Testprojekt mit `fire_command` in `config.json`, `dispatch.sh --dry-run`.
-- [ ] Schritt 2: Erwartet: „would start … via command“, Log ohne Secret-Treffer.
+- [x] Schritt 1: Testprojekt mit `fire_command` in `config.json`, `dispatch.sh --dry-run`.
+- [x] Schritt 2: Erwartet: „would start … via command“, Log ohne Secret-Treffer.
 
 #### Feedback-loop protocol
 
