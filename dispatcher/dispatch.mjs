@@ -166,12 +166,44 @@ function acquireLock(path) {
   }
 }
 
-async function notify(config, env, message, fetchImpl, log) {
+const WEBHOOK_FORMATS = ["auto", "discord", "slack"];
+const DISCORD_DOMAINS = ["discord.com", "discordapp.com"];
+
+/** The webhook host of an https URL. Throws without showing the URL. */
+function webhookHost(url) {
+  let u = null;
+  try { u = new URL(url); } catch { /* not a URL */ }
+  if (!u || u.protocol !== "https:") throw new Error("invalid webhook URL: only https URLs are accepted");
+  return u.hostname;
+}
+
+/**
+ * The request for a failure webhook: { url, body } with body as a JSON string, or null when no URL is set.
+ * Format `discord` sends {"content"}, `slack` sends {"text"}; `auto` picks by host. Throws (without the URL) when the
+ * URL or the format is unusable.
+ */
+export function webhookRequest(config, env, message) {
   const url = env[config.webhook_url_env ?? "DISPATCHER_ERROR_WEBHOOK_URL"];
-  if (!url) return;
+  if (!url) return null;
+  const host = webhookHost(url);
+  const format = config.webhook_format ?? "auto";
+  if (!WEBHOOK_FORMATS.includes(format)) throw new Error("unknown webhook_format: use discord, slack or auto");
+  let kind = format;
+  if (format === "auto") {
+    if (DISCORD_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`))) kind = "discord";
+    else if (host === "hooks.slack.com") kind = "slack";
+    else throw new Error("unknown webhook host: set webhook_format to discord or slack");
+  }
+  return { url, body: JSON.stringify(kind === "discord" ? { content: message } : { text: message }) };
+}
+
+async function notify(config, env, message, fetchImpl, log) {
+  let req;
+  try { req = webhookRequest(config, env, message); } catch (e) { log(`webhook not used: ${e.message}`); return; }
+  if (!req) return;
   try {
-    await fetchImpl(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: message, content: message }), signal: AbortSignal.timeout(15000) });
-  } catch (e) { log(`webhook failed: ${e.message}`); }
+    await fetchImpl(req.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: req.body, signal: AbortSignal.timeout(15000) });
+  } catch (e) { log(`webhook failed: ${redact(e.message, [req.url])}`); }
 }
 
 /** Runs the dispatcher for all projects. Returns the exit code (1 when any project failed). */

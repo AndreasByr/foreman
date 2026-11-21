@@ -6,6 +6,7 @@ import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, wr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseCheckOutput, selectTasks, run, redact, parseArgs, safeEnv } from "../dispatch.mjs";
+import * as dispatchModule from "../dispatch.mjs";
 
 const queue = [];
 const t = (name, fn) => queue.push([name, fn]);
@@ -123,7 +124,7 @@ t("run --dry-run: starts nothing, writes no state, says what it would do", async
 });
 
 t("run: check exit code not 0 starts nothing, exits 1 and calls the webhook without secrets", async () => {
-  const { dir, cfg, env } = setup(SAMPLE, { code: 3 });
+  const { dir, cfg, env } = setup(SAMPLE, { code: 3, config: { webhook_format: "discord" } });
   try {
     const posts = [];
     const fetch = async (url, o) => { posts.push({ url, body: o.body }); return { ok: true, status: 200, text: async () => "" }; };
@@ -137,7 +138,7 @@ t("run: check exit code not 0 starts nothing, exits 1 and calls the webhook with
 });
 
 t("run: failing fire URL is reported, other tasks go on, token redacted", async () => {
-  const { dir, cfg, env } = setup(SAMPLE);
+  const { dir, cfg, env } = setup(SAMPLE, { config: { webhook_format: "discord" } });
   try {
     let n = 0;
     const fetch = async (url, o) => {
@@ -296,7 +297,7 @@ t("run: fire_command gets FOREMAN_* plus PATH, HOME, LANG and pass_env, never ot
 
 t("run --dry-run and webhook bodies never contain another project's secret", async () => {
   const ok = setup(SAMPLE);
-  const bad = setup(SAMPLE, { code: 3 });
+  const bad = setup(SAMPLE, { code: 3, config: { webhook_format: "discord" } });
   try {
     const logs = [];
     const dryEnv = { ...ok.env, OTHER_FIRE_TOKEN: OTHER_SECRET };
@@ -313,6 +314,103 @@ t("run --dry-run and webhook bodies never contain another project's secret", asy
     rmSync(ok.dir, { recursive: true, force: true });
     rmSync(bad.dir, { recursive: true, force: true });
   }
+});
+
+// ---- webhook formats: dispatchModule.webhookRequest is not implemented yet, so these tests must fail ----
+const HOOK_DISCORD = "https://discord.com/api/webhooks/1/abc";
+const HOOK_DISCORD_APP = "https://discordapp.com/api/webhooks/1/abc";
+const HOOK_DISCORD_SUB = "https://canary.discord.com/api/webhooks/1/abc";
+const HOOK_SLACK = "https://hooks.slack.com/services/T/B/x";
+
+/** The Error thrown by fn, or null when it returns. */
+function thrownBy(fn) {
+  try { fn(); } catch (e) { return e; }
+  return null;
+}
+
+/** fn must throw an Error whose message matches every pattern and contains none of the secrets. */
+function expectWebhookError(fn, patterns, secrets) {
+  const e = thrownBy(fn);
+  assert.ok(e instanceof Error, `expected an Error matching ${patterns}`);
+  for (const p of patterns) assert.match(e.message, p);
+  for (const s of secrets) assert.ok(!e.message.includes(s), `error message contains "${s}"`);
+}
+
+/** Runs a dispatcher whose check fails, with the webhook URL in DISPATCHER_ERROR_WEBHOOK_URL; returns exit code, posts and logs. */
+async function failedCheckRun(config, webhookUrl) {
+  const { dir, cfg, env } = setup(SAMPLE, { code: 3, config });
+  try {
+    const posts = [], logs = [];
+    const fetch = async (url, o) => { posts.push({ url, body: o.body }); return { ok: true, status: 200, text: async () => "" }; };
+    const code = await run({ config: cfg, env: { ...env, DISPATCHER_ERROR_WEBHOOK_URL: webhookUrl }, fetch, log: (m) => logs.push(m) });
+    return { code, posts, logs };
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+
+/** The posted body must be a JSON object with exactly one key, which carries the check failure message. */
+function assertPostedBody(body, key) {
+  const parsed = JSON.parse(body);
+  assert.deepEqual(Object.keys(parsed), [key]);
+  assert.ok(parsed[key].includes("check exited with 3"), `${key} carries the failure message`);
+}
+
+t("webhookRequest: discord and slack bodies are exactly the JSON each service expects", () => {
+  const wr = (config, url) => dispatchModule.webhookRequest(config, { DISPATCHER_ERROR_WEBHOOK_URL: url }, "hello");
+  const discord = JSON.stringify({ content: "hello" });
+  const slack = JSON.stringify({ text: "hello" });
+  assert.deepEqual(wr({ webhook_format: "discord" }, HOOK_SLACK), { url: HOOK_SLACK, body: discord });
+  assert.deepEqual(wr({ webhook_format: "slack" }, HOOK_DISCORD), { url: HOOK_DISCORD, body: slack });
+  assert.deepEqual(wr({ webhook_format: "auto" }, HOOK_DISCORD), { url: HOOK_DISCORD, body: discord });
+  assert.deepEqual(wr({ webhook_format: "auto" }, HOOK_DISCORD_APP), { url: HOOK_DISCORD_APP, body: discord });
+  assert.deepEqual(wr({ webhook_format: "auto" }, HOOK_DISCORD_SUB), { url: HOOK_DISCORD_SUB, body: discord });
+  assert.deepEqual(wr({ webhook_format: "auto" }, HOOK_SLACK), { url: HOOK_SLACK, body: slack });
+  assert.deepEqual(wr({}, HOOK_DISCORD), { url: HOOK_DISCORD, body: discord }, "auto is the default");
+});
+
+t("webhookRequest: auto with an unknown host, invalid URL or unknown format throws, never showing the URL", () => {
+  const wr = (config, url) => dispatchModule.webhookRequest(config, { DISPATCHER_ERROR_WEBHOOK_URL: url }, "hello");
+  expectWebhookError(() => wr({ webhook_format: "auto" }, "https://hook.example/abc-secret"), [/unknown webhook host/, /webhook_format/], ["abc-secret", "hook.example"]);
+  expectWebhookError(() => wr({}, "https://hook.example/abc-secret"), [/unknown webhook host/, /webhook_format/], ["abc-secret", "hook.example"]);
+  expectWebhookError(() => wr({ webhook_format: "auto" }, "not a url"), [/invalid webhook URL/], ["not a url"]);
+  expectWebhookError(() => wr({ webhook_format: "auto" }, "http://discord.com/x"), [/invalid webhook URL/], ["discord.com/x"]);
+  expectWebhookError(() => wr({ webhook_format: "discord" }, "http://discord.com/x"), [/invalid webhook URL/], ["discord.com/x"]);
+  expectWebhookError(() => wr({ webhook_format: "teams" }, HOOK_DISCORD), [/unknown webhook_format/], ["abc"]);
+});
+
+t("webhookRequest: no URL set gives null", () => {
+  assert.equal(dispatchModule.webhookRequest({}, {}, "hello"), null);
+  assert.equal(dispatchModule.webhookRequest({ webhook_format: "slack" }, { OTHER_VAR: HOOK_SLACK }, "hello"), null);
+  assert.equal(dispatchModule.webhookRequest({ webhook_url_env: "MY_HOOK" }, { DISPATCHER_ERROR_WEBHOOK_URL: HOOK_DISCORD }, "hello"), null, "webhook_url_env replaces the default variable");
+  assert.equal(dispatchModule.webhookRequest({ webhook_url_env: "MY_HOOK" }, { MY_HOOK: HOOK_SLACK }, "hello").url, HOOK_SLACK);
+});
+
+t("run: webhook_format decides the body of a failed-check webhook", async () => {
+  let r = await failedCheckRun({ webhook_format: "slack" }, HOOK_DISCORD);
+  assert.equal(r.code, 1);
+  assert.equal(r.posts.length, 1);
+  assert.equal(r.posts[0].url, HOOK_DISCORD);
+  assertPostedBody(r.posts[0].body, "text");
+
+  r = await failedCheckRun({ webhook_format: "discord" }, HOOK_SLACK);
+  assert.equal(r.code, 1);
+  assert.equal(r.posts.length, 1);
+  assert.equal(r.posts[0].url, HOOK_SLACK);
+  assertPostedBody(r.posts[0].body, "content");
+});
+
+t("run: default format (auto) posts the discord body to a discord URL", async () => {
+  const r = await failedCheckRun({}, HOOK_DISCORD);
+  assert.equal(r.code, 1);
+  assert.equal(r.posts.length, 1);
+  assertPostedBody(r.posts[0].body, "content");
+});
+
+t("run: auto with an unknown webhook host sends nothing, still exits 1, logs without the URL", async () => {
+  const r = await failedCheckRun({ webhook_format: "auto" }, "https://hook.example/x");
+  assert.equal(r.code, 1);
+  assert.equal(r.posts.length, 0, "no fetch call for an unknown host");
+  assert.ok(r.logs.some((l) => l.includes("unknown webhook host")), "log names the problem");
+  assert.ok(!r.logs.join("\n").includes("https://hook.example/x"), "log must not contain the URL");
 });
 
 let n = 0;
