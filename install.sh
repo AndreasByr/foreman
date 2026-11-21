@@ -6,6 +6,7 @@
 #                [--scope docs|repo|autopilot] [--agent claude-code|opencode|other]
 #                [--recommended-skills all|none|<name,name>] [--skills-scope global|project]
 #                [--session-model <exact model id>] [--no-staging] [--force] [--dry-run]
+#   ./install.sh <target-repo> --update [--dry-run]   (update an installed project; only --dry-run allowed with it)
 #
 # Existing files are never overwritten without --force. An existing CLAUDE.md is kept and the
 # foreman rules are written to CLAUDE.foreman.md for you to merge. An existing .claude/settings.json
@@ -21,8 +22,11 @@ TEMPLATE="$HERE/template"
 VERSION="$(cat "$HERE/VERSION" 2>/dev/null || echo 0.2.0)"
 
 target="" project="" name="" modules="" scope="" model="" agent=claude-code rec="" skills_scope="" staging=yes force=no dry=no
+update=no given=()
 while [ $# -gt 0 ]; do
+  case "$1" in --update|--dry-run|-h|--help) ;; -*) given+=("$1") ;; esac
   case "$1" in
+    --update) update=yes; shift ;;
     --project) project="$2"; shift 2 ;;
     --name) name="$2"; shift 2 ;;
     --modules) modules="$2"; shift 2 ;;
@@ -34,11 +38,18 @@ while [ $# -gt 0 ]; do
     --no-staging) staging=no; shift ;;
     --force) force=yes; shift ;;
     --dry-run) dry=yes; shift ;;
-    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) target="$1"; shift ;;
   esac
 done
+
+if [ "$update" = yes ]; then
+  [ ${#given[@]} -eq 0 ] || { echo "foreman update: only --dry-run is allowed with --update (got: ${given[*]})" >&2; exit 2; }
+  [ -n "$target" ] || { echo "foreman update: no target given" >&2; exit 2; }
+  if [ "$dry" = yes ]; then exec python3 "$HERE/scripts/update.py" "$target" --dry-run; fi
+  exec python3 "$HERE/scripts/update.py" "$target"
+fi
 
 [ -n "$target" ] || { echo "usage: ./install.sh <target-repo> --project <slug> [options]  (see --help)" >&2; exit 2; }
 [ -d "$target" ] || { echo "target not found: $target" >&2; exit 2; }
