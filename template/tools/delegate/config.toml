@@ -103,6 +103,7 @@ model = "claude/<small-model-id>"
 # base_url       = "https://gateway.example.com"       # Anthropic-compatible /v1/messages endpoint of the proxy; empty = FOREMAN_GATEWAY_URL
 # api_key_env    = "FOREMAN_GATEWAY_KEY"               # NAME of the variable; value is a virtual key limited to task-*
 # fallback_model = "claude/<small-model-id>"
+# chatgpt_via_gateway = "accepted-risk"          # only with informed consent; see gateway/README.md (risk notice). Without it a chatgpt/ model is rejected
 #
 # [roles.research]
 # who = "worker"

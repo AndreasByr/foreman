@@ -92,6 +92,8 @@ Why: cheap workers for the `delegate` module. Create an account and an API key; 
 
 Why: pay only subscription costs, no API billing. LiteLLM proxy with Ollama and a ChatGPT subscription (Codex sign-in, provider prefix `chatgpt/`) behind one endpoint. Fallback to `claude -p` when limits run out. Example: `gateway/litellm.config.example.yaml` in foreman.
 
+This route needs the human's informed consent (risk notice in `gateway/README.md`): the install command gets `--chatgpt-via-gateway accepted-risk` only after the human said yes, and without it no ChatGPT target is written.
+
 1. Run the proxy in Docker on a machine reachable from the work run.
 2. Avoid LiteLLM versions 1.82.7 and 1.82.8.
 3. Create virtual keys for the `task-*` roles only. Do not log prompts.

@@ -1,0 +1,22 @@
+# Optional ChatGPT route for the LiteLLM gateway (fragment, not a complete config).
+# Risk: a ChatGPT subscription is meant for the official Codex clients; using it behind a proxy may violate
+# OpenAI's terms and can stop working. Read the notice in README.md first and use this only with informed consent.
+# To use it, replace the aliases task-normal, task-complex and task-testing of litellm.config.example.yaml
+# by the entries below. Replace every <...> placeholder with an exact model ID.
+
+model_list:
+  # task-normal: standard coding, ChatGPT subscription via the chatgpt/ provider (Codex OAuth, no API key).
+  # The first call starts a device login; the token is stored in the proxy's data directory.
+  - model_name: task-normal
+    litellm_params:
+      model: chatgpt/<codex-model-id>
+
+  # task-complex: harder coding on the same subscription
+  - model_name: task-complex
+    litellm_params:
+      model: chatgpt/<codex-large-model-id>
+
+  # task-testing: writing and fixing tests
+  - model_name: task-testing
+    litellm_params:
+      model: chatgpt/<codex-model-id>

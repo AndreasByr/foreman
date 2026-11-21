@@ -216,6 +216,17 @@ def validate_config(cfg, name="config"):
     """Return a list of problems; empty means valid."""
     errs = []
     d = cfg["defaults"]
+    consent = cfg.get("gateway", {}).get("chatgpt_via_gateway")
+    if consent is not None and consent != "accepted-risk":
+        errs.append(f'[gateway] chatgpt_via_gateway must be "accepted-risk" (or unset), got {consent!r}')
+
+    def check_chatgpt(where, m):
+        if isinstance(m, str) and m.startswith("chatgpt/") and consent != "accepted-risk":
+            errs.append(f'{where} uses a chatgpt/ model ({m}); this needs the human\'s informed consent: '
+                        'set [gateway] chatgpt_via_gateway = "accepted-risk" (see README.md)')
+
+    for k in ("defaults", "gateway"):
+        check_chatgpt(f"[{k}] fallback_model", cfg.get(k, {}).get("fallback_model", ""))
     for k in ("timeout_seconds",):
         if k not in d:
             errs.append(f"[defaults] {k} missing")
@@ -240,6 +251,8 @@ def validate_config(cfg, name="config"):
         if not m:
             errs.append(f"roles.{role}.model missing")
             continue
+        check_chatgpt(f"roles.{role}.model", m)
+        check_chatgpt(f"roles.{role}.fallback_model", r.get("fallback_model", ""))
         if re.search(r"<[^>]*>", m):
             errs.append(f"roles.{role}.model is still a placeholder ({m}); fill in the exact model ID")
         p = provider_of(cfg, role)

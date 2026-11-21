@@ -586,6 +586,39 @@ def test_timeout_role_overrides_global():
         assert "timeout after" not in (t / "t.result.md").read_text()
 
 
+def test_chatgpt_target_needs_consent():
+    def chatgpt_errs(cfg):
+        return [e for e in rt.validate_config(cfg) if "chatgpt" in e]
+
+    def consent_error(errs):
+        return any("chatgpt" in e and "accepted-risk" in e for e in errs)
+
+    def cfg_with(role_model=None, fallback=None, consent=None):
+        cfg = rt.tomllib.loads(GATEWAY_CONFIG)
+        for k in ("env", "mcp", "claude", "limits"):
+            cfg.setdefault(k, {})
+        if role_model is not None:
+            cfg["roles"]["execution"]["model"] = role_model
+        if fallback is not None:
+            cfg["gateway"]["fallback_model"] = fallback
+        if consent is not None:
+            cfg["gateway"]["chatgpt_via_gateway"] = consent
+        return cfg
+
+    assert consent_error(rt.validate_config(cfg_with(role_model="chatgpt/codex-x"))), "role model chatgpt/ needs consent"
+    assert consent_error(rt.validate_config(cfg_with(fallback="chatgpt/codex-x"))), "fallback_model chatgpt/ needs consent"
+    assert chatgpt_errs(cfg_with(role_model="chatgpt/codex-x", consent="accepted-risk")) == [], "accepted-risk allows chatgpt/"
+    assert chatgpt_errs(cfg_with(fallback="chatgpt/codex-x", consent="accepted-risk")) == [], "accepted-risk allows fallback"
+    assert consent_error(rt.validate_config(cfg_with(role_model="chatgpt/codex-x", consent="yes"))), "only accepted-risk is valid"
+
+    shipped = rt.tomllib.loads((HERE / "config.toml").read_text())
+    for name, role in shipped.get("roles", {}).items():
+        assert "chatgpt/" not in str(role.get("model", "")), (name, role)
+        assert "chatgpt/" not in str(role.get("fallback_model", "")), (name, role)
+    for table in ("defaults", "gateway"):
+        assert "chatgpt/" not in str(shipped.get(table, {}).get("fallback_model", "")), table
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in sorted(globals().items()):
