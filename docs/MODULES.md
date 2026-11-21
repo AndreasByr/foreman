@@ -15,6 +15,15 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 
 `tracker-itsaplan` and `tracker-linear` exclude each other.
 
+**Dispatcher settings** (module `autopilot`, see `dispatcher/README.md`):
+
+- `webhook_format`: `auto` (default), `discord` or `slack`. Picks the body of the error webhook; `auto` decides by host.
+- `pass_env`: per project in `dispatcher/config.json`. Only these variables plus `PATH`, `HOME` and `LANG` reach the check script and the command.
+- `fire_command`: per project. Local run with Claude Code; template `dispatcher/fire-claude.example.sh`, details in `dispatcher/README.md`.
+- `autopilot.mainAutoMerge`: in `.foreman.json`, default `false`. Only the boolean `true` lets the check start a batch for `main` on its own.
+
+Upgrade note: before this version a check script inherited the whole environment, and `main` started in the merge window. Now variables must be listed in `pass_env`, and `main` needs `mainAutoMerge: true`.
+
 ## Choosing
 
 - First try, a demo or a prototype: core only, scope `repo` or `docs`, tracker none. No server, no GitHub remote, no deploy knowledge needed. The chat skill `foreman-quick` builds a one-session prompt for this.

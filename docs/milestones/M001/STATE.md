@@ -1,4 +1,4 @@
-Status: slice · since 2026-11-21T16:05Z · S5 fertig, S6 offen
+Status: slice · since 2026-11-21T16:05Z · alle Slices fertig, Validierung offen
 Target: dev
 Batch-branch: batch/m001
 Lock: free
@@ -18,7 +18,7 @@ Start commit: 28eab3e (Baseline: bash scripts/test-all.sh exit 0)
 | S3 | Regel für `main` | done | see Log | template/scripts/lib/autopilot-check.mjs, autopilot-check.mjs, test-autopilot-check.mjs, foreman-fix skill, template .foreman.json | |
 | S4 | `--no-fetch` überall | done | see Log | template/scripts/autopilot-check.mjs, check-config.sh (scripts/ und template/scripts/), tests | |
 | S5 | Lokaler Lauf | done | see Log | dispatcher/ (Startskript-Vorlage), docs/MODULES.md, tests | |
-| S6 | Doku und Learnings | open | | dispatcher/README.md, docs/MODULES.md, docs/learnings.md, CHANGELOG.md | |
+| S6 | Doku und Learnings | done | see Log | dispatcher/README.md, docs/MODULES.md, docs/learnings.md, scripts/test-dispatcher-docs.sh | |
 
 ## Check plan per slice
 
@@ -60,3 +60,4 @@ One question, options, recommendation.
 - 2026-11-21T16:45Z · S3 done · test-autopilot-check exit 0 (26 Tests), test-all exit 0 · committed as M001 S3
 - 2026-11-21T16:55Z · S4 done · test-check-config exit 0, test-autopilot-check exit 0 (27), test-all exit 0 · committed as M001 S4
 - 2026-11-21T17:10Z · S5 done · test-fire-claude exit 0, test-dispatch exit 0 (26), test-all exit 0 · committed as M001 S5
+- 2026-11-21T17:25Z · S6 done · test-dispatcher-docs exit 0, test-all exit 0 (CHANGELOG bewusst nicht angefasst) · committed as M001 S6
