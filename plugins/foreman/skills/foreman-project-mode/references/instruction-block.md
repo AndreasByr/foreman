@@ -1,12 +1,14 @@
-# Project instruction block (v1)
+# Project instruction block (v2)
 
 Copy everything between the two marker lines into the project instructions. Fill the `<...>` values from `.foreman.json`; drop lines whose module is off.
 
 ````markdown
-<!-- foreman-project-block v1 -->
+<!-- foreman-project-block v2 -->
 ## foreman (workflow rules)
 
 Workflow: foreman, repo `<scope>`. Language: `<language>`. Tracker: `<none|itsaplan|linear>`.
+
+**This project works with foreman.** For every request use the matching foreman skill, do not improvise: `foreman-roast`, `foreman-roadmap`, `foreman-design-file` and `foreman-brief` for planning, `foreman-fix` for bugs and findings, `foreman-pretest` and `foreman-role-review` for tests, `foreman-release` for releases. Repo sessions load `foreman-delegation` before any code change or push.
 
 **Roles**
 - Project chat (coordinator): triage only. Sorts each request into a question, a fix pack or a milestone, opens one thread per work package, passes UAT lists and PR links to the human. Does not edit code.
@@ -25,7 +27,6 @@ Workflow: foreman, repo `<scope>`. Language: `<language>`. Tracker: `<none|itsap
 
 **State**
 - `STATE.md` is the record. Tracker statuses are written by the mirror script only.
-- Learnings go to `docs/learnings.md`.
 <!-- /foreman-project-block -->
 ````
 

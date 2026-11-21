@@ -47,7 +47,7 @@ Either path ends with one line: `Project instructions: block v<N> written | past
 
 ## 5. Refresh (update path)
 
-The first marker line carries a version: `<!-- foreman-project-block v1 -->`. Run steps 1 to 4 again whenever:
+The first marker line carries a version: `<!-- foreman-project-block v2 -->`. Run steps 1 to 4 again whenever:
 
 - foreman was updated (`foreman-update`, or a new plugin version) and the block version in `references/instruction-block.md` is higher than the one in the instructions
 - `.foreman.json` changed branches, language or modules
@@ -57,6 +57,7 @@ Compare the version and the filled values. Same: say "up to date" and stop. Diff
 
 ## 6. Rules
 
+- The block must say in its first lines that this project works with foreman and name the skills to use. Never drop that paragraph when you fill in the block.
 - The block states the rules; the skills state the steps. Do not copy skill text into the block.
 - One block per project. Never a second copy in a thread or a file that agents must also read.
 - Applying instructions changes the project for every thread. Show the human the final text, and apply it only after a yes, unless the human asked for it in this conversation.
