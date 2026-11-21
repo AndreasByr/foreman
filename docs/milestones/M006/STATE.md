@@ -18,7 +18,7 @@ Start commit: c6b3149 (dev, Baseline: bash scripts/test-all.sh exit 0)
 | S3 | `install.sh --update` | done | 740ee69 | install.sh, scripts/update.py, scripts/test-update.sh | |
 | S4 | Skill foreman-update | done | 45134b6 | plugins/foreman/skills/foreman-update/, scripts/test-plugin.sh | |
 | S5 | Projektanweisung | done | 0a50add | plugins/foreman/skills/foreman-project-mode/ (Skript + Doku), foreman-update, scripts/test-project-block.sh | |
-| S6 | Doku und Learnings | open | | docs/MODULES.md, README.md, docs/learnings.md | |
+| S6 | Doku und Learnings | done | 86eea2b | docs/MODULES.md, README.md, docs/learnings.md | |
 
 ## Check plan per slice
 
@@ -60,3 +60,4 @@ Keine.
 - 2026-11-21T17:06Z · S3 done · green · 740ee69
 - 2026-11-21T17:08Z · S4 done · green · 45134b6
 - 2026-11-21T17:10Z · S5 done · green · 0a50add
+- 2026-11-21T17:13Z · S6 done · green · 86eea2b
