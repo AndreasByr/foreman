@@ -62,10 +62,10 @@ Then one line per Upgrade item of the versions in between, with minutes.
 
 ## 7. Project instructions
 
-In a Claude Code project, call `foreman-project-mode` in refresh mode. It compares the version of the `foreman-project-block` marker. Put one line into the checklist:
+In a Claude Code project, the status comes from `block-status.py` of `foreman-project-mode` (run on the project instructions; without code execution, compare the marker version by eye). Put one line into the checklist:
 
-- block current: `Project instructions up to date`
-- otherwise: `Project instructions outdated: run foreman-project-mode (2 min)`
+- `current`: `Project instructions up to date`
+- `outdated` or `missing`: `Project instructions outdated: run foreman-project-mode (2 min)`
 
 Outside a project: skip this step.
 
