@@ -9,6 +9,7 @@ node template/scripts/test-autopilot-check.mjs
 node template/scripts/test-pretest.mjs
 (cd template/tools/delegate && python3 test_run_task.py)
 node dispatcher/tests/test-dispatch.mjs
+bash dispatcher/tests/test-fire-claude.sh
 bash scripts/test-install.sh
 bash scripts/test-check-config.sh
 bash scripts/privacy-scan.sh

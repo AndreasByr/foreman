@@ -413,6 +413,26 @@ t("run: auto with an unknown webhook host sends nothing, still exits 1, logs wit
   assert.ok(!r.logs.join("\n").includes("https://hook.example/x"), "log must not contain the URL");
 });
 
+t("run --dry-run with fire_command says 'would start ... via command' and leaks no secret", async () => {
+  const PASS_SECRET = "pass-secret-value-xyz";
+  const OTHER_SECRET = "other-secret-token-123";
+  const { dir, cfg, env } = setup(SAMPLE, {
+    project: { fire_command: "cat > /dev/null", fire_url_env: undefined, fire_token_env: undefined, pass_env: { MY_PASS: "MY_PASS_SRC" } },
+  });
+  try {
+    const logs = [];
+    const dryEnv = { ...env, OTHER_FIRE_TOKEN: OTHER_SECRET, MY_PASS_SRC: PASS_SECRET };
+    const code = await run({ config: cfg, env: dryEnv, dryRun: true, fetch: async () => { throw new Error("must not be called"); }, log: (m) => logs.push(m) });
+    assert.equal(code, 0);
+    assert.ok(logs.some((l) => l.includes("would start pretest-run u1") && l.includes("via command")), "dry-run line names the command fire");
+    const all = logs.join("\n");
+    assert.ok(!all.includes(OTHER_SECRET), "other project's token is not logged");
+    assert.ok(!all.includes(PASS_SECRET), "pass_env value is not logged");
+    assert.ok(!existsSync(join(dir, "work", "logs")), "dry-run creates no logs directory");
+    assert.ok(!existsSync(join(dir, "work", "state", "p.json")), "dry-run writes no state file");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 let n = 0;
 for (const [name, fn] of queue) { await fn(); n++; console.log(`ok ${name}`); }
 console.log(`${n} tests passed`);
