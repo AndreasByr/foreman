@@ -31,11 +31,22 @@ function violations(node, path = "body") {
     node.forEach((v, i) => out.push(...violations(v, `${path}[${i}]`)));
   } else if (node && typeof node === "object") {
     if (Array.isArray(node.children) && node.children.length > 100) out.push(`${path}.children has ${node.children.length} items (max 100)`);
+    if (Array.isArray(node.rich_text) && node.rich_text.length > 100) out.push(`${path}.rich_text has ${node.rich_text.length} elements (max 100)`);
     if (typeof node.content === "string" && node.content.length > 2000) out.push(`${path}.content has ${node.content.length} chars (max 2000)`);
     for (const [k, v] of Object.entries(node)) out.push(...violations(v, `${path}.${k}`));
   }
   return out;
 }
+
+const kidsOf = (b) => b[b.type]?.children ?? b.children;
+// Block elements in a children array, nested children included.
+const countBlocks = (arr = []) => arr.reduce((n, b) => n + 1 + countBlocks(kidsOf(b)), 0);
+const bodyViolations = (body) => {
+  const out = violations(body);
+  const n = countBlocks(Array.isArray(body?.children) ? body.children : []);
+  if (n > 1000) out.push(`request has ${n} block elements (max 1000)`);
+  return out;
+};
 
 async function startFake({ pageSize = 3, token = TOKEN } = {}) {
   let seq = 0;
@@ -64,6 +75,21 @@ async function startFake({ pageSize = 3, token = TOKEN } = {}) {
       }
       return [it];
     });
+  const findIn = (arr, id) => {
+    for (const b of arr ?? []) {
+      if (b.id === id) return b;
+      const r = findIn(kidsOf(b), id);
+      if (r) return r;
+    }
+    return null;
+  };
+  const findBlock = (id) => {
+    for (const p of pages.values()) {
+      const r = findIn(p.items.filter((it) => !it.child_page), id);
+      if (r) return r;
+    }
+    return null;
+  };
   const live = (id) => {
     const p = pages.get(id);
     return p && !p.archived ? p : null;
@@ -111,7 +137,7 @@ async function startFake({ pageSize = 3, token = TOKEN } = {}) {
       const arr = Array.isArray(tp) ? tp : tp?.title;
       if (!Array.isArray(arr)) return reject(400, "validation_error", "properties.title missing");
       if (body.children !== undefined && !Array.isArray(body.children)) return reject(400, "validation_error", "children must be an array");
-      const v = violations(body);
+      const v = bodyViolations(body);
       if (v.length) return reject(400, "validation_error", v.join("; "));
       const page = { id: newId("page"), title: plainText(arr), parent: parent.id, archived: false, items: (body.children ?? []).map(stamp) };
       pages.set(page.id, page);
@@ -129,13 +155,18 @@ async function startFake({ pageSize = 3, token = TOKEN } = {}) {
     }
     if (req.method === "PATCH" && (m = url.pathname.match(/^\/v1\/blocks\/([^/]+)\/children$/))) {
       const page = live(m[1]);
-      if (!page) return reject(404, "object_not_found", "block not found");
+      const blk = page ? null : findBlock(m[1]);
+      if (!page && !blk) return reject(404, "object_not_found", "block not found");
       if (!Array.isArray(body?.children)) return reject(400, "validation_error", "children must be an array");
       if (body.children.length > 100) return reject(400, "validation_error", `children has ${body.children.length} items (max 100)`);
-      const v = violations(body);
+      const v = bodyViolations(body);
       if (v.length) return reject(400, "validation_error", v.join("; "));
       const added = body.children.map(stamp);
-      page.items.push(...added);
+      if (page) page.items.push(...added);
+      else {
+        if (!kidsOf(blk)) (blk[blk.type] ??= {}).children = [];
+        kidsOf(blk).push(...added); // table blocks: append rows
+      }
       return send(200, { object: "list", results: added, has_more: false, next_cursor: null });
     }
     if (req.method === "DELETE" && (m = url.pathname.match(/^\/v1\/blocks\/([^/]+)$/))) {
@@ -248,12 +279,13 @@ function makeRepo({ files = FILES, docsNotion } = {}) {
 
 const hashOf = (dir, rel) => createHash("sha256").update(readFileSync(join(dir, rel))).digest("hex").slice(0, 16);
 
-function runCli({ cwd, args = [], base, token = TOKEN }) {
+function runCli({ cwd, args = [], base, token = TOKEN, env: extraEnv = {} }) {
   const env = { ...process.env };
   for (const k of Object.keys(env)) if (/^NOTION_/i.test(k) || /^(https?|all)_proxy$/i.test(k)) delete env[k];
   env.NO_PROXY = "127.0.0.1,localhost";
   env.NOTION_API_BASE = base;
   if (token) env.NOTION_API_KEY = token;
+  Object.assign(env, extraEnv);
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [CLI, ...args], { cwd, env });
     let stdout = "";
@@ -728,6 +760,142 @@ t("16 pacing: at most 3 requests per 1000 ms (assert <= 4)", async () => {
     for (const a of ts) max = Math.max(max, ts.filter((x) => x >= a && x < a + 1000).length);
     assert.ok(max <= 4, `${max} requests within 1000 ms`);
   }, { files });
+});
+
+t("17 edit below the marker (top level and nested) is overwritten", async () => {
+  const md = ["# Learnings", "", "Tide data arrives hourly.", "", "- parent item", "  - child item", ""].join("\n");
+  await scenario(async ({ fake, run }) => {
+    expectSummary(await run(), 1, 0, 0, 0);
+    const id = fake.pageByTitle("docs/learnings.md");
+    const before = norm(fake.blocksOf(id));
+    const para = fake.blocksOf(id).find((b) => b.type === "paragraph" && blockText(b) === "Tide data arrives hourly.");
+    assert.ok(para, "paragraph block not found");
+    para.paragraph.rich_text[0].text.content = "edited in Notion";
+    assert.notDeepEqual(norm(fake.blocksOf(id)), before);
+    const r = await run();
+    expectSummary(r, 0, 1, 0, 0);
+    assert.deepEqual(norm(fake.blocksOf(id)), before);
+
+    const parent = fake.blocksOf(id).find((b) => b.type === "bulleted_list_item" && blockText(b) === "parent item");
+    assert.ok(parent, "list item not found");
+    const kid = kidsOf(parent)?.[0];
+    assert.ok(kid, "fake holds no nested child");
+    kid.bulleted_list_item.rich_text[0].text.content = "edited child";
+    assert.notDeepEqual(norm(fake.blocksOf(id)), before);
+    const r2 = await run();
+    expectSummary(r2, 0, 1, 0, 0);
+    assert.deepEqual(norm(fake.blocksOf(id)), before);
+    assert.deepEqual(fake.rejected, []);
+  }, { files: { "docs/learnings.md": md } });
+});
+
+t("18 Retry-After is capped by NOTION_MAX_RETRY_WAIT_S", async () => {
+  await scenario(async ({ fake, run }) => {
+    fake.failNth(2, 429, { "Retry-After": "3600" });
+    const r = await run([], { env: { NOTION_MAX_RETRY_WAIT_S: "1" } });
+    expectSummary(r, 1, 0, 0, 0);
+    const i = fake.requests.findIndex((q) => q.status === 429);
+    assert.ok(i >= 0 && fake.requests[i + 1], "no 429 followed by a retry");
+    const gap = fake.requests[i + 1].t - fake.requests[i].t;
+    assert.ok(gap >= 900 && gap <= 3000, `retry came after ${gap} ms, expected 900..3000`);
+    assert.deepEqual(fake.rejected, []);
+  }, ONE_FILE);
+});
+
+t("19 table body row wider than the header loses no cell", async () => {
+  const md = ["# T", "", "| A | B |", "| --- | --- |", "| 1 | 2 | 3 |", "| x |", ""].join("\n");
+  await scenario(async ({ fake, run }) => {
+    expectSummary(await run(), 1, 0, 0, 0);
+    const table = fake.blocksOf(fake.pageByTitle("docs/wide.md")).find((b) => b.type === "table");
+    assert.ok(table, "no table block");
+    const rows = kidsOf(table);
+    assert.equal(rows.length, 3);
+    assert.equal(table.table.table_width, 3);
+    for (const row of rows) assert.equal(row.table_row.cells.length, 3, "row not padded to table width");
+    const texts = rows.flatMap((x) => x.table_row.cells.map(plainText));
+    for (const c of ["A", "B", "1", "2", "3", "x"]) assert.ok(texts.includes(c), `cell ${c} lost: ${JSON.stringify(texts)}`);
+    assert.deepEqual(fake.rejected, []);
+  }, { files: { "docs/wide.md": md } });
+});
+
+t("20 table with 250 body rows", async () => {
+  const body = Array.from({ length: 250 }, (_, i) => `| r${i} | v${i} |`);
+  const md = ["# Rows", "", "| Name | Value |", "| --- | --- |", ...body, ""].join("\n");
+  await scenario(async ({ fake, run }) => {
+    const r = await run();
+    expectSummary(r, 1, 0, 0, 0);
+    assert.deepEqual(fake.rejected, []);
+    const table = fake.blocksOf(fake.pageByTitle("docs/rows.md")).find((b) => b.type === "table");
+    assert.ok(table, "no table block");
+    const rows = kidsOf(table);
+    assert.equal(rows.length, 251);
+    assert.deepEqual(rows[0].table_row.cells.map(plainText), ["Name", "Value"]);
+    assert.deepEqual(rows[250].table_row.cells.map(plainText), ["r249", "v249"]);
+  }, { files: { "docs/rows.md": md } });
+});
+
+t("21 request-size limits: 1000 blocks per request, 100 rich_text elements", async () => {
+  const lists = Array.from({ length: 30 }, (_, l) => [`## List ${l}`, "", ...Array.from({ length: 60 }, (_, i) => `- l${l} item ${i}`), ""]).flat();
+  const segs = Array.from({ length: 300 }, (_, i) => `**b${i}** p${i}`);
+  const md = ["# Limits", "", ...lists, segs.join(" "), ""].join("\n");
+  await scenario(async ({ fake, run }) => {
+    const r = await run();
+    expectSummary(r, 1, 0, 0, 0);
+    assert.deepEqual(fake.rejected, []);
+    assert.ok(!fake.requests.some((q) => q.status === 400), "fake answered 400");
+    const blocks = fake.blocksOf(fake.pageByTitle("docs/limits.md")).slice(1);
+    const bullets = blocks.filter((b) => b.type === "bulleted_list_item").map(blockText);
+    const expected = Array.from({ length: 30 }, (_, l) => Array.from({ length: 60 }, (_, i) => `l${l} item ${i}`)).flat();
+    assert.deepEqual(bullets, expected);
+    const strip = (x) => x.replace(/\s+/g, "");
+    const got = blocks.filter((b) => b.type === "paragraph").map(blockText).join("");
+    assert.equal(strip(got), strip(Array.from({ length: 300 }, (_, i) => `b${i} p${i}`).join(" ")));
+  }, { files: { "docs/limits.md": md } });
+});
+
+t("22 online dry-run labels new, update, archive, unchanged and writes nothing", async () => {
+  await scenario(async ({ fake, dir, run }) => {
+    expectSummary(await run(), 5, 0, 0, 0);
+    writeFileSync(join(dir, "docs/new.md"), "# New\n\nFresh file.\n");
+    writeFileSync(join(dir, "docs/sample.md"), FILES["docs/sample.md"] + "\nChanged line.\n");
+    rmSync(join(dir, "docs/learnings.md"));
+    const mark = fake.mark();
+    const r = await run(["--dry-run"]);
+    assert.equal(r.status, 0, info(r));
+    const lines = r.stdout.split("\n").map((l) => l.trim()).filter((l) => /^(new|update|archive|unchanged) /.test(l));
+    const has = (label, path) => lines.filter((l) => l.startsWith(`${label} `) && l.includes(path));
+    assert.equal(has("new", "docs/new.md").length, 1, info(r));
+    assert.equal(has("update", "docs/sample.md").length, 1, info(r));
+    assert.equal(has("archive", "docs/learnings.md").length, 1, info(r));
+    for (const p of ["docs/requirements.md", "docs/requirements/01-roles.md", "docs/requirements/02-flow.md"]) {
+      assert.equal(has("unchanged", p).length, 1, `${p}\n${info(r)}`);
+    }
+    assert.equal(lines.length, 6, `expected one line per file\n${info(r)}`);
+    const writes = fake.since(mark).filter((q) => ["POST", "PATCH", "DELETE"].includes(q.method));
+    assert.deepEqual(writes.map((q) => `${q.method} ${q.path}`), [], "dry-run must not write");
+  });
+});
+
+t("23 include outside the root is named on stderr, exit 0, no page", async () => {
+  const outsideDir = join(tmpdir(), "outside");
+  const outsideFile = join(outsideDir, `note-${process.pid}.md`);
+  mkdirSync(outsideDir, { recursive: true });
+  writeFileSync(outsideFile, "# Outside\n\nMust never be mirrored.\n");
+  try {
+    await scenario(
+      async ({ fake, run }) => {
+        const r = await run();
+        assert.equal(r.status, 0, info(r));
+        assert.ok(r.stderr.includes("outside"), `skipped pattern not named\n${info(r)}`);
+        assert.equal(fake.countPages(), 0);
+        assert.ok(!JSON.stringify(fake.requests.map((q) => q.body)).includes("Must never be mirrored"), "outside content was sent");
+      },
+      { files: { "README.md": "# Readme\n" }, docsNotion: { rootPageId: ROOT_ID, include: ["../outside/**/*.md"], exclude: [] } },
+    );
+  } finally {
+    rmSync(outsideFile, { force: true });
+    try { rmdirSync(outsideDir); } catch {}
+  }
 });
 
 // ---------------------------------------------------------------- runner
