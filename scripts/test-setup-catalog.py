@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Checks the foreman-setup question catalog (block C) and SKILL.md.
+"""Checks the foreman-setup question catalog, SKILL.md and the reference files.
+
+Covers block C (C1..C9: ids, keywords, block words, multi-select), block A
+(the "beginner answer" rule), the removed Result section, block D (no second
+notification question), the SKILL.md order and wording, and the banned
+gateway phrases under references/.
 
 Python stdlib only. Exit 0 when every check passes; exit 1 and one
 "FAIL:" line per problem otherwise.
@@ -11,24 +16,40 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SETUP_DIR = ROOT / "plugins" / "foreman" / "skills" / "foreman-setup"
 CATALOG = SETUP_DIR / "references" / "question-catalog.md"
+REFERENCES = SETUP_DIR / "references"
 SKILL = SETUP_DIR / "SKILL.md"
 
-IDS = [f"C{n}" for n in range(1, 9)]
+IDS = [f"C{n}" for n in range(1, 10)]
 
-# Keywords that each question text (C1..C7) must mention. Matched as whole
-# words, case-insensitive. C8 has no keyword rule.
+# Keywords that each question text (C1..C9) must mention. Matched as whole
+# words, case-insensitive; phrases with spaces or hyphens match as phrases.
 KEYWORDS = {
-    "C1": ["role"],
+    "C1": ["role", "name", "purpose", "another machine"],
     "C2": ["Docker", "Coolify", "itsaplan", "LiteLLM", "dispatcher"],
-    "C3": ["HTTPS"],
-    "C4": ["Ollama", "ChatGPT", "API trigger", "Max"],
+    "C3": ["HTTPS", "domain"],
+    "C4": ["Ollama", "ChatGPT", "API trigger", "Max", "Pro", "Team", "API", "tier"],
     "C5": ["Discord", "Slack"],
     "C6": ["itsaplan", "Linear"],
-    "C7": ["gateway"],
+    "C7": ["gateway", "URL"],
+    "C8": ["GitHub", "agent"],
+    "C9": [
+        "chatgptViaGateway",
+        "accepted-risk",
+        "declined",
+        "terms of use",
+        "Codex CLI",
+        "ChatGPT plan",
+    ],
 }
 
 # Words block C as a whole must contain.
-BLOCK_WORDS = ["unbekannt", "none"]
+BLOCK_WORDS = ["unbekannt", "none", "multi-select", "I don't know"]
+
+# Questions whose own line must say multi-select.
+MULTI_SELECT_IDS = ["C2", "C4", "C5"]
+
+# Phrases no file under references/ may contain.
+BANNED_IN_REFERENCES = ["LLM_GATEWAY", "documented, not required"]
 
 # A question line starts with its bold id, optionally after a list marker.
 ITEM_PREFIX = r"\s*(?:[-*]\s+|\d+\.\s+)?"
@@ -42,10 +63,24 @@ def read_text(path, failures):
         return None
 
 
+def section(text, letter):
+    """Return the match for the '## <letter>. ...' section, or None."""
+    return re.search(rf"^## {letter}\.[^\n]*\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+
+
 def block_c(text):
     """Return the body of the '## C. ...' section, or None if absent."""
-    match = re.search(r"^## C\.[^\n]*\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+    match = section(text, "C")
     return match.group(1) if match else None
+
+
+def question_line(block, qid):
+    """Return the first line that starts with the question's bold id, or None."""
+    start = re.compile(ITEM_PREFIX + rf"\*\*{qid}\.\*\*")
+    for line in block.splitlines():
+        if start.match(line):
+            return line
+    return None
 
 
 def question_text(block, qid):
@@ -69,7 +104,43 @@ def has_word(text, word):
     return re.search(rf"\b{re.escape(word)}\b", text, re.I) is not None
 
 
+def check_no_result_section(text, failures):
+    if re.search(r"^## Result\b", text, re.M):
+        failures.append("question-catalog.md: the '## Result' section must not exist")
+    if "Recommendation:" in text:
+        failures.append("question-catalog.md: the string 'Recommendation:' must not appear")
+
+
+def check_beginner_answer(text, failures):
+    match = section(text, "A")
+    if match is None:
+        failures.append("question-catalog.md: section '## A.' not found")
+        return
+    if "beginner answer" not in match.group(1):
+        failures.append("question-catalog.md: block A lacks the string 'beginner answer'")
+    outside = text[:match.start()] + text[match.end():]
+    if "beginner answer" in outside:
+        failures.append("question-catalog.md: 'beginner answer' appears outside block A")
+
+
+def check_block_d(text, failures):
+    match = section(text, "D")
+    if match is None:
+        failures.append("question-catalog.md: section '## D.' not found")
+        return
+    for line in match.group(1).splitlines():
+        if re.search(r"notified", line, re.I):
+            failures.append(
+                "question-catalog.md: block D asks the notification channel again "
+                "(a line matches 'notified'; it was already asked in C5)"
+            )
+
+
 def check_catalog(text, failures):
+    check_no_result_section(text, failures)
+    check_beginner_answer(text, failures)
+    check_block_d(text, failures)
+
     block = block_c(text)
     if block is None:
         failures.append("question-catalog.md: section '## C.' not found")
@@ -93,6 +164,16 @@ def check_catalog(text, failures):
                     f"question-catalog.md: {qid} text lacks keyword '{keyword}'"
                 )
 
+    for qid in MULTI_SELECT_IDS:
+        line = question_line(block, qid)
+        if line is None:
+            # Missing id is already reported above.
+            continue
+        if not has_word(line, "multi-select"):
+            failures.append(
+                f"question-catalog.md: {qid} question line lacks 'multi-select'"
+            )
+
     for word in BLOCK_WORDS:
         if not has_word(block, word):
             failures.append(f"question-catalog.md: block C lacks the word '{word}'")
@@ -103,9 +184,53 @@ def check_catalog(text, failures):
         )
 
 
+def check_skill_order(text, failures):
+    early = text.find("### 2b.")
+    gate = text.find("### 3.")
+    if early < 0 or gate < 0 or early > gate:
+        failures.append("SKILL.md: heading '### 2b.' must appear before '### 3.'")
+    elif not re.search(r"confirm", text[early:gate], re.I):
+        failures.append("SKILL.md: the text between '### 2b.' and '### 3.' must mention 'confirm'")
+
+    consent = text.find("chatgptViaGateway")
+    if gate < 0 or consent < 0 or consent > gate:
+        failures.append(
+            "SKILL.md: 'chatgptViaGateway' must appear before '### 3.' "
+            "(consent is decided before the summary is confirmed)"
+        )
+
+
+def check_skill_description(text, failures):
+    frontmatter = re.match(r"---\n(.*?)\n---\n", text, re.S)
+    body = frontmatter.group(1) if frontmatter else ""
+    description = re.search(r"^description:(.*?)(?=^\S|\Z)", body, re.M | re.S)
+    value = description.group(1).lower() if description else ""
+    if "first setup" not in value and "changed environment" not in value:
+        failures.append(
+            "SKILL.md: frontmatter description must contain 'first setup' or 'changed environment'"
+        )
+
+
 def check_skill(text, failures):
     if "unbekannt" not in text.lower():
         failures.append("SKILL.md: does not contain 'unbekannt'")
+    check_skill_order(text, failures)
+    check_skill_description(text, failures)
+
+
+def check_references(failures):
+    if not REFERENCES.is_dir():
+        failures.append(f"cannot read {REFERENCES.relative_to(ROOT)}: not a directory")
+        return
+    for path in sorted(REFERENCES.rglob("*")):
+        if not path.is_file():
+            continue
+        text = read_text(path, failures)
+        if text is None:
+            continue
+        for phrase in BANNED_IN_REFERENCES:
+            if phrase in text:
+                failures.append(f"{path.relative_to(ROOT)} contains '{phrase}'")
 
 
 def main():
@@ -116,6 +241,7 @@ def main():
         check_catalog(catalog, failures)
     if skill is not None:
         check_skill(skill, failures)
+    check_references(failures)
 
     if failures:
         for failure in failures:

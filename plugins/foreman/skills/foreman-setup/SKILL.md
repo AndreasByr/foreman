@@ -1,6 +1,6 @@
 ---
 name: foreman-setup
-description: Guided setup of the foreman workflow. Use when the human wants to install foreman, asks what they need, or has no repo, server or tracker yet. Asks a short adaptive question catalog, recommends Quick, Repo or Autopilot, and returns the install command and a checklist.
+description: "Guided setup of the foreman workflow. Use at first setup or when the environment changed (machines, plans, gateway, tracker), not for every new project; new projects use foreman-project. Asks a short adaptive question catalog, recommends Quick, Repo or Autopilot, and returns the install command and a checklist."
 ---
 
 # foreman-setup
@@ -41,12 +41,12 @@ Read `references/question-catalog.md`. Four blocks, adaptive:
 - C. What do you have (full inventory for every profile except Quick; decides modules and missing prerequisites)
 - D. How do you work (decides schedule, release day, notifications)
 
-Ask block A first. Its answers set your explanation depth for the rest of the session. Ask one block per round, at most 3 questions; block C takes three rounds. After each block, say what you now know in one line. Every "I don't know" or "weiß nicht" is recorded as `unbekannt`, never guessed, and named later as a gap.
+Ask block A first. Its answers set your explanation depth for the rest of the session. Ask one block per round, at most 3 questions; block C takes three rounds (nine questions, C1 to C9). After each block, say what you now know in one line. Every "I don't know" or "weiß nicht" is recorded as `unbekannt`, never guessed, and named later as a gap.
 
 ### 2b. Summary and confirmation (about 2 min)
 
-1. Collect all answers in the workspace.json format (`references/workspace-format.md`) as `<answers.json>`.
-2. Show the summary in exactly the layout of `scripts/setup-summary.py`. With a shell, run `python3 scripts/setup-summary.py <answers.json>`; in plain chat, print the same layout yourself.
+1. Collect all answers in the workspace.json format (`references/workspace-format.md`) as `<answers.json>`. The consent decision (C9, `chatgptViaGateway`) is part of the answers, so it appears in the summary and is written with `workspace.json`.
+2. Show the summary in exactly the layout of `scripts/setup-summary.py`. The scripts live in the foreman repo clone. With a shell and a clone, run `python3 scripts/setup-summary.py <answers.json>`; without a clone, print the same layout yourself.
 3. Every line comes from an answer. Nothing is inferred. `unbekannt` stays `unbekannt`. Below the summary, name each gap in one line with what it blocks.
 4. Ask the human to confirm or correct. Give no recommendation, no profile and no install command before the human confirms. Corrections go back into the answers, and the summary is shown again.
 5. After confirmation, write `workspace.json`. With a shell: `python3 scripts/setup-summary.py <answers.json> --write workspace.json --confirmed`. Otherwise output the JSON for the human to save. Never write secrets into it.
@@ -71,7 +71,7 @@ From `references/profiles-and-modules.md`: pick modules and the `--agent`.
 - `tracker-itsaplan`: strongly recommended for Autopilot. Self-hosted, REST. No tracker (`none`) is fully supported: questions, answers and UAT approvals then run through files in the repo.
 - `tracker-linear`: optional alternative. Only one tracker module at a time.
 - `delegate`: cheap workers via Ollama Cloud or a gateway. Optional.
-- `gateway`: LiteLLM proxy for workers. Optional. If a gateway is running (the summary says `Gateway: running`), the installer writes the preset (`--gateway-url`, `--fallback-model`; see `docs/MODULES.md`). If none runs and the human has a ChatGPT plan, offer the optional block in `references/gateway-block.md` (about 45 minutes, with its risk notice) and store the decision as `chatgptViaGateway` (`accepted-risk` or `declined`). Do not ask again once it is stored.
+- `gateway`: LiteLLM proxy for workers. Optional. If a gateway is running (the summary says `Gateway: running`), the installer writes the preset (`--gateway-url`, `--fallback-model`; see `docs/MODULES.md`). With a running gateway and consent (`accepted-risk`), the installer writes `task-normal`. If none runs and the human has a ChatGPT plan, the optional block in `references/gateway-block.md` (about 45 minutes) is available.
 - `autopilot`: dispatcher side in the project. Needs GitHub and a machine for the dispatcher.
 - `pretest`: browser pretest in the cloud work run.
 - Claude Code is the recommended agent (routines and API trigger are the dispatcher's target). OpenCode and others work through `AGENTS.md`; resuming and parallel runs are then the human's job.

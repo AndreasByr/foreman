@@ -1,6 +1,6 @@
 # Question catalog
 
-Four blocks. Ask one block per round, at most 3 questions, and skip every question an earlier answer already settles. Offer options with the recommended one first. "Not sure" is always allowed; treat it as the beginner answer.
+Four blocks. Ask one block per round, at most 3 questions, and skip every question an earlier answer already settles. Offer options with the recommended one first. "Not sure" is always allowed.
 
 ## A. What do you know?
 
@@ -11,6 +11,8 @@ Decides how deeply you explain. Ask all three in one round.
 3. Deploy and servers: never / used a hosting dashboard / run my own server or Docker.
 
 Add only if relevant: experience with a coding agent (Claude Code, OpenCode, other): none / used it for small tasks / used it for whole features.
+
+"Not sure" counts as the beginner answer here: it sets the depth of explanation. Everywhere else it is recorded as `unbekannt`.
 
 Effect:
 
@@ -44,9 +46,9 @@ Rules:
 - "none" is always allowed and means zero matches.
 - "I don't know" is always allowed. Record it as `unbekannt`, never guess it, and name it later as a gap. The same goes for "unknown".
 
-Ask in three rounds of at most three questions: C1 to C3, then C4 to C6, then C7 and C8. Multi-select where marked.
+Ask in three rounds of at most three questions: C1 to C3, then C4 to C6, then C7 to C9. Nine questions, three rounds. Multi-select where marked.
 
-- **C1.** Machines, one entry per machine: a name and a role (server, home server, laptop, other). After each machine ask "another machine?" and repeat until the human says no.
+- **C1.** Machines, one entry per machine: its name, its role (server, home server, laptop, other) and its purpose (multi-select, stored as `purposes`): dispatcher host, local runs, app hosting, tracker host, gateway host, other. After each machine ask "another machine?" and repeat until the human says no.
 - **C2.** Services running on each machine from C1 (multi-select): Docker, Coolify or a similar deploy tool, itsaplan, LiteLLM gateway, dispatcher, other.
 - **C3.** Domain and HTTPS per service or machine from C1 and C2: yes / no / unknown.
 - **C4.** AI access with its tier (multi-select): Claude plan (Pro, Max, Team/Enterprise, API); Claude Code routines with API trigger available (yes / no / unknown); Ollama Cloud plan; ChatGPT plan; other providers. Ask for the tier, never for a key.
@@ -54,6 +56,7 @@ Ask in three rounds of at most three questions: C1 to C3, then C4 to C6, then C7
 - **C6.** Tracker (single choice, one tracker module at a time): itsaplan, Linear, none. For itsaplan ask for its URL and only whether it is reachable, never for a key. For Linear ask only whether the account exists.
 - **C7.** Gateway: is a LiteLLM gateway running? Answer: its URL / no / unknown.
 - **C8.** Coding agent and GitHub: Claude Code with a subscription, OpenCode or another agent, and which subscription or API access; GitHub account and a repo for the project: yes / no / unsure.
+- **C9.** Consent for ChatGPT via the gateway. Ask only when C4 reports a ChatGPT plan other than none, whether the gateway runs now or is planned. Show the risk notice in 3 short lines: (1) this is not an official Codex client; (2) automatic use may violate the terms of use and may get the subscription blocked; (3) alternatives: the official Codex CLI as worker, an API key with its own budget, Ollama and Claude only. The human decides explicitly: `accepted-risk` or `declined`. Store the answer as `chatgptViaGateway`; once stored, never ask again. Details: `references/gateway-block.md`.
 
 ## D. How do you work?
 
@@ -63,16 +66,4 @@ Decides schedule, release day and notifications. Ask only for Autopilot, short f
 2. Release day (default Friday) or "no fixed day".
 3. How often you can test: daily / a few times a week / weekly. There is no limit on waiting UATs; the answer only sets how often you get a summary.
 4. Language: already asked in step 0 of the setup (`context.language`). Ask again only if documents should use a different language than the chat.
-5. How you want to be notified when the work needs you: push, mail, a chat webhook, nothing.
-
-## Result
-
-After block C or D, write a short profile summary the human can confirm:
-
-```
-You know: <one line>
-You need: <one line>
-You have: <one line>
-Gaps: <list, each with minutes>
-Recommendation: Quick | Repo | Autopilot, because <reason>
-```
+5. Notification channel: already asked in C5. Reuse that answer. Ask only for the webhook or mail detail names (never a URL) if they are missing.

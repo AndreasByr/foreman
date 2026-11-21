@@ -14,6 +14,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMA_PATH = ROOT / "docs" / "workspace.schema.json"
@@ -39,6 +40,8 @@ SECRET_PATTERNS = [
     ("Bearer token", re.compile(r"Bearer ")),
 ]
 LONG_TOKEN = re.compile(r"[A-Za-z0-9+/_=-]{32,}")
+WEBHOOK_HOSTS = {"hooks.slack.com"}
+WEBHOOK_PATH_PREFIX = "/api/webhooks/"
 
 
 class SchemaError(Exception):
@@ -136,6 +139,21 @@ def validate(value, schema, path, errors):
                 validate(value[key], sub_schema, f"{path}.{key}", errors)
 
 
+def scan_url(value):
+    """Return a problem text when an http(s) URL string carries a secret, else None."""
+    try:
+        parts = urlsplit(value)
+        host = (parts.hostname or "").lower()
+    except ValueError:
+        return None
+    if host in WEBHOOK_HOSTS or parts.path.startswith(WEBHOOK_PATH_PREFIX):
+        return "URL is a webhook URL, which is a secret; store only the channel name"
+    for segment in parts.path.split("/"):
+        if LONG_TOKEN.search(segment) or any(p.search(segment) for _, p in SECRET_PATTERNS):
+            return "URL path contains a key-like secret part; store only names"
+    return None
+
+
 def scan_secrets(value, path, errors):
     """Scan every string value (not object keys) for key-like content."""
     if isinstance(value, str):
@@ -143,8 +161,13 @@ def scan_secrets(value, path, errors):
             if pattern.search(value):
                 errors.append((path, f"value looks like a secret ({label}); store only names"))
                 return
+        if value.startswith(("http://", "https://")):
+            problem = scan_url(value)
+            if problem:
+                errors.append((path, problem))
+            return
         if LONG_TOKEN.fullmatch(value):
-            errors.append((path, "value looks like a key or token (32+ characters, no spaces); store only names"))
+            errors.append((path, "value is a key-like secret (32+ characters, no spaces); store only names"))
     elif isinstance(value, dict):
         for key, sub in value.items():
             scan_secrets(sub, f"{path}.{key}", errors)

@@ -47,7 +47,18 @@ def machine_line(machine):
         parts.append(f"domain: {machine['domain']}")
     if "https" in machine:
         parts.append(f"HTTPS: {machine['https']}")
-    return f"- {machine['name']} ({machine['role']}): " + "; ".join(parts)
+    role = machine["role"]
+    if machine.get("purposes"):
+        role += "; purposes: " + ", ".join(machine["purposes"])
+    return f"- {machine['name']} ({role}): " + "; ".join(parts)
+
+
+def add_gap(gaps, obj, field, path):
+    """Gap for an unbekannt value or an unanswered (absent) optional field."""
+    if field not in obj:
+        gaps.append(f"{path} (not answered)")
+    elif obj[field] == UNKNOWN:
+        gaps.append(path)
 
 
 def summarize(data):
@@ -64,10 +75,10 @@ def summarize(data):
             gaps.append(f"{base}.role")
         if UNKNOWN in machine["services"]:
             gaps.append(f"{base}.services")
-        if machine.get("domain") == UNKNOWN:
-            gaps.append(f"{base}.domain")
-        if machine.get("https") == UNKNOWN:
-            gaps.append(f"{base}.https")
+        if UNKNOWN in machine.get("purposes", []):
+            gaps.append(f"{base}.purposes")
+        for field in ("domain", "https"):
+            add_gap(gaps, machine, field, f"{base}.{field}")
 
     ai = data["ai"]
     claude = ai["claude"]
@@ -78,8 +89,7 @@ def summarize(data):
     lines.append(claude_line)
     if claude["plan"] == UNKNOWN:
         gaps.append("ai.claude.plan")
-    if claude.get("routinesApiTrigger") == UNKNOWN:
-        gaps.append("ai.claude.routinesApiTrigger")
+    add_gap(gaps, claude, "routinesApiTrigger", "ai.claude.routinesApiTrigger")
 
     lines.append(f"- Ollama Cloud: {ai['ollamaCloud']['plan']}")
     if ai["ollamaCloud"]["plan"] == UNKNOWN:
@@ -104,6 +114,8 @@ def summarize(data):
     lines.append(tracker_line)
     if tracker["type"] == UNKNOWN:
         gaps.append("tracker.type")
+    elif tracker["type"] != "none":
+        add_gap(gaps, tracker, "url", "tracker.url")
 
     gateway = data["gateway"]
     if gateway["running"] == "yes":
@@ -113,6 +125,8 @@ def summarize(data):
     else:
         gateway_line = "Gateway: unbekannt"
         gaps.append("gateway.running")
+    if gateway["running"] == "yes":
+        add_gap(gaps, gateway, "url", "gateway.url")
     lines.append(gateway_line)
 
     if "chatgptViaGateway" in data:
@@ -120,6 +134,11 @@ def summarize(data):
         lines.append(f"ChatGPT via gateway: {value}")
         if value == UNKNOWN:
             gaps.append("chatgptViaGateway")
+
+    for field, label in (("agent", "Agent"), ("github", "GitHub")):
+        if field in data:
+            lines.append(f"{label}: {data[field]}")
+        add_gap(gaps, data, field, field)
 
     lines.append("Gaps (unbekannt): " + (", ".join(gaps) if gaps else "none"))
     lines.append(LAST_LINE)

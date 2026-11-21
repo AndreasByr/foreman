@@ -37,6 +37,14 @@
               "enum": ["docker", "coolify", "itsaplan", "litellm", "dispatcher", "other", "unbekannt"]
             }
           },
+          "purposes": {
+            "description": "What the machine is used for. Optional; may be empty.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["dispatcher-host", "local-runs", "app-hosting", "tracker-host", "gateway-host", "other", "unbekannt"]
+            }
+          },
           "domain": {
             "description": "Whether the machine has a domain name pointing to it.",
             "type": "string",

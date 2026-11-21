@@ -17,6 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SUMMARY = ROOT / "scripts" / "setup-summary.py"
 EXAMPLE = ROOT / "docs" / "workspace.example.json"
+SKILL = ROOT / "plugins" / "foreman" / "skills" / "foreman-setup" / "SKILL.md"
 
 HEADER = "Summary of your answers (nothing is guessed):"
 LAST_LINE = "Is this correct? Nothing is recommended before you confirm."
@@ -78,6 +79,15 @@ def gaps_line(text):
     return None
 
 
+def without_gaps(text):
+    """The summary without its Gaps line, so gap paths are not read as facts."""
+    return "\n".join(line for line in lines_of(text) if not line.startswith("Gaps (unbekannt): "))
+
+
+def follows(lines, first, second):
+    return first in lines and second in lines and lines.index(second) == lines.index(first) + 1
+
+
 def check_example(tmp):
     code, out, err = run([str(EXAMPLE)])
     lines = lines_of(out)
@@ -88,8 +98,8 @@ def check_example(tmp):
         f"first line: {lines[0] if lines else '(none)'}",
     )
     for expected in [
-        "- myweby (server): docker, coolify, itsaplan, litellm, dispatcher; domain: yes; HTTPS: yes",
-        "- alice (home-server): docker; domain: no; HTTPS: no",
+        "- myweby (server; purposes: dispatcher-host, app-hosting, tracker-host, gateway-host): docker, coolify, itsaplan, litellm, dispatcher; domain: yes; HTTPS: yes",
+        "- alice (home-server; purposes: local-runs): docker; domain: no; HTTPS: no",
         "- Claude: max; routines with API trigger: yes",
         "- Ollama Cloud: pro",
         "- ChatGPT: plus",
@@ -97,6 +107,8 @@ def check_example(tmp):
         "Tracker: itsaplan (https://itsaplan.example.com)",
         "Gateway: running, https://gateway.example.com",
         "ChatGPT via gateway: accepted-risk",
+        "Agent: claude-code",
+        "GitHub: yes",
         "Gaps (unbekannt): none",
     ]:
         check(f"example: prints '{expected}'", has_line(out, expected))
@@ -108,10 +120,16 @@ def check_example(tmp):
             f"example: no '{word}' before the last line",
             not any(word in line.lower() for line in body),
         )
-    check("example: no agent field in output", "agent" not in out.lower())
-    check("example: no github field in output", "github" not in out.lower())
-    check("example: no sk- value in output", "sk-" not in out)
-    check("example: no Bearer value in output", "Bearer" not in out)
+    check(
+        "example: GitHub line directly follows the Agent line",
+        follows(lines, "Agent: claude-code", "GitHub: yes"),
+    )
+    check(
+        "example: Agent line directly follows the ChatGPT via gateway line",
+        follows(lines, "ChatGPT via gateway: accepted-risk", "Agent: claude-code"),
+    )
+    check("example: no sk- value in output", "sk-" not in out.lower())
+    check("example: no Bearer value in output", "bearer" not in out.lower())
 
 
 def check_unknown_answers(tmp):
@@ -123,7 +141,7 @@ def check_unknown_answers(tmp):
     check("unknown answers: exit 0", code == 0, f"exit {code}: {err.strip()[:300]}")
     check(
         "unknown answers: machine https prints unbekannt",
-        has_line(out, "- alice (home-server): docker; domain: no; HTTPS: unbekannt"),
+        has_line(out, "- alice (home-server; purposes: local-runs): docker; domain: no; HTTPS: unbekannt"),
     )
     check(
         "unknown answers: routines prints unbekannt",
@@ -186,9 +204,44 @@ def check_all_unknown(tmp):
     )
     check("all unknown: Claude plan prints unbekannt", has_line(out, "- Claude: unbekannt; routines with API trigger: unbekannt"))
     check("all unknown: gateway prints unbekannt", has_line(out, "Gateway: unbekannt"))
-    check("all unknown: no invented Docker", "Docker" not in out)
-    check("all unknown: no invented GitHub", "GitHub" not in out)
+    check("all unknown: no invented Docker", "docker" not in without_gaps(out).lower())
+    check("all unknown: no invented GitHub", "github" not in without_gaps(out).lower())
     check("all unknown: no ChatGPT via gateway line when the field is absent", "ChatGPT via gateway" not in out)
+
+
+def check_unanswered_gaps(tmp):
+    data = load_example()
+    del data["ai"]["claude"]["routinesApiTrigger"]
+    del data["machines"][1]["https"]
+    code, out, err = summarize(tmp, "unanswered.json", data)
+    check("unanswered: exit 0", code == 0, f"exit {code}: {err.strip()[:300]}")
+    check(
+        "unanswered: Gaps line lists the two unanswered fields in document order",
+        gaps_line(out)
+        == "Gaps (unbekannt): machines[1].https (not answered), ai.claude.routinesApiTrigger (not answered)",
+        f"got: {gaps_line(out)}",
+    )
+
+
+def check_skill_layout():
+    try:
+        text = SKILL.read_text(encoding="utf-8")
+    except OSError as exc:
+        check("SKILL.md is readable", False, str(exc.strerror))
+        return
+    start = text.find("### 2b.")
+    end = text.find("### 3.", start + 1) if start >= 0 else -1
+    if start < 0 or end < 0:
+        check("SKILL.md has step 2b before step 3", False, "heading ### 2b. or ### 3. missing")
+        return
+    layout_lines = [line for line in text[start:end].splitlines() if "layout" in line.lower()]
+    check("SKILL.md step 2b names the summary layout", bool(layout_lines))
+    for line in layout_lines:
+        check(
+            "SKILL.md step 2b: layout line names setup-summary.py",
+            "setup-summary.py" in line,
+            line.strip()[:120],
+        )
 
 
 def check_empty_answers(tmp):
@@ -216,7 +269,12 @@ def check_empty_answers(tmp):
     check("empty answers: Gateway is not running", has_line(out, "Gateway: not running"))
     check("empty answers: Tracker is none without a url", has_line(out, "Tracker: none"))
     check("empty answers: Claude plan none", has_line(out, "- Claude: none"))
-    check("empty answers: Gaps line is none", gaps_line(out) == "Gaps (unbekannt): none", f"got: {gaps_line(out)}")
+    check(
+        "empty answers: Gaps line lists the unanswered routines flag, agent and github",
+        gaps_line(out)
+        == "Gaps (unbekannt): ai.claude.routinesApiTrigger (not answered), agent (not answered), github (not answered)",
+        f"got: {gaps_line(out)}",
+    )
 
 
 def check_absent_optional_fields(tmp):
@@ -230,15 +288,34 @@ def check_absent_optional_fields(tmp):
     del data["machines"][1]["https"]
     code, out, err = summarize(tmp, "absent.json", data)
     check("absent optional: exit 0", code == 0, f"exit {code}: {err.strip()[:300]}")
-    check("absent optional: machine line has no domain or HTTPS part", has_line(out, "- alice (home-server): docker"))
+    check(
+        "absent optional: machine line has no domain or HTTPS part",
+        has_line(out, "- alice (home-server; purposes: local-runs): docker"),
+    )
     check("absent optional: tracker line has no url part", has_line(out, "Tracker: itsaplan"))
     check("absent optional: gateway line has no url part", has_line(out, "Gateway: running"))
     check(
         "absent optional: no ChatGPT via gateway line",
         not any(line.startswith("ChatGPT via gateway") for line in lines_of(out)),
     )
-    check("absent optional: no agent in output", "agent" not in out.lower())
-    check("absent optional: no github in output", "github" not in out.lower())
+    check(
+        "absent optional: no Agent line when agent is absent",
+        not any(line.lower().startswith("agent:") for line in lines_of(out)),
+    )
+    check(
+        "absent optional: no GitHub line when github is absent",
+        not any(line.lower().startswith("github:") for line in lines_of(out)),
+    )
+    gaps = gaps_line(out) or ""
+    for path in [
+        "agent (not answered)",
+        "github (not answered)",
+        "machines[1].domain (not answered)",
+        "machines[1].https (not answered)",
+        "tracker.url (not answered)",
+        "gateway.url (not answered)",
+    ]:
+        check(f"absent optional: Gaps line lists {path}", path in gaps, f"got: {gaps}")
 
 
 def check_invalid(tmp):
@@ -262,7 +339,7 @@ def check_invalid(tmp):
     code, out, err = summarize(tmp, "key-like.json", data)
     combined = out + err
     check("invalid (key-like value in ai.other): exit 1", code == 1, f"exit {code}")
-    check("invalid (key-like value in ai.other): value not printed", KEY_LIKE not in combined)
+    check("invalid (key-like value in ai.other): value not printed", KEY_LIKE.lower() not in combined.lower())
     check(
         "invalid (key-like value in ai.other): no Summary line",
         not any(line.startswith("Summary") for line in lines_of(out)),
@@ -305,8 +382,10 @@ def main():
         check_all_unknown(tmp)
         check_empty_answers(tmp)
         check_absent_optional_fields(tmp)
+        check_unanswered_gaps(tmp)
         check_invalid(tmp)
         check_write(tmp)
+    check_skill_layout()
 
     if failures:
         for line in failures:

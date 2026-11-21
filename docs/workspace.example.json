@@ -5,6 +5,7 @@
       "name": "myweby",
       "role": "server",
       "services": ["docker", "coolify", "itsaplan", "litellm", "dispatcher"],
+      "purposes": ["dispatcher-host", "app-hosting", "tracker-host", "gateway-host"],
       "domain": "yes",
       "https": "yes"
     },
@@ -12,6 +13,7 @@
       "name": "alice",
       "role": "home-server",
       "services": ["docker"],
+      "purposes": ["local-runs"],
       "domain": "no",
       "https": "no"
     }

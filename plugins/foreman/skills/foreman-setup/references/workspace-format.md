@@ -17,10 +17,11 @@ It holds **names and roles only, never a value**. No API keys, tokens, passwords
 | Field | Required | Type / values |
 |---|---|---|
 | `schema` | yes | integer, must be `1` |
-| `machines` | yes | array, may be empty. Each item: `name`, `role`, `services` (required); `domain`, `https` (optional) |
+| `machines` | yes | array, may be empty. Each item: `name`, `role`, `services` (required); `purposes`, `domain`, `https` (optional) |
 | `machines[].name` | yes | lowercase letters, digits, hyphens; starts with a letter or digit |
 | `machines[].role` | yes | `server`, `home-server`, `laptop`, `other`, `unbekannt` |
 | `machines[].services` | yes | array of `docker`, `coolify`, `itsaplan`, `litellm`, `dispatcher`, `other`, `unbekannt`; may be empty |
+| `machines[].purposes` | no | array of `dispatcher-host`, `local-runs`, `app-hosting`, `tracker-host`, `gateway-host`, `other`, `unbekannt` |
 | `machines[].domain` | no | `yes`, `no`, `unbekannt` |
 | `machines[].https` | no | `yes`, `no`, `unbekannt` |
 | `ai.claude.plan` | yes | `none`, `pro`, `max`, `team`, `enterprise`, `api`, `unbekannt` |
@@ -42,14 +43,15 @@ No other fields are allowed. An unknown field is an error, so a typo cannot slip
 
 ## The value `unbekannt`
 
-`unbekannt` is German for "unknown". It is the answer for "I don't know". Every enum field accepts it. The setup never guesses a value: if the human does not know, the field gets `unbekannt`. Optional fields that were not asked can be left out instead.
+`unbekannt` is German for "unknown". It is the answer for "I don't know". Every enum field accepts it. The setup never guesses a value: if the human does not know, the field gets `unbekannt`. Optional fields that were not asked can be left out instead; the summary then lists them as gaps marked `(not answered)`.
 
 ## Rule: names and roles only
 
 Before a value is written, check that it is a name, a role or a plan, not a secret. The checker refuses:
 
 - strings that look like keys or tokens (`sk-…`, `lin_api_…`, `ghp_…`, `ntn_…`, `secret_…`, `trig_…`, `env_…`, `cse_…`, `Bearer ` followed by a token),
-- any string of 32 or more characters without spaces.
+- any string of 32 or more characters without spaces, including `keyEnv`,
+- webhook URLs (host `hooks.slack.com`, or a path starting with `/api/webhooks/`) and URLs whose path has a key-like part (a segment of 32 or more characters).
 
 It never prints the matching value, only the path and the kind of match.
 

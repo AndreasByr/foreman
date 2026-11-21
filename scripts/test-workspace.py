@@ -129,6 +129,7 @@ def all_unbekannt_workspace():
                 "services": ["unbekannt"],
                 "domain": "unbekannt",
                 "https": "unbekannt",
+                "purposes": ["unbekannt"],
             }
         ],
         "ai": {
@@ -158,6 +159,17 @@ def check_example():
         "example has at least two machines",
         isinstance(machines, list) and len(machines) >= 2,
         f"machines={machines!r}"[:200],
+    )
+    by_name = {m.get("name"): m for m in machines if isinstance(m, dict)} if isinstance(machines, list) else {}
+    check(
+        "example: myweby carries purposes dispatcher-host, app-hosting, tracker-host, gateway-host",
+        sorted(dig(by_name, "myweby", "purposes") or []) == sorted(
+            ["dispatcher-host", "app-hosting", "tracker-host", "gateway-host"]
+        ),
+    )
+    check(
+        "example: alice carries purpose local-runs",
+        dig(by_name, "alice", "purposes") == ["local-runs"],
     )
     check(
         "example gateway is running with a url",
@@ -197,6 +209,14 @@ def check_valid_fixtures(tmp, counter):
         json.dumps(all_unbekannt_workspace()),
     )
     expect_valid("base fixture is valid", tmp, next(counter), json.dumps(base_workspace()))
+
+    with_purposes = base_workspace()
+    with_purposes["machines"][0]["purposes"] = ["dispatcher-host", "app-hosting"]
+    expect_valid("machine with purposes is valid", tmp, next(counter), json.dumps(with_purposes))
+
+    gateway_v1 = base_workspace()
+    gateway_v1["gateway"]["url"] = "https://gw.example.com/v1"
+    expect_valid("gateway url with a /v1 path is valid", tmp, next(counter), json.dumps(gateway_v1))
 
 
 def check_rejected(tmp, counter):
@@ -239,6 +259,28 @@ def check_rejected(tmp, counter):
     def bearer_in_other(data):
         data["ai"]["other"] = ["Bearer abc"]
 
+    def bad_purpose(data):
+        data["machines"][0]["purposes"] = ["boss"]
+
+    def key_like_env_name(data):
+        # 40 uppercase letters pass the keyEnv pattern; only the secret rule rejects them.
+        data["gateway"]["keyEnv"] = "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMN"
+
+    def rejected_with_secret(name, mutate, secret):
+        data = base_workspace()
+        mutate(data)
+        path = write_text(tmp, next(counter), json.dumps(data))
+        code, output = run_checker(path)
+        check(
+            name,
+            code == 1 and len(problem_lines(output)) > 0,
+            f"exit {code}, problem lines {len(problem_lines(output))}",
+        )
+        # The problem text must never echo the secret; no output is printed here on purpose.
+        check(f"{name}: problem text omits the secret part", secret not in output)
+
+    gateway_hex = ("0123456789abcdef" * 3)[:40]
+
     mutated("missing required top-level key is rejected", drop_gateway)
     mutated("unknown top-level field is rejected", add_top_extra)
     mutated("unknown field inside a machine is rejected", add_machine_extra)
@@ -250,6 +292,34 @@ def check_rejected(tmp, counter):
     mutated("sk- key in ai.other is rejected", key_in_other)
     mutated("40 char base64-like string in ai.other is rejected", base64_in_other)
     mutated("Bearer token in ai.other is rejected", bearer_in_other)
+    mutated("purpose outside the enum is rejected", bad_purpose)
+    key_env_data = base_workspace()
+    key_like_env_name(key_env_data)
+    key_env_path = write_text(tmp, next(counter), json.dumps(key_env_data))
+    key_env_code, key_env_output = run_checker(key_env_path)
+    key_env_problems = problem_lines(key_env_output)
+    check(
+        "40 uppercase letters as keyEnv are rejected by the secret rule (problem says secret or key-like)",
+        key_env_code == 1
+        and any("secret" in line.lower() or "key-like" in line.lower() for line in key_env_problems),
+        f"exit {key_env_code}, problems: {' | '.join(key_env_problems)[:300]}",
+    )
+
+    rejected_with_secret(
+        "Slack webhook url in tracker.url is rejected",
+        lambda data: data["tracker"].__setitem__("url", "https://hooks.slack.com/services/T0/B0/abcdef"),
+        "T0/B0/abcdef",
+    )
+    rejected_with_secret(
+        "Discord webhook url in gateway.url is rejected",
+        lambda data: data["gateway"].__setitem__("url", "https://discord.com/api/webhooks/123/abcdef"),
+        "123/abcdef",
+    )
+    rejected_with_secret(
+        "40 hex characters in a gateway.url path are rejected",
+        lambda data: data["gateway"].__setitem__("url", "https://gw.example.com/" + gateway_hex),
+        gateway_hex,
+    )
 
     expect_invalid("file that is not JSON is rejected", tmp, next(counter), "{not json")
 

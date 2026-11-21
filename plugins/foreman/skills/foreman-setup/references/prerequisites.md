@@ -95,7 +95,7 @@ Why: pay only subscription costs, no API billing. LiteLLM proxy with Ollama and 
 1. Run the proxy in Docker on a machine reachable from the work run.
 2. Avoid LiteLLM versions 1.82.7 and 1.82.8.
 3. Create virtual keys for the `task-*` roles only. Do not log prompts.
-4. Set `LLM_GATEWAY_URL` and `LLM_GATEWAY_KEY` in the cloud environment.
+4. Set `FOREMAN_GATEWAY_KEY` in the cloud environment. The URL is no variable; it lives in `tools/delegate/config.toml` under `[gateway] base_url`.
 
 ## No deploy knowledge
 
