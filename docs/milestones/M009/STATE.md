@@ -1,4 +1,4 @@
-Status: needs-input · since 2026-11-21T21:45Z · Validierung 4 needs-attention nach R3; ein mittlerer Fund offen, vierte Runde oder Annahme als Grenze braucht den Menschen
+Status: batch-pr · since 2026-11-21T21:25Z · Validierung 4 needs-attention, mittlerer Fund vom Menschen als bekannte Grenze angenommen (MODULES.md)
 Target: dev
 Batch-branch: batch/m009
 Lock: free
@@ -67,3 +67,4 @@ Validierung 4: needs-attention, kein hoher Fund. Offen, mittel: Fremde Seiten (o
 Optionen: A) vierte Runde (Fremd-Prüfung auch bei Verschiebung, Tiefe im Fake). B) mittleren Fund als bekannte Grenze in MODULES.md aufnehmen, Batch-PR, echte Prüfung im UAT. Empfehlung: B.
 **Cause:** limit-exceeded
 - 2026-11-21T21:45Z · Validierung 4 needs-attention, test-all Exit 0 auf 01b49d0 · 01b49d0
+- 2026-11-21T21:25Z · Mensch wählt B: mittleren Fund (fremde Seite unter verschobener Spiegelseite) als bekannte Grenze annehmen, kein R4 · MODULES.md
