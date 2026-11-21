@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# foreman: no commits directly on protected branches.
+branch=$(git symbolic-ref --short HEAD 2>/dev/null)
+case "$branch" in
+  main|prod) echo "Committing directly to '$branch' is not allowed. Work on dev, batch/* or agent/*." >&2; exit 1 ;;
+esac
+exit 0
