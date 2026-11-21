@@ -55,7 +55,7 @@ Neue Dateien: Spiegel-Skript mit Bibliothek und Test in `template/scripts/` (Tes
 
 ## Success criteria
 1. `install.sh --modules docs-notion` listet das Modul in `.foreman.json` und installiert das Skript samt Standardwerten. Ohne das Flag fehlt beides, und kein installiertes File enthält „notion“. Der alte Ablehnungstest ist ersetzt; `bash scripts/test-install.sh` ist grün.
-2. `--dry-run` auf einem Beispiel-Docs-Ordner (Übersicht mit Teilen, Einzeldateien) listet je Datei genau eine Seite, die Teile unter der Übersicht, mit den Aktionen neu, aktualisiert, archiviert, unverändert; Exit-Code 0, ohne Token und ohne Netz.
+2. `--dry-run` auf einem Beispiel-Docs-Ordner (Übersicht mit Teilen, Einzeldateien) listet je Datei genau eine Seite, die Teile unter der Übersicht, mit der Aktion `sync`; Exit-Code 0, ohne Token und ohne Netz. Mit Token und Wurzelseite klassifiziert `--dry-run` nur lesend in neu, aktualisiert, archiviert, unverändert.
 3. Gegen den lokalen Notion-Ersatz erzeugt ein Lauf die Seitenstruktur der Beispiel-Docs; ein zweiter Lauf ohne Änderung erzeugt keine neuen Seiten; eine am Ersatz geänderte Seite ist nach dem nächsten Lauf zurückgesetzt; eine gelöschte Datei archiviert ihre Seite.
 4. Tabellen, Codeblöcke, Überschriften und Listen aus einem Beispiel stehen als Notion-Blöcke im Ersatz; unbekannte Syntax steht als Text, kein Inhalt geht verloren.
 5. Eine Datei mit mehr als 100 Blöcken und ein Absatz mit mehr als 2000 Zeichen werden in zulässigen Anfragen übertragen.

@@ -1,4 +1,4 @@
-Status: slice · since 2026-11-21T19:30Z · S1 läuft
+Status: slice · since 2026-11-21T19:55Z · S2 läuft
 Target: dev
 Batch-branch: batch/m009
 Lock: free
@@ -13,7 +13,7 @@ Start commit: 7f8c84c (Basis dev 7d806f4)
 
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
-| S1 | Modul `docs-notion` im Installer (Sperre fällt, Install mit/ohne Modul, MODULES.md, Standardwerte, update-classes) | in progress | | | |
+| S1 | Modul `docs-notion` im Installer (Sperre fällt, Install mit/ohne Modul, MODULES.md, Standardwerte, update-classes) | done | M009 S1 | install.sh, scripts/update.py, scripts/test-install.sh, scripts/test-all.sh, docs/MODULES.md, CHANGELOG.md, template/scripts/docs-notion.mjs (Stub), template/scripts/lib/docs-notion.mjs (Stub), template/scripts/test-docs-notion.mjs (Stub) | update.py ebenfalls gegated (Brief nannte es nicht) |
 | S2 | Spiegel-Skript (Markdown→Blöcke, Seitenbaum, idempotent, archivieren, --dry-run, lokaler Notion-Ersatz im Test) | open | | | |
 | S3 | Auslöser im Batch-Lauf (generischer Nach-Merge-Schritt, nur mit Modul installiert) | open | | | |
 | S4 | Sicherheit und Limits (429, Blockgrenzen, Token-Leck, Pfadgrenzen, Privacy-Scan) | open | | | |
@@ -43,3 +43,5 @@ None recorded.
 ## Log
 
 - 2026-11-21T19:20Z · Brief M009-CONTEXT.md und Role Review geschrieben · -
+- 2026-11-21T19:55Z · S1 grün: test-install, test-update-classes, test-update, test-changelog, privacy-scan je Exit 0 · see commit M009 S1
+- Klarstellung Kriterium 2: dry-run ohne Token listet je Datei `sync`; mit Token und Wurzelseite klassifiziert er nur lesend (neu, aktualisiert, archiviert, unverändert).

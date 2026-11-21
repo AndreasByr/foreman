@@ -4,6 +4,8 @@
 
 ### New
 
+- **Module `docs-notion` (stub)**: `--modules docs-notion` installs `scripts/docs-notion.mjs` and writes the `docsNotion` block (`rootPageId`, `include`, `exclude`) to `.foreman.json`; the sync itself is not implemented yet. The old name `notion` is refused with a hint to `docs-notion`.
+
 - **Gateway preset in the installer**: `--gateway-url`, `--fallback-model` and `--chatgpt-via-gateway accepted-risk` write the active gateway preset (`scripts/gateway-preset.py`), with a reachability check and a dry run; ChatGPT routing only after explicit acceptance.
 
 - **Project mode for Claude Code projects.** New chat skill `foreman-project-mode` writes the foreman rules into the project instructions (project chat triages, the thread executes, same header, gates and branch rules, push and merge only on the human's go). Applied by the coordinator's settings tool or pasted by the human; the block is versioned, so a refresh after an update compares it. `foreman-fix`, `foreman-brief`, `foreman-setup` and `foreman-project` point to it; a thread runs a fix pack itself instead of handing it to a second session.

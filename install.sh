@@ -2,7 +2,7 @@
 # foreman installer: copies the repo-side workflow into a target repo.
 #
 #   ./install.sh <target-repo> --project <slug> [--name "Display Name"]
-#                [--modules tracker-itsaplan|tracker-linear,delegate,gateway,autopilot,pretest]
+#                [--modules tracker-itsaplan|tracker-linear,delegate,gateway,autopilot,pretest,docs-notion]
 #                [--scope docs|repo|autopilot] [--agent claude-code|opencode|other]
 #                [--recommended-skills all|none|<name,name>] [--skills-scope global|project]
 #                [--session-model <exact model id>] [--workspace <file>] [--no-staging] [--force] [--dry-run]
@@ -85,8 +85,8 @@ modules="$(echo "$modules" | tr -d ' ')"
 norm=()
 for m in ${modules//,/ }; do
   case "$m" in
-    tracker-itsaplan|tracker-linear|delegate|gateway|autopilot|pretest) norm+=("$m") ;;
-    notion) echo "notion was removed in 0.2. Use --modules tracker-itsaplan, tracker-linear or none." >&2; exit 2 ;;
+    tracker-itsaplan|tracker-linear|delegate|gateway|autopilot|pretest|docs-notion) norm+=("$m") ;;
+    notion) echo "module 'notion' is now 'docs-notion'. Use --modules docs-notion." >&2; exit 2 ;;
     ollama) echo "note: module 'ollama' is now 'delegate'" >&2; norm+=(delegate) ;;
     linear) echo "note: module 'linear' is now 'tracker-linear'" >&2; norm+=(tracker-linear) ;;
     *) echo "unknown module: $m" >&2; exit 2 ;;
@@ -200,6 +200,9 @@ skip_file() {
   if ! has pretest; then
     case "$rel" in .claude/skills/foreman-pretest/*|scripts/pretest-run.mjs|scripts/pretest-prepare.sh|scripts/pretest/*|scripts/test-pretest.mjs|scripts/lib/pretest-run.mjs|docs/test-login.md) return 0 ;; esac
   fi
+  if ! has docs-notion; then
+    case "$rel" in scripts/docs-notion.mjs|scripts/lib/docs-notion.mjs|scripts/test-docs-notion.mjs) return 0 ;; esac
+  fi
   [ "$rel" = AGENTS.md ] && [ "$agent" = claude-code ] && return 0
   return 1
 }
@@ -288,6 +291,11 @@ if "pretest" in mods:
         "login": {"path": "/api/test-login", "secretEnv": {"dev": "TEST_LOGIN_SECRET_DEV", "staging": "TEST_LOGIN_SECRET_STAGING"},
                   "roles": {"owner": "TEST_LOGIN_USER_OWNER", "member": "TEST_LOGIN_USER_MEMBER"},
                   "fields": {"secret": "secret", "user": "userId", "tenant": "tenant"}},
+    }
+if "docs-notion" in mods:
+    conf["docsNotion"] = {
+        "rootPageId": "", "include": ["docs/**/*.md"],
+        "exclude": ["docs/agent-reports/**", "docs/answers/**", "docs/uat/**", "docs/wiki/**", "**/STATE.md"],
     }
 if workspace:
     conf["infra"] = json.load(open(workspace, encoding="utf-8"))
