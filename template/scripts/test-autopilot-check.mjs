@@ -35,6 +35,17 @@ t("settings: defaults, .foreman.json and env override", () => {
   assert.equal(c.releaseWeekday, 4);
 });
 
+t("settings: autopilot.waitHours sets the wait, env wins, invalid values fall back to 4 h", () => {
+  const DEFAULT_WAIT_MS = 14400000;
+  assert.equal(settingsFrom({}, {}).waitMs, DEFAULT_WAIT_MS, "no setting");
+  assert.equal(settingsFrom({}, { autopilot: { waitHours: 2 } }).waitMs, 7200000, "2 hours");
+  assert.equal(settingsFrom({}, { autopilot: { waitHours: 0.5 } }).waitMs, 1800000, "half an hour");
+  assert.equal(settingsFrom({ FOREMAN_WAIT_SECONDS: "600" }, { autopilot: { waitHours: 2 } }).waitMs, 600000, "env wins over file");
+  for (const v of [0, -1, "abc", null, true, NaN, Infinity, [], "3", 169]) {
+    assert.equal(settingsFrom({}, { autopilot: { waitHours: v } }).waitMs, DEFAULT_WAIT_MS, `value ${String(v)} (${typeof v})`);
+  }
+});
+
 t("coding: oldest first, at most 3, locked units skipped", () => {
   const units = [
     unit("A", "slice", { since: "2026-03-05T10:00:00Z" }),

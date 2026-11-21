@@ -71,4 +71,60 @@ run_check "$p"
 grep -q "no-fetch" <<<"$OUT" && fail "d: unexpected no-fetch warning: $OUT"
 echo "ok d"
 
+# bad_value NAME JSON KEY: .foreman.json holding JSON must exit 1 with a FAIL line naming KEY
+bad_value() {
+  local p line
+  p=$(new_project "$1")
+  printf '%s\n' "$2" > "$p/.foreman.json"
+  run_check "$p"
+  [ "$RC" -eq 1 ] || fail "$1: exit $RC, expected 1: $OUT"
+  line=$(grep -F "FAIL:" <<<"$OUT" | grep -F -- "$3" || true)
+  [ -n "$line" ] || fail "$1: no FAIL line naming $3: $OUT"
+  echo "ok $1"
+}
+
+# f. valid .foreman.json settings: exit 0 and ok line
+p=$(new_project f-valid)
+printf '%s\n' '{"context":{"timeZone":"Europe/Berlin"},"autopilot":{"batchHours":[3,7,11],"waitHours":4,"mainAutoMerge":false}}' > "$p/.foreman.json"
+run_check "$p"
+[ "$RC" -eq 0 ] || fail "f-valid: exit $RC, expected 0: $OUT"
+grep -q "foreman config check: ok" <<<"$OUT" || fail "f-valid: missing ok line: $OUT"
+echo "ok f-valid"
+
+# g. no .foreman.json: exit 0 and ok line
+p=$(new_project g-none)
+run_check "$p"
+[ "$RC" -eq 0 ] || fail "g-none: exit $RC, expected 0: $OUT"
+grep -q "foreman config check: ok" <<<"$OUT" || fail "g-none: missing ok line: $OUT"
+echo "ok g-none"
+
+# h. .foreman.json without autopilot and context: exit 0 and ok line
+p=$(new_project h-no-block)
+printf '%s\n' '{"unrelated":true}' > "$p/.foreman.json"
+run_check "$p"
+[ "$RC" -eq 0 ] || fail "h-no-block: exit $RC, expected 0: $OUT"
+grep -q "foreman config check: ok" <<<"$OUT" || fail "h-no-block: missing ok line: $OUT"
+echo "ok h-no-block"
+
+# i. invalid settings: exit 1 with a FAIL line naming the key
+bad_value i-tz-mars '{"context":{"timeZone":"Mars/Base"}}' context.timeZone
+bad_value i-tz-empty '{"context":{"timeZone":""}}' context.timeZone
+bad_value i-batch-24 '{"autopilot":{"batchHours":[24]}}' autopilot.batchHours
+bad_value i-batch-neg '{"autopilot":{"batchHours":[-1]}}' autopilot.batchHours
+bad_value i-batch-str '{"autopilot":{"batchHours":["3"]}}' autopilot.batchHours
+bad_value i-batch-float '{"autopilot":{"batchHours":[3.5]}}' autopilot.batchHours
+bad_value i-batch-string '{"autopilot":{"batchHours":"3,7"}}' autopilot.batchHours
+bad_value i-batch-empty '{"autopilot":{"batchHours":[]}}' autopilot.batchHours
+bad_value i-wait-0 '{"autopilot":{"waitHours":0}}' autopilot.waitHours
+bad_value i-wait-neg '{"autopilot":{"waitHours":-1}}' autopilot.waitHours
+bad_value i-wait-str '{"autopilot":{"waitHours":"4"}}' autopilot.waitHours
+bad_value i-wait-169 '{"autopilot":{"waitHours":169}}' autopilot.waitHours
+bad_value i-wait-null '{"autopilot":{"waitHours":null}}' autopilot.waitHours
+bad_value i-merge-str '{"autopilot":{"mainAutoMerge":"true"}}' autopilot.mainAutoMerge
+bad_value i-merge-1 '{"autopilot":{"mainAutoMerge":1}}' autopilot.mainAutoMerge
+bad_value i-merge-null '{"autopilot":{"mainAutoMerge":null}}' autopilot.mainAutoMerge
+
+# j. .foreman.json that is not valid JSON: exit 1 with a FAIL line naming .foreman.json
+bad_value j-invalid-json '{"autopilot":' .foreman.json
+
 echo "check-config tests: ok"

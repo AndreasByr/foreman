@@ -7,6 +7,7 @@
 #                [--recommended-skills all|none|<name,name>] [--skills-scope global|project]
 #                [--session-model <exact model id>] [--workspace <file>] [--no-staging] [--force] [--dry-run]
 #                [--gateway-url <url> --fallback-model <claude/id>] [--chatgpt-via-gateway accepted-risk|declined]
+#                [--tz <IANA name>] [--batch-hours <h,h,...>] [--wait-hours <number>] [--main-auto-merge yes|no]
 #
 # Existing files are never overwritten without --force. An existing CLAUDE.md is kept and the
 # foreman rules are written to CLAUDE.foreman.md for you to merge. An existing .claude/settings.json
@@ -26,6 +27,12 @@
 # the workspace value); any other value exits 2.
 # accepted-risk needs module gateway or a gateway URL; without a URL only tools/gateway/litellm.chatgpt.example.yaml is installed and no preset is written.
 # An existing .foreman.json is kept, except its infra block, which --workspace replaces.
+# --tz <IANA name> (e.g. Europe/Berlin) sets context.timeZone; the default is UTC.
+# --batch-hours <h,h,...> sets autopilot.batchHours: hours 0-23, comma separated, no spaces; duplicates are dropped.
+# --wait-hours <number> sets autopilot.waitHours: greater than 0, at most 168.
+# --main-auto-merge yes|no sets autopilot.mainAutoMerge.
+# The three autopilot options need module autopilot. In an existing .foreman.json only the given keys are replaced
+# (context.timeZone, autopilot.<key>); everything else is kept, and the old file is copied to .foreman.json.before-foreman.
 # The key value is never read or printed: the preset stores only the variable name (default FOREMAN_GATEWAY_KEY).
 set -euo pipefail
 
@@ -35,10 +42,11 @@ VERSION="$(cat "$HERE/VERSION" 2>/dev/null || echo 0.2.0)"
 
 target="" project="" name="" modules="" scope="" model="" agent=claude-code rec="" skills_scope="" workspace="" staging=yes force=no dry=no
 gateway_url="" fallback_model="" chatgpt_via_gateway="" chatgpt_given=no chatgpt="" gw_key_env="" gw_on=no preset_written=no
+tz="" tz_given=no batch_hours="" batch_given=no wait_hours="" wait_given=no main_auto_merge="" main_given=no
 need_value() { echo "option $1 needs a value" >&2; exit 2; }
 while [ $# -gt 0 ]; do
   case "$1" in
-    --project|--name|--modules|--scope|--session-model|--agent|--recommended-skills|--skills-scope|--workspace|--gateway-url|--fallback-model|--chatgpt-via-gateway)
+    --project|--name|--modules|--scope|--session-model|--agent|--recommended-skills|--skills-scope|--workspace|--gateway-url|--fallback-model|--chatgpt-via-gateway|--tz|--batch-hours|--wait-hours|--main-auto-merge)
       [ $# -ge 2 ] || need_value "$1" ;;
   esac
   case "$1" in
@@ -57,6 +65,10 @@ while [ $# -gt 0 ]; do
     --gateway-url) gateway_url="$2"; shift 2 ;;
     --fallback-model) fallback_model="$2"; shift 2 ;;
     --chatgpt-via-gateway) chatgpt_via_gateway="${2-}"; chatgpt_given=yes; shift 2 ;;
+    --tz) tz="$2"; tz_given=yes; shift 2 ;;
+    --batch-hours) batch_hours="$2"; batch_given=yes; shift 2 ;;
+    --wait-hours) wait_hours="$2"; wait_given=yes; shift 2 ;;
+    --main-auto-merge) main_auto_merge="$2"; main_given=yes; shift 2 ;;
     -h|--help) awk 'NR>1 { if ($0 !~ /^#/) exit; sub(/^# ?/, ""); print }' "$0"; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) target="$1"; shift ;;
@@ -96,6 +108,54 @@ fi
 if [ "$model" = "opusplan" ]; then
   echo "refusing --session-model opusplan: autonomous runs never enter plan mode and run on the smaller model" >&2; exit 2
 fi
+
+# ---- time zone and autopilot options: everything checked here, before anything is written ----
+opt_fail() { echo "$1; nothing written" >&2; exit 2; }
+ap_need() { has autopilot || opt_fail "$1 needs module autopilot (add autopilot to --modules)"; }
+batch_csv="" wait_norm=""
+if [ "$tz_given" = yes ]; then
+  [[ "$tz" =~ ^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+){0,2}$ ]] || opt_fail "--tz must be an IANA time zone name such as Europe/Berlin"
+  python3 -c 'import zoneinfo,sys; zoneinfo.ZoneInfo(sys.argv[1])' "$tz" >/dev/null 2>&1 || opt_fail "--tz: unknown time zone name"
+fi
+if [ "$batch_given" = yes ]; then
+  ap_need --batch-hours
+  [[ "$batch_hours" =~ ^[0-9]{1,2}(,[0-9]{1,2})*$ ]] || opt_fail "--batch-hours must be comma-separated hours 0-23 with no spaces or empty items, e.g. 3,7,19"
+  IFS=',' read -r -a bh_items <<< "$batch_hours"
+  bh_list=() bh_seen=""
+  for item in "${bh_items[@]}"; do
+    h=$((10#$item))
+    [ "$h" -le 23 ] || opt_fail "--batch-hours: hour $item is outside 0-23"
+    case ",${bh_seen:-}," in *",$h,"*) ;; *) bh_list+=("$h"); bh_seen="${bh_seen:+$bh_seen,}$h" ;; esac
+  done
+  batch_csv="$(IFS=,; echo "${bh_list[*]}")"
+fi
+if [ "$wait_given" = yes ]; then
+  ap_need --wait-hours
+  [[ "$wait_hours" =~ ^[0-9]+(\.[0-9]+)?$ ]] || opt_fail "--wait-hours must be a number of hours, e.g. 4 or 2.5"
+  wait_norm="$(python3 -c 'import sys; f=float(sys.argv[1]); sys.exit(1) if not 0 < f <= 168 else print(int(f) if f.is_integer() else repr(f))' "$wait_hours")" \
+    || opt_fail "--wait-hours must be greater than 0 and at most 168"
+fi
+if [ "$main_given" = yes ]; then
+  ap_need --main-auto-merge
+  case "$main_auto_merge" in yes|no) ;; *) opt_fail "--main-auto-merge must be yes or no" ;; esac
+fi
+any_new=no
+for v in "$tz_given" "$batch_given" "$wait_given" "$main_given"; do
+  if [ "$v" = yes ]; then any_new=yes; fi
+done
+if [ "$any_new" = yes ] && [ "$force" = no ] && [ -f "$target/.foreman.json" ] \
+  && ! python3 -c 'import json,sys; json.load(open(sys.argv[1], encoding="utf-8"))' "$target/.foreman.json" >/dev/null 2>&1; then
+  opt_fail "existing .foreman.json is not valid JSON"
+fi
+# one-line summary of the autopilot keys, for --dry-run
+ap_summary=""
+if [ "$batch_given" = yes ]; then ap_summary="batchHours=[${batch_csv//,/, }]"; fi
+if [ "$wait_given" = yes ]; then ap_summary="${ap_summary:+$ap_summary, }waitHours=$wait_norm"; fi
+if [ "$main_given" = yes ]; then
+  mam=false; if [ "$main_auto_merge" = yes ]; then mam=true; fi
+  ap_summary="${ap_summary:+$ap_summary, }mainAutoMerge=$mam"
+fi
+
 if [ -n "$workspace" ]; then
   # resolve a relative path now, while the start directory is still the current one
   case "$workspace" in /*) ;; *) workspace="$PWD/$workspace" ;; esac
@@ -253,9 +313,9 @@ if [ "$dry" = no ]; then
   grep -qxF 'tools/delegate/tasks/*' "$target/.gitignore" || printf '\n# foreman: worker task files\ntools/delegate/tasks/*\n!tools/delegate/tasks/.gitkeep\n' >> "$target/.gitignore"
 
   if [ ! -f "$target/.foreman.json" ] || [ "$force" = yes ]; then
-    python3 - "$target/.foreman.json" "$VERSION" "$project" "$name" "$scope" "$agent" "$modules" "$staging" "$tracker" "$workspace" <<'PY'
+    python3 - "$target/.foreman.json" "$VERSION" "$project" "$name" "$scope" "$agent" "$modules" "$staging" "$tracker" "$workspace" "$tz" "$batch_csv" "$wait_norm" "$main_auto_merge" <<'PY'
 import json, sys
-path, version, project, name, scope, agent, modules, staging, tracker, workspace = sys.argv[1:11]
+path, version, project, name, scope, agent, modules, staging, tracker, workspace, tz, batch, wait, main = sys.argv[1:15]
 mods = [m for m in modules.split(",") if m]
 st = staging == "yes"
 conf = {
@@ -263,7 +323,7 @@ conf = {
     "tracker": {"type": tracker},
     "staging": st,
     "branches": {"dev": "dev", "staging": "main" if st else None, "production": "prod" if st else "main"},
-    "context": {"stagingUrl": "", "devUrl": "", "testTenant": "", "offLimits": "", "language": "", "timeZone": "UTC", "releaseDay": "Friday", "workRun": ""},
+    "context": {"stagingUrl": "", "devUrl": "", "testTenant": "", "offLimits": "", "language": "", "timeZone": tz or "UTC", "releaseDay": "Friday", "workRun": ""},
     "mirror": {},
 }
 if tracker == "itsaplan":
@@ -277,6 +337,16 @@ if "pretest" in mods:
                   "roles": {"owner": "TEST_LOGIN_USER_OWNER", "member": "TEST_LOGIN_USER_MEMBER"},
                   "fields": {"secret": "secret", "user": "userId", "tenant": "tenant"}},
     }
+ap = {}
+if batch:
+    ap["batchHours"] = [int(x) for x in batch.split(",")]
+if wait:
+    w = float(wait)
+    ap["waitHours"] = int(w) if w.is_integer() else w
+if main:
+    ap["mainAutoMerge"] = main == "yes"
+if ap:
+    conf["autopilot"] = ap
 if workspace:
     conf["infra"] = json.load(open(workspace, encoding="utf-8"))
 json.dump(conf, open(path, "w"), indent=2)
@@ -286,17 +356,31 @@ PY
     if [ -n "$workspace" ]; then echo "  workspace: infra block written to .foreman.json"; fi
   else
     kept+=(".foreman.json")
-    if [ -n "$workspace" ]; then
+    if [ -n "$workspace" ] || [ "$any_new" = yes ]; then
+      # one backup per run, whatever mix of --workspace and the new options is given
       cp "$target/.foreman.json" "$target/.foreman.json.before-foreman"
-      python3 - "$target/.foreman.json" "$workspace" <<'PY'
+      python3 - "$target/.foreman.json" "$workspace" "$tz" "$batch_csv" "$wait_norm" "$main_auto_merge" <<'PY'
 import json, sys
-path, workspace = sys.argv[1:3]
+path, workspace, tz, batch, wait, main = sys.argv[1:7]
 conf = json.load(open(path, encoding="utf-8"))
-conf["infra"] = json.load(open(workspace, encoding="utf-8"))
+if workspace:
+    conf["infra"] = json.load(open(workspace, encoding="utf-8"))
+if tz:
+    conf.setdefault("context", {})["timeZone"] = tz
+ap = {}
+if batch:
+    ap["batchHours"] = [int(x) for x in batch.split(",")]
+if wait:
+    w = float(wait)
+    ap["waitHours"] = int(w) if w.is_integer() else w
+if main:
+    ap["mainAutoMerge"] = main == "yes"
+if ap:
+    conf.setdefault("autopilot", {}).update(ap)
 json.dump(conf, open(path, "w"), indent=2)
 open(path, "a").write("\n")
 PY
-      echo "  workspace: infra block updated in .foreman.json"
+      if [ -n "$workspace" ]; then echo "  workspace: infra block updated in .foreman.json"; fi
     fi
   fi
   if has gateway; then
@@ -315,6 +399,10 @@ fi
 
 if [ "$dry" = yes ] && [ -n "$workspace" ] && [ -f "$target/.foreman.json" ] && [ "$force" = no ]; then
   echo "  workspace: would update the infra block in .foreman.json"
+fi
+if [ "$dry" = yes ]; then
+  if [ "$tz_given" = yes ]; then echo "  tz: $tz"; fi
+  if [ -n "$ap_summary" ]; then echo "  autopilot: $ap_summary"; fi
 fi
 if [ "$gw_on" = yes ]; then
   if [ "$dry" = yes ]; then
