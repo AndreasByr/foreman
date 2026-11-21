@@ -810,6 +810,428 @@ t("run: foreman_version_source local reads versionFile and makes no GitHub call"
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+// ---- update ticket (M007 slice S2) and update webhook (slice S3): these tests fail until the code exists ----
+// One injected fetch answers the GitHub release, the itsaplan fake and the webhook hosts.
+const ITS_URL = "https://itsaplan.example/api";
+const ITS_KEY = "itsa-key-SECRET-987654";
+const HOOK_URL = "https://discord.com/api/webhooks/abc-secret-token";
+const HOOK_UNKNOWN = "https://hook.example/abc-secret";
+const CHANGELOG = "https://github.com/AndreasByr/foreman/blob/main/CHANGELOG.md";
+const NOW = Date.parse("2026-11-21T10:00:00Z");
+const TITLE_024 = "foreman update available: 0.2.1 → 0.2.4";
+const TITLE_025 = "foreman update available: 0.2.1 → 0.2.5";
+
+/** In-memory itsaplan: routes by method and path as scripts/lib/itsaplan-api.mjs calls them; records every request. */
+function makeItsaplan(columnNames = ["Backlog", "In Progress", "Action Required", "Done"]) {
+  const columns = columnNames.map((name, i) => ({ id: `col-${i}`, name }));
+  const issues = [], requests = [];
+  let seq = 0;
+  const issueOf = (id) => issues.find((i) => i.id === decodeURIComponent(id));
+  const fake = {
+    columns, issues, requests, failCreate: false,
+    columnId(name) {
+      const c = columns.find((x) => x.name === name);
+      if (!c) throw new Error(`fake has no column ${name}`);
+      return c.id;
+    },
+    create({ title, description = "", columnId }) {
+      seq++;
+      const issue = { id: `iss-${seq}`, identifier: `TST-${seq}`, title, description, columnId, comments: [] };
+      issues.push(issue);
+      return issue;
+    },
+    /** Seeds an issue in a column (by name). */
+    add({ title, column = "Backlog", description = "" }) {
+      return fake.create({ title, description, columnId: fake.columnId(column) }).id;
+    },
+    async handle(url, o = {}) {
+      const method = o.method ?? "GET";
+      const path = url.slice(ITS_URL.length);
+      requests.push({ method, url, path, headers: lowerKeys(o.headers), body: o.body });
+      const data = o.body ? JSON.parse(o.body) : {};
+      let m;
+      if (method === "GET" && path === "/projects/TST") return jsonResponse(200, { key: "TST", columns });
+      if (method === "GET" && path.startsWith("/projects/TST/issues?")) {
+        return jsonResponse(200, { items: issues.map(({ id, identifier, title }) => ({ id, identifier, title })) });
+      }
+      if (method === "GET" && (m = /^\/issues\/([^/?]+)$/.exec(path))) {
+        const i = issueOf(m[1]);
+        return i ? jsonResponse(200, { ...i }) : jsonResponse(404, { error: "issue not found" });
+      }
+      if (method === "POST" && path === "/projects/TST/issues") {
+        // the error text carries the key on purpose: the client must redact it
+        if (fake.failCreate) return jsonResponse(500, { error: `database unavailable, key ${ITS_KEY}` });
+        const i = fake.create({ title: data.title, description: data.description, columnId: data.columnId });
+        return jsonResponse(201, { id: i.id, identifier: i.identifier, title: i.title, columnId: i.columnId });
+      }
+      if (method === "PATCH" && (m = /^\/issues\/([^/?]+)$/.exec(path))) {
+        const i = issueOf(m[1]);
+        if (!i) return jsonResponse(404, { error: "issue not found" });
+        if (data.columnId) i.columnId = data.columnId;
+        return jsonResponse(200, { ...i });
+      }
+      if (method === "POST" && (m = /^\/issues\/([^/?]+)\/comments$/.exec(path))) {
+        const i = issueOf(m[1]);
+        if (!i) return jsonResponse(404, { error: "issue not found" });
+        i.comments.push(data.body);
+        return jsonResponse(201, { id: `c-${i.comments.length}` });
+      }
+      return jsonResponse(404, { error: `no route ${method} ${path}` });
+    },
+  };
+  return fake;
+}
+
+/** One fetch for run(): GitHub release (tag and failure set per test), itsaplan fake, webhook hosts; anything else answers 200. */
+function makeWorld(itsaplan) {
+  const world = { calls: [], itsaplan, tag: "v0.2.4", releaseDown: false, webhookStatus: 204 };
+  world.fetch = async (url, o = {}) => {
+    world.calls.push({ url, o });
+    if (url.startsWith("https://api.github.com/")) {
+      if (world.releaseDown) throw new Error("network down");
+      return jsonResponse(200, { tag_name: world.tag });
+    }
+    if (url.startsWith(`${ITS_URL}/`)) return itsaplan.handle(url, o);
+    if (["https://discord.com/", "https://hooks.slack.com/", "https://hook.example/"].some((h) => url.startsWith(h))) {
+      return jsonResponse(world.webhookStatus, "");
+    }
+    return jsonResponse(200, {});
+  };
+  return world;
+}
+
+/** A project at `version` (its .foreman.json committed to the origin), update check on, the itsaplan fake and the webhook. */
+function updateScenario({
+  version = "0.2.1", modules = ["tracker-itsaplan"], mirror = { itsaplan: { projectKey: "TST" } },
+  passEnv = { ITSAPLAN_URL: "SRC_URL", ITSAPLAN_API_KEY: "SRC_KEY" }, tracker = null, columns = undefined,
+  output = "NOTHING|Nothing to do.\n", webhookUrl = HOOK_URL, extraEnv = {},
+} = {}) {
+  const base = setupNotice(output, { project: { pass_env: passEnv } });
+  commitForemanJson(base.dir, JSON.stringify({ foreman: version, modules, mirror, ...(tracker ? { tracker } : {}) }));
+  const itsaplan = makeItsaplan(columns);
+  const env = {
+    ...base.env, SRC_URL: ITS_URL, SRC_KEY: ITS_KEY, OTHER_PROJECT_TOKEN: OTHER_SECRET,
+    DISPATCHER_ERROR_WEBHOOK_URL: webhookUrl, ...extraEnv,
+  };
+  return { ...base, env, itsaplan, world: makeWorld(itsaplan), statePath: join(base.cfg.workdir, "state", "p.json") };
+}
+
+async function runUpdate(s, extra = {}) {
+  const logs = [];
+  const code = await run({ config: s.cfg, env: s.env, fetch: s.world.fetch, log: (m) => logs.push(m), now: NOW, ...extra });
+  return { code, logs };
+}
+const resetCalls = (s) => { s.world.calls.length = 0; s.itsaplan.requests.length = 0; };
+const hookPosts = (s) => s.world.calls.filter((c) => c.o.method === "POST" && !c.url.startsWith(ITS_URL));
+const writesOf = (s) => s.itsaplan.requests.filter((q) => q.method !== "GET");
+const createsOf = (s) => s.itsaplan.requests.filter((q) => q.method === "POST" && q.path === "/projects/TST/issues");
+const readState = (s) => (existsSync(s.statePath) ? JSON.parse(readFileSync(s.statePath, "utf8")) : null);
+const stateTicket = (s, v) => readState(s)?.update?.ticket?.[v];
+const stateWebhook = (s, v) => readState(s)?.update?.webhook?.[v];
+const cleanup = (s) => rmSync(s.dir, { recursive: true, force: true });
+
+t("update ticket + webhook: first run creates one ticket in Action Required and one webhook, the second run does nothing", async () => {
+  const s = updateScenario();
+  try {
+    const r1 = await runUpdate(s);
+    assert.equal(r1.code, 0);
+    const creates = createsOf(s);
+    assert.equal(creates.length, 1, "one issue created");
+    const body = JSON.parse(creates[0].body);
+    assert.equal(body.title, TITLE_024);
+    assert.equal(body.columnId, s.itsaplan.columnId("Action Required"));
+    assert.ok(body.description.includes(CHANGELOG) && body.description.includes("foreman-update"), "description names the changelog and the order");
+    assert.equal(creates[0].headers["x-api-key"], ITS_KEY, "API key header");
+    const posts = hookPosts(s);
+    assert.equal(posts.length, 1, "one webhook post");
+    const msg = JSON.parse(posts[0].o.body);
+    assert.deepEqual(Object.keys(msg), ["content"], "discord body");
+    assert.ok(msg.content.includes("foreman update available for p: 0.2.1 → 0.2.4"), msg.content);
+    assert.equal(stateTicket(s, "0.2.4"), s.itsaplan.issues[0].id, "state remembers the ticket id");
+    assert.match(stateWebhook(s, "0.2.4"), /^\d{4}-\d\d-\d\dT/, "state remembers the webhook time");
+
+    resetCalls(s);
+    const r2 = await runUpdate(s, { update: false });
+    assert.equal(r2.code, 0);
+    assert.deepEqual(writesOf(s), [], "no new issue and no comment on the second run");
+    assert.equal(hookPosts(s).length, 0, "no second webhook");
+    assert.equal(s.itsaplan.issues.length, 1);
+  } finally { cleanup(s); }
+});
+
+t("update ticket closed by hand: not created again, its id is remembered, the webhook still goes out once", async () => {
+  const s = updateScenario();
+  try {
+    const id = s.itsaplan.add({ title: TITLE_024, column: "Done" });
+    const r = await runUpdate(s);
+    assert.equal(r.code, 0);
+    assert.equal(createsOf(s).length, 0, "no new ticket");
+    assert.equal(s.itsaplan.issues.length, 1);
+    assert.equal(stateTicket(s, "0.2.4"), id);
+    assert.equal(hookPosts(s).length, 1);
+  } finally { cleanup(s); }
+});
+
+t("update ticket: a newer release moves the open ticket to Done with a comment, exactly one open update ticket remains", async () => {
+  const s = updateScenario();
+  try {
+    await runUpdate(s);
+    const old = s.itsaplan.issues[0];
+    resetCalls(s);
+    s.world.tag = "v0.2.5";
+    const r = await runUpdate(s, { update: false });
+    assert.equal(r.code, 0);
+    const creates = createsOf(s);
+    assert.equal(creates.length, 1, "one new ticket");
+    assert.equal(JSON.parse(creates[0].body).title, TITLE_025);
+    const moved = s.itsaplan.requests.filter((q) => q.method === "PATCH" && q.path === `/issues/${old.id}`);
+    assert.equal(moved.length, 1, "the 0.2.4 ticket is patched");
+    assert.equal(JSON.parse(moved[0].body).columnId, s.itsaplan.columnId("Done"));
+    const notes = s.itsaplan.requests.filter((q) => q.method === "POST" && q.path === `/issues/${old.id}/comments`);
+    assert.deepEqual(notes.map((q) => JSON.parse(q.body).body), ["Superseded by foreman 0.2.5."]);
+    const doneId = s.itsaplan.columnId("Done");
+    const open = s.itsaplan.issues.filter((i) => i.title.startsWith("foreman update available") && i.columnId !== doneId);
+    assert.deepEqual(open.map((i) => i.title), [TITLE_025], "exactly one open update ticket");
+    assert.deepEqual(Object.keys(readState(s).update.ticket), ["0.2.5"], "state keeps only the new ticket");
+    assert.deepEqual(Object.keys(readState(s).update.webhook), ["0.2.5"], "state keeps only the current webhook entry");
+    assert.equal(hookPosts(s).length, 1, "webhook for 0.2.5");
+  } finally { cleanup(s); }
+});
+
+t("update ticket: project reaches the release, its ticket is closed (Done, comment), no webhook, then no tracker request at all", async () => {
+  const s = updateScenario();
+  try {
+    await runUpdate(s);
+    const ticket = s.itsaplan.issues[0];
+    commitForemanJson(s.dir, JSON.stringify({ foreman: "0.2.4", modules: ["tracker-itsaplan"], mirror: { itsaplan: { projectKey: "TST" } } }));
+    resetCalls(s);
+    const r = await runUpdate(s);
+    assert.equal(r.code, 0);
+    const moved = s.itsaplan.requests.filter((q) => q.method === "PATCH" && q.path === `/issues/${ticket.id}`);
+    assert.equal(moved.length, 1, "ticket patched");
+    assert.equal(JSON.parse(moved[0].body).columnId, s.itsaplan.columnId("Done"));
+    const notes = s.itsaplan.requests.filter((q) => q.method === "POST" && q.path === `/issues/${ticket.id}/comments`);
+    assert.deepEqual(notes.map((q) => JSON.parse(q.body).body), ["Closed by the dispatcher: the project is on foreman 0.2.4."]);
+    assert.equal(hookPosts(s).length, 0, "no webhook for a current project");
+    assert.equal(stateTicket(s, "0.2.4"), undefined, "state entry gone");
+
+    resetCalls(s);
+    const r2 = await runUpdate(s, { update: false });
+    assert.equal(r2.code, 0);
+    assert.deepEqual(s.itsaplan.requests, [], "no tracker request without open entries");
+    assert.equal(hookPosts(s).length, 0);
+  } finally { cleanup(s); }
+
+  const current = updateScenario({ version: "0.2.4" });
+  try {
+    const r = await runUpdate(current);
+    assert.equal(r.code, 0);
+    assert.deepEqual(current.itsaplan.requests, [], "project already current on the first run: no tracker request");
+    assert.equal(hookPosts(current).length, 0, "and no webhook");
+  } finally { cleanup(current); }
+});
+
+t("update ticket creation fails: exit 1, webhook still sent, no ticket in state; the next run creates it without a second webhook", async () => {
+  const s = updateScenario();
+  try {
+    s.itsaplan.failCreate = true;
+    const r1 = await runUpdate(s);
+    assert.equal(r1.code, 1);
+    assert.ok(r1.logs.some((l) => l.includes("update ticket failed")), "log names the failed ticket");
+    assert.equal(hookPosts(s).length, 1, "the webhook went out");
+    assert.equal(stateTicket(s, "0.2.4"), undefined, "no ticket entry");
+    assert.equal(s.itsaplan.issues.length, 0);
+
+    s.itsaplan.failCreate = false;
+    resetCalls(s);
+    const r2 = await runUpdate(s, { update: false });
+    assert.equal(r2.code, 0);
+    assert.equal(s.itsaplan.issues.length, 1, "created on the next run");
+    assert.equal(s.itsaplan.issues[0].title, TITLE_024);
+    assert.equal(stateTicket(s, "0.2.4"), s.itsaplan.issues[0].id);
+    assert.equal(hookPosts(s).length, 0, "no second webhook");
+  } finally { cleanup(s); }
+});
+
+t("update webhook fails: exit 1, logged, nothing recorded; the next run sends it once and does not create the ticket twice", async () => {
+  const s = updateScenario();
+  try {
+    s.world.webhookStatus = 500;
+    const r1 = await runUpdate(s);
+    assert.equal(r1.code, 1);
+    assert.ok(r1.logs.some((l) => l.includes("update webhook failed")), "log names the failed webhook");
+    assert.equal(stateWebhook(s, "0.2.4"), undefined, "nothing recorded for the webhook");
+    assert.equal(s.itsaplan.issues.length, 1, "the ticket was created");
+
+    s.world.webhookStatus = 204;
+    resetCalls(s);
+    const r2 = await runUpdate(s, { update: false });
+    assert.equal(r2.code, 0);
+    assert.equal(hookPosts(s).length, 1, "webhook sent once on the next run");
+    assert.equal(createsOf(s).length, 0, "ticket not created twice");
+    assert.equal(s.itsaplan.issues.length, 1);
+    assert.match(stateWebhook(s, "0.2.4"), /^\d{4}-/);
+  } finally { cleanup(s); }
+});
+
+t("update without tracker-itsaplan (modules none or linear): only the webhook, no tracker request, once per version", async () => {
+  for (const modules of [[], ["tracker-linear"]]) {
+    const s = updateScenario({ modules });
+    try {
+      const r1 = await runUpdate(s);
+      assert.equal(r1.code, 0, JSON.stringify(modules));
+      assert.equal(s.itsaplan.requests.length, 0, `${JSON.stringify(modules)}: no tracker request`);
+      assert.equal(hookPosts(s).length, 1, `${JSON.stringify(modules)}: one webhook`);
+      resetCalls(s);
+      const r2 = await runUpdate(s, { update: false });
+      assert.equal(r2.code, 0);
+      assert.equal(hookPosts(s).length, 0, `${JSON.stringify(modules)}: second run sends nothing`);
+      assert.equal(s.itsaplan.requests.length, 0);
+    } finally { cleanup(s); }
+  }
+});
+
+t("update webhook: a Slack URL gets a {text} body; an unknown host sends nothing, fails nothing, records nothing and logs no URL", async () => {
+  const slack = updateScenario({ modules: [], webhookUrl: HOOK_SLACK });
+  try {
+    const r = await runUpdate(slack);
+    assert.equal(r.code, 0);
+    const posts = hookPosts(slack);
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].url, HOOK_SLACK);
+    assert.deepEqual(Object.keys(JSON.parse(posts[0].o.body)), ["text"], "slack body");
+  } finally { cleanup(slack); }
+
+  const unknown = updateScenario({ modules: [], webhookUrl: HOOK_UNKNOWN });
+  try {
+    const r = await runUpdate(unknown);
+    assert.equal(r.code, 0, "no failure");
+    assert.equal(hookPosts(unknown).length, 0, "nothing sent");
+    assert.equal(stateWebhook(unknown, "0.2.4"), undefined, "nothing recorded");
+    const text = r.logs.join("\n");
+    assert.ok(!text.includes(HOOK_UNKNOWN) && !text.includes("abc-secret"), "log has no URL");
+  } finally { cleanup(unknown); }
+});
+
+t("update ticket skipped without ITSAPLAN_API_KEY in pass_env or without projectKey: the webhook still goes out, exit 0", async () => {
+  // the key sits in the dispatcher environment under its own name: it must not be used
+  const noKey = updateScenario({ passEnv: { ITSAPLAN_URL: "SRC_URL" }, extraEnv: { ITSAPLAN_API_KEY: ITS_KEY } });
+  try {
+    const r = await runUpdate(noKey);
+    assert.equal(r.code, 0);
+    assert.ok(r.logs.some((l) => l.includes("update ticket skipped")), "log says skipped");
+    assert.equal(noKey.itsaplan.requests.length, 0, "no tracker request");
+    assert.equal(hookPosts(noKey).length, 1, "webhook still sent");
+  } finally { cleanup(noKey); }
+
+  const noKeyProject = updateScenario({ mirror: {} });
+  try {
+    const r = await runUpdate(noKeyProject);
+    assert.equal(r.code, 0);
+    assert.ok(r.logs.some((l) => l.includes("projectKey missing")), "log names projectKey");
+    assert.equal(noKeyProject.itsaplan.requests.length, 0, "no tracker request");
+    assert.equal(hookPosts(noKeyProject).length, 1, "webhook still sent");
+  } finally { cleanup(noKeyProject); }
+});
+
+t("update --dry-run: no POST or PATCH, no webhook, no state file, says what it would report", async () => {
+  const s = updateScenario();
+  try {
+    const r = await runUpdate(s, { dryRun: true });
+    assert.equal(r.code, 0);
+    assert.ok(r.logs.some((l) => /p: would report update 0\.2\.1 → 0\.2\.4 \(ticket: yes, webhook: yes\)/.test(l)), r.logs.join(" | "));
+    assert.deepEqual(writesOf(s), [], "no write request");
+    assert.equal(hookPosts(s).length, 0, "no webhook");
+    assert.equal(existsSync(s.statePath), false, "no state file");
+  } finally { cleanup(s); }
+});
+
+t("update: the API key, the webhook URL and another project's secret appear in no log line, ticket text, comment or webhook body", async () => {
+  const s = updateScenario();
+  try {
+    const logs = [];
+    const go = async (extra = {}) => { const r = await runUpdate(s, extra); logs.push(...r.logs); return r; };
+    s.itsaplan.failCreate = true;
+    const failed = await go();
+    assert.equal(failed.code, 1);
+    assert.ok(logs.some((l) => l.includes("update ticket failed")), "the error path ran");
+    s.itsaplan.failCreate = false;
+    await go({ update: false });              // ticket and webhook for 0.2.4
+    s.world.tag = "v0.2.5";
+    await go({ update: false });              // 0.2.4 superseded, ticket and webhook for 0.2.5
+    commitForemanJson(s.dir, JSON.stringify({ foreman: "0.2.5", modules: ["tracker-itsaplan"], mirror: { itsaplan: { projectKey: "TST" } } }));
+    await go();                               // ticket for 0.2.5 closed
+
+    const writeBodies = [
+      ...writesOf(s).map((q) => q.body ?? ""),
+      ...hookPosts(s).map((c) => c.o.body),
+    ].join("\n");
+    const logText = logs.join("\n");
+    for (const secret of [ITS_KEY, HOOK_URL, "abc-secret-token", OTHER_SECRET]) {
+      assert.ok(!logText.includes(secret), `log line contains ${secret}`);
+      assert.ok(!writeBodies.includes(secret), `ticket text, comment or webhook body contains ${secret}`);
+    }
+    assert.ok(!JSON.stringify(s.world.calls).includes(OTHER_SECRET), "another project's secret reached a request");
+  } finally { cleanup(s); }
+});
+
+t("update ticket column: tracker.columnAliases and the Intervention needed alias are accepted; no such column is exit 1", async () => {
+  const aliased = updateScenario({ tracker: { columnAliases: { "Action Required": ["Needs you"] } }, columns: ["Backlog", "In Progress", "Needs you", "Done"] });
+  try {
+    const r = await runUpdate(aliased);
+    assert.equal(r.code, 0);
+    const creates = createsOf(aliased);
+    assert.equal(creates.length, 1);
+    assert.equal(JSON.parse(creates[0].body).columnId, aliased.itsaplan.columnId("Needs you"));
+  } finally { cleanup(aliased); }
+
+  const intervention = updateScenario({ columns: ["Backlog", "Intervention needed", "Done"] });
+  try {
+    const r = await runUpdate(intervention);
+    assert.equal(r.code, 0);
+    const creates = createsOf(intervention);
+    assert.equal(creates.length, 1);
+    assert.equal(JSON.parse(creates[0].body).columnId, intervention.itsaplan.columnId("Intervention needed"));
+  } finally { cleanup(intervention); }
+
+  const missing = updateScenario({ columns: ["Backlog", "In Progress", "Done"] });
+  try {
+    const r = await runUpdate(missing);
+    assert.equal(r.code, 1);
+    assert.ok(r.logs.some((l) => l.includes('no column "Action Required"')), "log names the column");
+    assert.equal(createsOf(missing).length, 0, "no ticket");
+    assert.equal(stateTicket(missing, "0.2.4"), undefined);
+    assert.equal(hookPosts(missing).length, 1, "the webhook still goes out");
+  } finally { cleanup(missing); }
+});
+
+t("update state survives a project whose check says NOTHING: the webhook is not repeated on the next run", async () => {
+  const s = updateScenario({ output: "NOTHING|Nothing to do.\n" });
+  try {
+    const r1 = await runUpdate(s);
+    assert.equal(r1.code, 0);
+    assert.ok(r1.logs.some((l) => l.includes("nothing to do")));
+    assert.equal(existsSync(s.statePath), true, "state written although the check had nothing to do");
+    assert.match(stateWebhook(s, "0.2.4") ?? "", /^\d{4}-/);
+    assert.equal(hookPosts(s).length, 1);
+    resetCalls(s);
+    const r2 = await runUpdate(s, { update: false });
+    assert.equal(r2.code, 0);
+    assert.equal(hookPosts(s).length, 0, "webhook not repeated");
+  } finally { cleanup(s); }
+});
+
+t("update with an invalid .foreman.json version: no ticket, no webhook, log 'foreman version not usable'", async () => {
+  const s = updateScenario({ version: "0.2.1\n# x" });
+  try {
+    const r = await runUpdate(s);
+    assert.equal(r.code, 0);
+    assert.ok(r.logs.some((l) => l.includes("foreman version not usable")));
+    assert.equal(s.itsaplan.requests.length, 0, "no ticket request");
+    assert.equal(hookPosts(s).length, 0, "no webhook");
+  } finally { cleanup(s); }
+});
+
 let n = 0;
 for (const [name, fn] of queue) { await fn(); n++; console.log(`ok ${name}`); }
 console.log(`${n} tests passed`);
