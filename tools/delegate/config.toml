@@ -1,0 +1,161 @@
+# Role -> model mapping for the delegation wrapper (run_task.py). The only place where model IDs appear.
+# Setup (foreman-setup) fills the exact IDs; replace every <...> placeholder before use. --dry-run rejects placeholders.
+#
+# who = "worker"  -> the wrapper starts the model as a separate `claude -p` instance (model chosen per role).
+# who = "session" -> the Claude Code session does it itself (model = "session").
+#
+# Model spec: "claude/<id>" (Anthropic model through your Claude subscription, id passed to --model),
+# "ollama/<id>" (Ollama Cloud directly, key named in api_key_env) or "gateway/<alias>" (your LiteLLM gateway, module
+# `gateway`: alias is one of task-simple, task-research, task-normal, task-complex, task-testing). Never use `opusplan`:
+# autonomous runs never enter plan mode and would quietly run on the smaller model. No Anthropic API key is used anywhere;
+# Claude workers authenticate with the subscription token (CLAUDE_CODE_OAUTH_TOKEN).
+#
+# Active preset: claude-only. To switch, comment out the "claude-only" role blocks below and uncomment the "ollama" or
+# the "gateway" block.
+[meta]
+active = "claude-only"
+
+[defaults]
+timeout_seconds = 900                      # per attempt
+claude_login = "inherit"                   # Claude workers reuse the session's login (subscription). Required in
+                                           # Claude Code cloud sessions: a clean HOME there means "Not logged in".
+                                           # Keys of other providers, trackers and tokens are stripped either way.
+# claude_login = "isolated"               # clean HOME; then only the variables below reach Claude workers
+claude_auth_env = ["CLAUDE_CODE_OAUTH_TOKEN"]  # names only, for "isolated" (token from `claude setup-token`); never an API key
+# --- ollama module only ---
+# base_url        = "https://ollama.com"   # Anthropic-compatible endpoint
+# api_key_env     = "OLLAMA_API_KEY"       # NAME of the environment variable, never the value
+# fallback_model  = "claude/<small-model-id>"   # used when the Ollama API is unusable (key, limit, server, network, timeout)
+
+# ===== Preset "claude-only" (active) =====
+# small = cheap/fast model, mid = standard coding model, large = strongest model.
+[roles.research]
+who = "worker"
+model = "claude/<small-model-id>"
+readonly = true
+
+[roles.planning]
+who = "worker"
+model = "claude/<large-model-id>"
+readonly = true
+
+[roles.validation]
+who = "worker"
+model = "claude/<large-model-id>"
+readonly = true
+
+[roles.execution]
+who = "worker"
+model = "claude/<mid-model-id>"
+
+[roles.execution_simple]
+who = "worker"
+model = "claude/<small-model-id>"
+
+[roles.completion]
+who = "worker"
+model = "claude/<small-model-id>"
+
+[roles.subagent]
+who = "worker"
+model = "claude/<small-model-id>"
+
+# ===== Preset "ollama" (comment out the claude-only research/execution_simple/completion/subagent blocks above first) =====
+# Also set base_url, api_key_env and fallback_model in [defaults]. planning, validation and execution stay on Claude.
+# [roles.research]
+# who = "worker"
+# provider = "ollama"
+# model = "ollama/<research-model-id>"
+# readonly = true
+#
+# [roles.execution_simple]
+# who = "worker"
+# provider = "ollama"
+# model = "ollama/<coding-model-id>"
+#
+# [roles.completion]
+# who = "worker"
+# provider = "ollama"
+# model = "ollama/<agent-model-id>"
+#
+# [roles.subagent]
+# who = "worker"
+# provider = "ollama"
+# model = "ollama/<agent-model-id>"
+
+# ===== Preset "gateway" (module gateway; comment out the same claude-only blocks first) =====
+# One LiteLLM proxy in front of Ollama Cloud and your ChatGPT subscription (see gateway/README.md in the foreman repo).
+# Workers get a virtual key that only reaches the task-* aliases. When the gateway is down or a limit is exhausted,
+# the wrapper repeats the role through `claude -p` with your Claude subscription (fallback_model).
+# [gateway]
+# base_url       = "https://gateway.example.com"       # Anthropic-compatible /v1/messages endpoint of the proxy
+# api_key_env    = "FOREMAN_GATEWAY_KEY"               # NAME of the variable; value is a virtual key limited to task-*
+# fallback_model = "claude/<small-model-id>"
+#
+# [roles.research]
+# who = "worker"
+# provider = "gateway"
+# model = "gateway/task-research"
+# readonly = true
+#
+# [roles.execution_simple]
+# who = "worker"
+# provider = "gateway"
+# model = "gateway/task-simple"
+#
+# [roles.execution]                                    # optional: normal coding on the gateway instead of Claude
+# who = "worker"
+# provider = "gateway"
+# model = "gateway/task-normal"
+#
+# [roles.completion]
+# who = "worker"
+# provider = "gateway"
+# model = "gateway/task-simple"
+#
+# [roles.subagent]
+# who = "worker"
+# provider = "gateway"
+# model = "gateway/task-simple"
+
+# ===== Roles the session plays itself =====
+[roles.discuss]
+who = "session"
+model = "session"
+
+[roles.uat]
+who = "session"
+model = "session"
+
+# Escalation: on failure the task is repeated with the next role. When the chain is exhausted the wrapper exits 1
+# and the session takes over.
+[escalation]
+research         = []
+planning         = []
+validation       = []
+execution        = []
+execution_simple = ["execution"]
+completion       = ["execution"]
+subagent         = ["execution"]
+
+# Rights of the worker instance. Tools not listed are denied in -p mode. Add your test runner, e.g. "Bash(npm *)".
+# git, rm, curl and wget are always denied by the wrapper, whatever is listed here. Readonly roles get only
+# Read/Glob/Grep (plus MCP servers marked readonly_ok).
+[claude]
+permission_mode  = "acceptEdits"
+allowed_tools    = ["Read", "Write", "Edit", "Glob", "Grep", "Bash(node *)", "Bash(ls *)", "Bash(cat *)", "Bash(mkdir *)"]
+disallowed_tools = []
+
+# Optional extra MCP servers for workers, one table each. Example (documentation lookup, read only):
+# [mcp.docs]
+# url = "https://example.com/mcp"        # http server; or command = "...", args = [...] for a local one
+# api_key_env = "DOCS_API_KEY"           # optional, name of the variable
+# api_key_header = "X-Api-Key"           # header that carries it
+# readonly_ok = true                     # also available to readonly roles
+# hint = "Use the docs server before answering from memory."
+
+# Optional extra variables for workers and verify commands.
+# [env]
+# pass = ["CI"]                          # host variables passed through by name
+# [env.set]
+# BASE_URL = "http://localhost:3000"     # literal values (never secrets)

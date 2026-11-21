@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# foreman: push guard as a git hook, so it also works for agents without Claude Code hooks (OpenCode, others).
+# Blocks pushes to protected branches, force pushes (non-fast-forward) and remote deletion of main/dev/prod.
+# Settings: FOREMAN_PROTECTED (default "main,prod"), FOREMAN_NO_DELETE (default "main,dev,prod").
+# Humans who must push to a protected branch (a release PR merge happens on the host, not here) use `git push --no-verify`.
+protected=",${FOREMAN_PROTECTED:-main,prod},"
+nodelete=",${FOREMAN_NO_DELETE:-main,dev,prod},"
+zero=0000000000000000000000000000000000000000
+fail=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "${remote_ref:-}" ] && continue
+  branch="${remote_ref#refs/heads/}"
+  [ "$branch" = "$remote_ref" ] && continue          # tags and other refs: not guarded here
+  if [ "$local_sha" = "$zero" ]; then
+    if [[ "$nodelete" == *",$branch,"* ]]; then echo "foreman: deleting '$branch' on the remote is not allowed." >&2; fail=1; fi
+    continue
+  fi
+  if [[ "$protected" == *",$branch,"* ]]; then echo "foreman: pushing to '$branch' is not allowed. Push dev, batch/* or agent/* and open a PR." >&2; fail=1; continue; fi
+  if [ "$remote_sha" != "$zero" ] && ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+    # Unknown remote commit (not fetched) is treated like a force push too.
+    echo "foreman: non-fast-forward push to '$branch' (force push) is not allowed." >&2; fail=1
+  fi
+done
+exit $fail

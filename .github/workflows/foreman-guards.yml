@@ -1,0 +1,30 @@
+name: foreman guards
+on:
+  pull_request:
+  push:
+    branches: [dev, main, "batch/**"]
+jobs:
+  guards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Config check (opusplan, size limits, task files)
+        run: bash scripts/check-config.sh
+      - name: Push guard tests
+        run: python3 scripts/test-guard.py
+      - name: Delegate wrapper tests
+        run: python3 tools/delegate/test_run_task.py
+        if: hashFiles('tools/delegate/test_run_task.py') != ''
+      - name: State mirror tests
+        run: node scripts/test-state-mirror.mjs
+        if: hashFiles('scripts/test-state-mirror.mjs') != ''
+      - name: Dispatcher check tests
+        run: node scripts/test-autopilot-check.mjs
+        if: hashFiles('scripts/test-autopilot-check.mjs') != ''
+      - name: Pretest runner tests
+        run: node scripts/test-pretest.mjs
+        if: hashFiles('scripts/test-pretest.mjs') != ''
+      - name: Pre-push hook tests
+        run: bash scripts/test-pre-push.sh
+        if: hashFiles('scripts/test-pre-push.sh') != ''
