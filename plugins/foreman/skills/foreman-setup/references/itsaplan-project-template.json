@@ -1,0 +1,173 @@
+{
+  "format": "itsaplan.project-template",
+  "version": 1,
+  "name": "foreman",
+  "description": "foreman workflow project: status columns, AP phase labels, UAT ready view",
+  "snapshot": {
+    "flags": {
+      "initiativesEnabled": false,
+      "dashboardsEnabled": false,
+      "documentsEnabled": false,
+      "notesEnabled": false,
+      "cyclesEnabled": false,
+      "subtasksEnabled": false,
+      "checklistsEnabled": true,
+      "issueStatsEnabled": false,
+      "pointsEstimateEnabled": false,
+      "timeEstimateEnabled": false,
+      "timeLoggingEnabled": false
+    },
+    "columns": [
+      {
+        "id": 1,
+        "name": "Backlog",
+        "stateType": "backlog",
+        "color": "#94A3B8",
+        "position": 1,
+        "wipLimit": null,
+        "wipMode": "soft"
+      },
+      {
+        "id": 2,
+        "name": "Todo",
+        "stateType": "unstarted",
+        "color": "#64748B",
+        "position": 2,
+        "wipLimit": null,
+        "wipMode": "soft"
+      },
+      {
+        "id": 3,
+        "name": "In Progress",
+        "stateType": "started",
+        "color": "#3B82F6",
+        "position": 3,
+        "wipLimit": null,
+        "wipMode": "soft"
+      },
+      {
+        "id": 4,
+        "name": "Action Required",
+        "stateType": "started",
+        "color": "#F97316",
+        "position": 4,
+        "wipLimit": null,
+        "wipMode": "soft"
+      },
+      {
+        "id": 5,
+        "name": "Wait for Merge",
+        "stateType": "started",
+        "color": "#8B5CF6",
+        "position": 5,
+        "wipLimit": null,
+        "wipMode": "soft"
+      },
+      {
+        "id": 6,
+        "name": "Testing",
+        "stateType": "started",
+        "color": "#14B8A6",
+        "position": 6,
+        "wipLimit": null,
+        "wipMode": "soft"
+      },
+      {
+        "id": 7,
+        "name": "In Review",
+        "stateType": "started",
+        "color": "#EAB308",
+        "position": 7,
+        "wipLimit": null,
+        "wipMode": "soft"
+      },
+      {
+        "id": 8,
+        "name": "Done",
+        "stateType": "completed",
+        "color": "#22C55E",
+        "position": 8,
+        "wipLimit": null,
+        "wipMode": "soft"
+      }
+    ],
+    "issueTypes": [
+      {
+        "id": 1,
+        "name": "Task",
+        "icon": "check",
+        "color": "#3B82F6",
+        "isDefault": true,
+        "position": 1
+      }
+    ],
+    "labelGroups": [
+      {
+        "id": 1,
+        "name": "Autopilot phase",
+        "color": "#6366F1"
+      }
+    ],
+    "labels": [
+      { "id": 1, "groupId": null, "name": "Milestone", "color": "#0F766E" },
+      { "id": 2, "groupId": null, "name": "Fix pack", "color": "#B45309" },
+      { "id": 3, "groupId": 1, "name": "AP: Coding", "color": "#3B82F6" },
+      { "id": 4, "groupId": 1, "name": "AP: Fix round", "color": "#F59E0B" },
+      { "id": 5, "groupId": 1, "name": "AP: Action Required", "color": "#F97316" },
+      { "id": 6, "groupId": 1, "name": "AP: Waiting for merge", "color": "#8B5CF6" },
+      { "id": 7, "groupId": 1, "name": "AP: Pretest waiting", "color": "#06B6D4" },
+      { "id": 8, "groupId": 1, "name": "AP: Pretest running", "color": "#0EA5E9" },
+      { "id": 9, "groupId": 1, "name": "AP: UAT ready", "color": "#EC4899" },
+      { "id": 10, "groupId": 1, "name": "AP: Release ready", "color": "#22C55E" }
+    ],
+    "customFields": [],
+    "issueTemplates": [
+      {
+        "name": "Intervention",
+        "description": "Question that needs a human answer before the unit can go on.",
+        "titleTemplate": "[<unit>] Question: ",
+        "descriptionTemplate": "**Question in one sentence:**\n<question>\n\n**Options**\n- A: <option> · consequence: <consequence>\n- B: <option> · consequence: <consequence>\n- C: <option> · consequence: <consequence>\n\n**Recommendation:** <A, B or C, and why>\n\n**Report link:** <link to the run report>\n\n**How to answer:** comment starting with `Answer <unit>:` followed by the option letter or your own answer.",
+        "typeId": 1,
+        "columnId": null,
+        "priority": null,
+        "labelIds": [5]
+      },
+      {
+        "name": "UAT",
+        "description": "Acceptance test checklist for a milestone, ticked by a human.",
+        "titleTemplate": "[<unit>] UAT",
+        "descriptionTemplate": "**UAT · since <time>**\n\n- [ ] <check point 1>\n- [ ] <check point 2>\n\nApproval: all points ticked, or a comment `UAT <unit> approved`.",
+        "typeId": 1,
+        "columnId": null,
+        "priority": null,
+        "labelIds": [9]
+      },
+      {
+        "name": "Update notice",
+        "description": "Announces a new foreman version and what each project must change.",
+        "titleTemplate": "foreman update available",
+        "descriptionTemplate": "**What changed:** <short summary of the release>\n\n**Which projects need which change:**\n- <project>: <change needed>\n\n**Details:** CHANGELOG entry for this version.",
+        "typeId": 1,
+        "columnId": null,
+        "priority": null,
+        "labelIds": []
+      }
+    ],
+    "views": [
+      {
+        "name": "UAT ready",
+        "icon": null,
+        "filters": {
+          "conditions": [
+            { "id": "1", "field": "labels", "op": "is", "values": [9] }
+          ]
+        },
+        "display": {},
+        "position": 1
+      }
+    ],
+    "dashboards": [],
+    "actions": [],
+    "settings": []
+  }
+}

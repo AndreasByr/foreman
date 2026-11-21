@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 python3 template/scripts/test-guard.py
 bash template/scripts/test-pre-push.sh
 node template/scripts/test-state-mirror.mjs
+node scripts/test-itsaplan-template.mjs
 node template/scripts/test-measure.mjs
 node template/scripts/test-autopilot-check.mjs
 node template/scripts/test-pretest.mjs
@@ -17,6 +18,7 @@ python3 scripts/test-setup-catalog.py
 python3 scripts/test-workspace.py
 python3 scripts/test-setup-summary.py
 python3 scripts/test-project-routing.py
+python3 scripts/test-itsaplan-skills.py
 bash dispatcher/tests/test-fire-claude.sh
 bash scripts/test-install.sh
 bash scripts/test-check-config.sh
