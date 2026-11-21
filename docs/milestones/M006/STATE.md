@@ -1,4 +1,4 @@
-Status: in progress · since 2026-11-21T17:10Z · Brief und Plan geschrieben, S1 offen
+Status: validation · since 2026-11-21T17:55Z · Slices S1-S6, R1, R2 done, Prüfung Runde 3 läuft
 Target: dev
 Batch-branch: batch/m006
 Lock: free
@@ -20,6 +20,7 @@ Start commit: c6b3149 (dev, Baseline: bash scripts/test-all.sh exit 0)
 | S5 | Projektanweisung | done | 0a50add | plugins/foreman/skills/foreman-project-mode/ (Skript + Doku), foreman-update, scripts/test-project-block.sh | |
 | S6 | Doku und Learnings | done | 86eea2b | docs/MODULES.md, README.md, docs/learnings.md | |
 | R1 | Rework Runde 1 (Validierung): Git-Worktree und Unterordner, Diff für gemischte Dateien, `check-config` im Projekt, Skill-Test mit Durchlauf, CHANGELOG-Struktur | done | b0c4d16 | scripts/update.py, install.sh, SKILL.md, CHANGELOG.md, docs/MODULES.md, Tests | |
+| R2 | Rework Runde 2 (Validierung): Git-Fehler brechen ab statt still zu schreiben, Version aus Pre-Release heben, schärfere Tests, Texte | done | 98c0435 | scripts/update.py, Tests, CHANGELOG.md, Skills | |
 
 ## Check plan per slice
 
