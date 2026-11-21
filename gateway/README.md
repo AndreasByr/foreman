@@ -31,3 +31,10 @@ Map them to wrapper roles in `tools/delegate/config.toml` (preset "gateway"): fo
 - Virtual keys only for `task-*`; rotate them when a machine is retired.
 - Your Claude subscription stays the fallback and the planner. Keep `CLAUDE_CODE_OAUTH_TOKEN` in the work run environment for that.
 - A subscription has limits. Expect the fallback to start now and then; that is the design.
+
+## Using a ChatGPT plan (accepted-risk)
+
+- The `chatgpt/` provider is not an official Codex client. Automatic use may violate the terms of use and may get your subscription blocked.
+- OpenAI recommends an API key for automation. Alternatives: the official Codex CLI as worker, an API key with its own budget, or Ollama and Claude only.
+- You decide this explicitly. The decision is stored as `chatgptViaGateway` in workspace.json and is not asked again for every project.
+- The installer maps `task-normal` only after `--chatgpt-via-gateway accepted-risk`; without it no ChatGPT target is written.

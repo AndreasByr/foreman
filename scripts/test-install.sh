@@ -2,7 +2,7 @@
 # Installer smoke test: fresh repo, module combinations, agents, notion refused, existing files, idempotence, skills.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d); trap '[ -z "${GW_PID:-}" ] || kill "$GW_PID" 2>/dev/null || true; rm -rf "$T"' EXIT
 fail() { echo "install test FAIL: $*"; exit 1; }
 inst() { "$HERE/install.sh" "$@"; }
 # field of .foreman.json
@@ -196,5 +196,130 @@ cp "$T/w/.foreman.json" "$T/fj.before"
 out=$(inst "$T/w" --project w --workspace "$T/ws-ok.json" 2>&1) || fail "second run with --workspace failed"
 echo "$out" | grep -q 'kept.*\.foreman\.json' || fail "second run did not keep .foreman.json"
 cmp -s "$T/fj.before" "$T/w/.foreman.json" || fail ".foreman.json changed on second run"
+
+# 11. gateway preset: --gateway-url, --fallback-model, --chatgpt-via-gateway; stub gateway on 127.0.0.1
+# The fake key is assembled at runtime so no key-like literal sits in this file.
+GW_KEY_HEAD="sk-test"; GW_KEY_TAIL="value0123456789abcdef"
+export FOREMAN_GATEWAY_KEY="$GW_KEY_HEAD$GW_KEY_TAIL"
+GW_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
+GW_URL="http://127.0.0.1:$GW_PORT"
+mkdir "$T/gw"
+python3 -m http.server "$GW_PORT" --bind 127.0.0.1 --directory "$T/gw" >/dev/null 2>&1 &
+GW_PID=$!
+up=no
+for _ in $(seq 100); do
+  if python3 -c 'import sys,urllib.request; urllib.request.urlopen(sys.argv[1], timeout=1)' "$GW_URL/" >/dev/null 2>&1; then up=yes; break; fi
+  sleep 0.1
+done
+[ "$up" = yes ] || fail "stub gateway did not answer on $GW_URL"
+
+# case 1: reachable stub, no ChatGPT target without consent
+mkdir "$T/g1" && git -C "$T/g1" init -q
+out=$(inst "$T/g1" --project g --modules delegate --session-model m --gateway-url "$GW_URL" --fallback-model claude/test-model 2>&1) || fail "gateway preset install failed: $out"
+G1="$T/g1/tools/delegate/config.toml"
+echo "$out" | grep -q 'gateway dry-run: ok' || fail "gateway dry-run not ok: $out"
+grep -qE '^[[:space:]]*# foreman: gateway preset, reachability checked: yes[[:space:]]*$' "$G1" || fail "reachability line (yes) missing"
+python3 - "$G1" "$GW_URL" <<'PY' || fail "gateway preset config wrong (see above)"
+import sys, tomllib
+d = tomllib.load(open(sys.argv[1], "rb"))
+gw = d.get("gateway")
+assert isinstance(gw, dict), "no active [gateway] table"
+assert gw.get("base_url") == sys.argv[2], gw
+assert gw.get("api_key_env") == "FOREMAN_GATEWAY_KEY", gw
+assert gw.get("fallback_model") == "claude/test-model", gw
+assert d["meta"]["active"] == "gateway", d["meta"]
+roles = d["roles"]
+for r in ("research", "execution_simple", "completion", "subagent"):
+    want = "gateway/task-research" if r == "research" else "gateway/task-simple"
+    assert roles[r]["model"] == want, (r, roles[r])
+for r in ("planning", "validation"):
+    assert roles[r]["model"].startswith("claude/"), (r, roles[r])
+PY
+! grep -vE '^[[:space:]]*#' "$G1" | grep -qE 'task-(normal|complex|testing)' || fail "ChatGPT target active without consent"
+grep -rqF -- "$FOREMAN_GATEWAY_KEY" "$T/g1" && fail "gateway key value written into the target" || true
+
+# case 2: same with ChatGPT consent: execution goes to task-normal, task-complex stays off
+mkdir "$T/g2" && git -C "$T/g2" init -q
+out=$(inst "$T/g2" --project g --modules delegate --session-model m --gateway-url "$GW_URL" --fallback-model claude/test-model --chatgpt-via-gateway accepted-risk 2>&1) || fail "accepted-risk install failed: $out"
+G2="$T/g2/tools/delegate/config.toml"
+python3 - "$G2" <<'PY' || fail "execution role not gateway/task-normal"
+import sys, tomllib
+d = tomllib.load(open(sys.argv[1], "rb"))
+assert d["roles"]["execution"]["model"] == "gateway/task-normal", d["roles"]["execution"]
+PY
+! grep -vE '^[[:space:]]*#' "$G2" | grep -q 'task-complex' || fail "task-complex active with accepted-risk"
+
+# case 3: unreachable gateway: installs, marks the check as not done
+mkdir "$T/g3" && git -C "$T/g3" init -q
+out=$(inst "$T/g3" --project g --modules delegate --session-model m --gateway-url http://127.0.0.1:1 --fallback-model claude/test-model 2>&1) || fail "unreachable gateway install failed: $out"
+echo "$out" | grep -q unreachable || fail "no 'unreachable' message: $out"
+grep -qE '^[[:space:]]*# foreman: gateway preset, reachability checked: no[[:space:]]*$' "$T/g3/tools/delegate/config.toml" || fail "reachability line (no) missing"
+echo "$out" | grep -q 'gateway dry-run: ok' && fail "dry-run reported ok for an unreachable gateway" || true
+
+# case 4: refused with exit 2, a gateway message, and nothing written under tools/
+gw_refused() {
+  local label="$1" d="$T/gwref-$1" rc=0 err; shift
+  mkdir "$d" && git -C "$d" init -q
+  err=$(inst "$d" --project g "$@" 2>&1) || rc=$?
+  [ "$rc" = 2 ] || fail "refusal $label ('$*'): exit $rc, expected 2"
+  echo "$err" | grep -q gateway || fail "refusal $label: no gateway message: $err"
+  [ ! -e "$d/tools" ] || fail "refusal $label wrote tools/"
+}
+gw_refused ftp --gateway-url ftp://x --fallback-model claude/test-model
+gw_refused plainhttp --gateway-url http://example.com --fallback-model claude/test-model
+gw_refused nofallback --gateway-url "$GW_URL"
+gw_refused badconsent --gateway-url "$GW_URL" --fallback-model claude/test-model --chatgpt-via-gateway yes
+
+# case 5: --gateway-url without --modules delegate adds delegate and gateway itself
+mkdir "$T/g5" && git -C "$T/g5" init -q
+out=$(inst "$T/g5" --project g --session-model m --gateway-url "$GW_URL" --fallback-model claude/test-model 2>&1) || fail "gateway without --modules failed: $out"
+echo "$out" | grep -i 'note' | grep -qi gateway || fail "no note about gateway modules: $out"
+python3 - "$T/g5/.foreman.json" <<'PY' || fail "modules lack delegate or gateway"
+import json, sys
+m = json.load(open(sys.argv[1]))["modules"]
+assert "delegate" in m and "gateway" in m, m
+PY
+
+# case 6: defaults from a workspace file (accepted-risk and declined)
+python3 - "$HERE/docs/workspace.example.json" "$T/ws-gw-accepted.json" "$GW_URL" accepted-risk <<'PY'
+import json, sys
+src, dst, url, choice = sys.argv[1:5]
+d = json.load(open(src))
+d["gateway"]["url"] = url
+d["gateway"]["keyEnv"] = "FOREMAN_GATEWAY_KEY"
+d["chatgptViaGateway"] = choice
+json.dump(d, open(dst, "w"), indent=2)
+PY
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); d["chatgptViaGateway"]="declined"; json.dump(d,open(sys.argv[2],"w"),indent=2)' "$T/ws-gw-accepted.json" "$T/ws-gw-declined.json"
+mkdir "$T/g6" && git -C "$T/g6" init -q
+out=$(inst "$T/g6" --project g --modules delegate --session-model m --workspace "$T/ws-gw-accepted.json" --fallback-model claude/test-model 2>&1) || fail "workspace gateway defaults failed: $out"
+python3 - "$T/g6/tools/delegate/config.toml" "$GW_URL" <<'PY' || fail "workspace defaults not applied (accepted-risk)"
+import sys, tomllib
+d = tomllib.load(open(sys.argv[1], "rb"))
+assert d["gateway"]["base_url"] == sys.argv[2], d["gateway"]
+assert d["roles"]["execution"]["model"] == "gateway/task-normal", d["roles"]["execution"]
+PY
+mkdir "$T/g6d" && git -C "$T/g6d" init -q
+out=$(inst "$T/g6d" --project g --modules delegate --session-model m --workspace "$T/ws-gw-declined.json" --fallback-model claude/test-model 2>&1) || fail "workspace declined install failed: $out"
+! grep -vE '^[[:space:]]*#' "$T/g6d/tools/delegate/config.toml" | grep -q 'task-normal' || fail "task-normal active with chatgptViaGateway declined"
+
+# case 7: idempotence; without --force config.toml stays byte-identical, with --force one [gateway] table
+mkdir "$T/g7" && git -C "$T/g7" init -q
+inst "$T/g7" --project g --modules delegate --session-model m --gateway-url "$GW_URL" --fallback-model claude/test-model >/dev/null 2>&1 || fail "idempotence: first run failed"
+cp "$T/g7/tools/delegate/config.toml" "$T/g7-before.toml"
+inst "$T/g7" --project g --modules delegate --session-model m --gateway-url "$GW_URL" --fallback-model claude/test-model >/dev/null 2>&1 || fail "idempotence: second run failed"
+cmp -s "$T/g7-before.toml" "$T/g7/tools/delegate/config.toml" || fail "config.toml changed without --force"
+inst "$T/g7" --project g --modules delegate --session-model m --gateway-url "$GW_URL" --fallback-model claude/test-model --force >/dev/null 2>&1 || fail "idempotence: --force run failed"
+[ "$(grep -cE '^\[gateway\][[:space:]]*$' "$T/g7/tools/delegate/config.toml")" = 1 ] || fail "--force left not exactly one [gateway] table"
+
+# case 8: docs
+grep -qE 'accepted-risk|terms' "$HERE/gateway/README.md" || fail "gateway/README.md has neither accepted-risk nor terms"
+REF="$HERE/plugins/foreman/skills/foreman-setup/references/gateway-block.md"
+[ -f "$REF" ] || fail "references/gateway-block.md missing"
+for s in '45 minutes' 'terms of use' 'Codex CLI' 'API key' 'Ollama and Claude only'; do
+  grep -qF "$s" "$REF" || fail "gateway-block.md does not mention '$s'"
+done
+
+kill "$GW_PID" 2>/dev/null || true; wait "$GW_PID" 2>/dev/null || true; GW_PID=""
 
 echo "install tests: ok"

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Gateway preset in the installer**: `--gateway-url`, `--fallback-model` and `--chatgpt-via-gateway accepted-risk` write the active gateway preset (`scripts/gateway-preset.py`), with a reachability check and a dry run; ChatGPT routing only after explicit acceptance.
+
 ## 0.2.1 (2026-11-20)
 
 - **Fix: Claude workers in cloud sessions.** `claude_login = "inherit"` is the default, so workers use the session's subscription login; other providers' keys, tracker keys and tokens are stripped. `ANTHROPIC_API_KEY` is no longer accepted. A login failure skips further Claude attempts and exits 5; the session hands the task to its own subagent.

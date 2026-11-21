@@ -51,3 +51,7 @@ Claude Code is the recommended agent: routines with API trigger are the dispatch
 | execution_simple | small | Ollama or `task-simple` |
 | completion, subagent | small | Ollama or `task-simple` |
 | fallback on provider outage | – | small Claude through `claude -p` |
+
+## Gateway options
+
+`install.sh --gateway-url <url> --fallback-model <claude/id>` writes the gateway preset into `tools/delegate/config.toml` and adds modules `delegate` and `gateway` if they are missing. The URL must be `https://`; plain `http` is accepted only for `localhost` or `127.0.0.1`. The fallback model is the exact Claude model ID that the wrapper uses when the gateway is down. `--chatgpt-via-gateway accepted-risk` also routes normal coding to the ChatGPT plan (`task-normal`); read the risk notice in `gateway/README.md` first. Without it no ChatGPT target is written. Defaults for URL, key variable (`FOREMAN_GATEWAY_KEY` unless set) and the ChatGPT choice come from `--workspace` when `gateway.running` is `yes`; flags win. The installer never reads or prints the key value: the config holds only the variable name.
