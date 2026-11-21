@@ -1,4 +1,4 @@
-Status: needs-input · since 2026-11-21T21:10Z · Validierung 3 needs-attention nach R1 und R2, dritte Rework-Runde braucht die Freigabe des Menschen
+Status: needs-input · since 2026-11-21T21:45Z · Validierung 4 needs-attention nach R3; ein mittlerer Fund offen, vierte Runde oder Annahme als Grenze braucht den Menschen
 Target: dev
 Batch-branch: batch/m009
 Lock: free
@@ -60,3 +60,10 @@ Validierung 3 (A/B/C) auf 8e32c06: needs-attention, kein hoher Fund, drei mittle
 Optionen: A) dritte Rework-Runde (Elternseite abgleichen durch Archivieren und Neuanlegen, Zeitlimit im Hook, Doku und Checkout-Hinweis). B) Funde 1 und 2 als bekannte Grenzen dokumentieren, nur Doku-Fehler beheben, dann Batch-PR. Empfehlung: A.
 **Cause:** limit-exceeded · zwei Rework-Runden aufgebraucht, mittlere Funde offen
 - 2026-11-21T21:10Z · Validierung 3 needs-attention, test-all Exit 0 auf 8e32c06, Rückfrage an den Menschen wegen R3 · 8e32c06
+
+### Runde 4 (nach R3, Commit 01b49d0)
+
+Validierung 4: needs-attention, kein hoher Fund. Offen, mittel: Fremde Seiten (ohne Marker) unter einer Spiegelseite, die unter eine neue Elternseite verschoben wird, werden von Notion mitarchiviert und nicht gemeldet. Niedrig: Laufzeitgrenze ist weich (prüft nur vor jedem Aufruf), fremde Seite mit gleichem Pfad-Titel wird überschrieben, Fake prüft Verschachtelungstiefe nicht, frisches Projekt meldet Exit 3 bis rootPageId gesetzt ist.
+Optionen: A) vierte Runde (Fremd-Prüfung auch bei Verschiebung, Tiefe im Fake). B) mittleren Fund als bekannte Grenze in MODULES.md aufnehmen, Batch-PR, echte Prüfung im UAT. Empfehlung: B.
+**Cause:** limit-exceeded
+- 2026-11-21T21:45Z · Validierung 4 needs-attention, test-all Exit 0 auf 01b49d0 · 01b49d0
