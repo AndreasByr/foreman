@@ -12,5 +12,5 @@
 - **Bug:** Übersicht ohne Stand-Zeile oder mit zwei Stand-Zeilen: definierter Fehler, kein Absturz bei leerer Datei.
 - **Regel:** Doppelte Regeln zwischen neuer Regeldatei und `docs/CONVENTIONS.md`. Eine Stelle gewinnt, die andere verweist.
 - **Risiko:** SKILL.md-Limit (8 KB). `foreman-roadmap` liegt bei etwa 7,2 KB; nur ein Verweis, Details in `references/`.
-- **Privacy:** Kasev-Beispiel nur erfunden und gekürzt; Privacy-Scan bleibt grün.
+- **Privacy:** Projekt B-Beispiel nur erfunden und gekürzt; Privacy-Scan bleibt grün.
 - **Pentest:** nicht anwendbar, kein Netz, keine Secrets, Skript liest nur Dateien aus dem übergebenen Pfad.

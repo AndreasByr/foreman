@@ -41,13 +41,13 @@ Low-Funde aus Runde 1, kurz geprüft:
 | F4 / Req `:50` / SC4: `--no-fetch`, gleiche TASK-Zeilen, kein Fetch; `check-config` meldet fehlende Unterstützung | covered (Text-Heuristik, akzeptiert) | `template/scripts/autopilot-check.mjs:92`; `scripts/check-config.sh:33-36`, identisch in `template/scripts/check-config.sh:33-36` | `test-autopilot-check.mjs:367-402`; `scripts/test-check-config.sh` a–d (testet nur die Kopie unter `scripts/`) |
 | F5 / Req `:26`: Startskript-Vorlage (ssh, `claude -p`, exakte Model-ID, `claude_login = "inherit"`), MODULES und foreman-setup | covered | `fire-claude.example.sh:8`, `:28`, `:37-42`, `:57`; `README.md:18-33`; `template/tools/delegate/config.toml:20`; `MODULES.md:22` | `dispatcher/tests/test-fire-claude.sh` a–f; `test-dispatcher-docs.sh:24-31`, `:53-58` |
 | SC1: fremder Token in keiner Ausgabe | partial | Umgebung, Dry-Run-Log und Webhook-Body sind geprüft | `test-dispatch.mjs:298-317`; echte Läufe ohne Log-Prüfung (Finding 1) |
-| SC5: Dry-Run „would start … via command“, 0 Secrets im Log | covered (automatisch; der Lauf auf myweby ist UAT) | `dispatch.mjs:246` | `test-dispatch.mjs:416-434` |
+| SC5: Dry-Run „would start … via command“, 0 Secrets im Log | covered (automatisch; der Lauf auf server-1 ist UAT) | `dispatch.mjs:246` | `test-dispatch.mjs:416-434` |
 | SC6: MODULES und README nennen die 4 Begriffe, Begründungen in learnings, Skills nur die Regel | covered | `MODULES.md:18-25`; `README.md:10`, `:15-16`, `:18-33`, `:76`; `learnings.md:7-10` | `test-dispatcher-docs.sh` (ganz) |
 | Fest: Dispatcher bleibt modellfrei | covered | `dispatch.mjs` hat keinen Modellaufruf; `claude -p` läuft nur im kopierten Startskript | – |
-| Fest: Verhalten des myweby-Patches übernehmen | nicht prüfbar | der Patch liegt nicht im Repo | – |
+| Fest: Verhalten des server-1-Patches übernehmen | nicht prüfbar | der Patch liegt nicht im Repo | – |
 | Fest: zuerst ein roter Test | nur indirekt belegt | Kommentare `test-dispatch.mjs:319`, `:436` und die Slice-Berichte | – |
 | Verifikation: `test-all.sh` enthält die neuen Tests | covered | `scripts/test-all.sh:8`, `:11-15` | – |
-| Out of scope: keine Überwachung von `fire_command`, keine Merge-Fenster-Fragen (M004), keine Update-Meldung (M007), nichts an Guildora/Kasev/Office | eingehalten | Die Dateiliste des Diffs (`m001.diff`, 19 Dateien) enthält nichts davon; `README.md:32` sagt „does not watch the run“ | – |
+| Out of scope: keine Überwachung von `fire_command`, keine Merge-Fenster-Fragen (M004), keine Update-Meldung (M007), nichts an Project A/B/C | eingehalten | Die Dateiliste des Diffs (`m001.diff`, 19 Dateien) enthält nichts davon; `README.md:32` sagt „does not watch the run“ | – |
 
 ---
 
@@ -61,5 +61,5 @@ Low-Funde aus Runde 1, kurz geprüft:
 **Unclear / not found**
 - Ob die Tests grün sind: nicht selbst ausgeführt, Bash war gesperrt. Das Grün stammt nur aus `STATE.md:70-77`.
 - Ob die roten Läufe vor jedem Fix stattgefunden haben: nur durch Berichte und Testkommentare belegt.
-- Ob der myweby-Patch genau so übernommen wurde: Der Patch liegt nicht im Repo.
+- Ob der server-1-Patch genau so übernommen wurde: Der Patch liegt nicht im Repo.
 - Ob `template/scripts/check-config.sh` byte-gleich mit `scripts/check-config.sh` ist: Ich habe nur Zeile 2, 34 und 35 per Grep verglichen. Der Test prüft nur die Kopie unter `scripts/`.

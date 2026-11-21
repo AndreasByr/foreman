@@ -43,7 +43,7 @@ Verdict: needs-attention
 - The dev batch logic is unchanged, and the secret isolation and the mainAutoMerge strictness work as intended.
 
 **Unclear / not found**
-- What the original myweby patch looked like (whether it also cut down git's environment). It is not in the repo.
+- What the original server-1 patch looked like (whether it also cut down git's environment). It is not in the repo.
 - Whether any real project has relied on ssh-agent instead of a deploy key, or on `FOREMAN_TZ` from dispatcher.env. Server configs are not in the repo.
 - I did not run the test results myself (only Read/Grep allowed). The green status comes from STATE.md:63 and has not been verified.
 - Whether `claude` on macOS or with a keychain login needs variables beyond PATH/HOME/LANG for a local `fire_command`. No evidence in the repo.

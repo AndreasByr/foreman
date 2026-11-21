@@ -9,9 +9,9 @@ Drei getrennte Reviewer (Rolle `validation`, nur lesen), Rohquellen: Brief, Requ
 | 2 (nach R1) | needs-attention (4 mittel) | needs-attention (4 mittel) | needs-remediation (3 mittel) | Rework R2 (3da9544) |
 | 3 (nach R2) | needs-attention (1 mittel) | pass | needs-attention (1 mittel, derselbe Fund) | Fund behoben in R3 (Antrag), siehe unten |
 
-| 4 (dritte Reworkrunde, von Andreas am 2026-11-21 freigegeben; ein Prüfer nur auf die Zuordnungstabelle) | – | – | needs-attention (1 mittel: P3 nannte `itsaplan` statt `tracker-itsaplan`) | R3b, 148cd1d |
+| 4 (dritte Reworkrunde, vom Maintainer am 2026-11-21 freigegeben; ein Prüfer nur auf die Zuordnungstabelle) | – | – | needs-attention (1 mittel: P3 nannte `itsaplan` statt `tracker-itsaplan`) | R3b, 148cd1d |
 
-Gesamtergebnis nach Runde 3: **needs-attention**. Offen war genau ein mittlerer Fund: die Zuordnungstabelle in `project-questions.md` nannte für P1 `context.name` statt `--project`/`name`, und die Flags für P2, P3, P5 fehlten. Behoben in 4a54a00 (Test rot vorher: 11 FAIL; grün danach: `bash scripts/test-all.sh` Exit 0). Das ist eine dritte Reworkrunde; die Regel erlaubt zwei. Deshalb steht die Entscheidung bei Andreas (siehe STATE.md, Status needs-input), und es gibt bis dahin keinen Batch-PR.
+Gesamtergebnis nach Runde 3: **needs-attention**. Offen war genau ein mittlerer Fund: die Zuordnungstabelle in `project-questions.md` nannte für P1 `context.name` statt `--project`/`name`, und die Flags für P2, P3, P5 fehlten. Behoben in 4a54a00 (Test rot vorher: 11 FAIL; grün danach: `bash scripts/test-all.sh` Exit 0). Das ist eine dritte Reworkrunde; die Regel erlaubt zwei. Deshalb steht die Entscheidung bei Maintainer (siehe STATE.md, Status needs-input), und es gibt bis dahin keinen Batch-PR.
 
 ## Behobene Funde (Auswahl)
 - Hinweise ersetzen die Pflichtfrage nicht mehr; ungültige, leere oder unlesbare `workspace.json` führt zur selben einen Frage.
@@ -33,7 +33,7 @@ Gesamtergebnis nach Runde 3: **needs-attention**. Offen war genau ein mittlerer 
 - Kriterium 7 ist eine statische Simulation; der echte Chat-Durchlauf bleibt UAT.
 
 ## Grenzen
-Routing im echten Chat und ein Durchlauf mit echter `workspace.json`-Kopie prüft nur Andreas. Kein Reviewer ersetzt UAT.
+Routing im echten Chat und ein Durchlauf mit echter `workspace.json`-Kopie prüft nur Maintainer. Kein Reviewer ersetzt UAT.
 
 ## Nachtrag Runde 4
-Andreas gab die dritte Reworkrunde frei. Der Prüfer fand in der Tabelle noch die Modulnamen (P3). Behoben in 148cd1d mit Test (rot vorher: 7 FAIL), `bash scripts/test-all.sh` Exit 0. Keine weitere Runde; Gesamtergebnis: **pass** (offen nur niedrige Funde).
+Maintainer gab die dritte Reworkrunde frei. Der Prüfer fand in der Tabelle noch die Modulnamen (P3). Behoben in 148cd1d mit Test (rot vorher: 7 FAIL), `bash scripts/test-all.sh` Exit 0. Keine weitere Runde; Gesamtergebnis: **pass** (offen nur niedrige Funde).

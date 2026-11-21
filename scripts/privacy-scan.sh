@@ -8,4 +8,5 @@ pat='trig_[0-9A-Za-z]{10,}|env_[0-9A-Za-z]{10,}|cse_[0-9A-Za-z]{10,}|sk-ant-[0-9
 [ -f .privacy-patterns ] && pat="$pat|$(grep -v '^\s*$' .privacy-patterns | paste -sd'|')"
 hits=$(git ls-files -co --exclude-standard | grep -v '^\.privacy-patterns$' | xargs grep -nIiE "$pat" 2>/dev/null || true)
 if [ -n "$hits" ]; then echo "$hits"; echo "privacy scan: FOUND"; exit 1; fi
+python3 scripts/privacy-scan.py || exit 1
 echo "privacy scan: clean"

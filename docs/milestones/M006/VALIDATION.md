@@ -28,4 +28,4 @@ Rohberichte: `docs/milestones/M006/validation/round1-A.md` bis `round3-C.md`.
 - Eine foreman-eigene Datei in `.gitignore` wird bei lokaler Änderung ohne Abbruch ersetzt.
 - Kein Test für eine Zieldatei, die literal nicht schreibbar ist (Root ignoriert Rechte); der Schreibfehler wird über eine Datei statt Verzeichnis bewiesen.
 - Alte Modulnamen (`ollama`, `linear`) werden im Update nicht umbenannt; nur sichtbar als Diff in `CLAUDE.md`.
-- Analysen F2/F3 (Guildora, Kasev) liegen nicht im Repo; `scripts/autopilot-check.*` ist foreman-eigen, ein committeter Patch darin wird ersetzt (Dry-Run zeigt es).
+- Analysen F2/F3 (Projekt A, Projekt B) liegen nicht im Repo; `scripts/autopilot-check.*` ist foreman-eigen, ein committeter Patch darin wird ersetzt (Dry-Run zeigt es).

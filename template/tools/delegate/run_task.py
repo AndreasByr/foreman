@@ -77,6 +77,9 @@ PREAMBLE = """You are an execution agent. The working directory is the repo. Do 
 Do not change anything outside the task scope, do not use git (no add/commit/push), do not delete anything.
 End with a short summary: which files you created or changed and what you checked.
 If you cannot complete the task, say so plainly in the last paragraph.
+Do not write under .claude/ (skills, hooks and settings belong to the session).
+Do not read key files (.env*, *.pem, id_*, credentials*); you may only check their existence and permissions.
+Model IDs are written only in tools/delegate/config.toml; never add or change model IDs elsewhere.
 
 === TASK ===
 """
@@ -84,6 +87,9 @@ READONLY_PREAMBLE = """You are a research agent. The working directory is the re
 never change or create files. Answer the question below with concrete findings:
 file paths with line numbers (`path:line`), a short reason, no guesses without evidence.
 End with two clearly separated parts: "Established" and "Unclear / not found".
+Do not write under .claude/ (skills, hooks and settings belong to the session).
+Do not read key files (.env*, *.pem, id_*, credentials*); you may only check their existence and permissions.
+Model IDs are written only in tools/delegate/config.toml; never add or change model IDs elsewhere.
 
 === TASK ===
 """

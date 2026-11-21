@@ -50,7 +50,7 @@ Eingabe: `docs/milestones/*/STATE.md`, `docs/fixpacks/*/STATE.md`, `docs/agent-r
 - Änderungen an `run_task.py`, am Format der Result-Files oder am Dispatcher.
 - Automatisches Ausführen des Skripts (Routine, Dispatcher).
 - Tracker-Daten (Tracker ist `none`; die Zahlen kommen aus Dateien).
-- Änderungen an Guildora, Kasev oder Office (Abnahme nur gegen ein Wegwerf-Testprojekt).
+- Änderungen an Projekt A, B und C (Abnahme nur gegen ein Wegwerf-Testprojekt).
 
 ## Success criteria
 1. Test: Ein `STATE.md` mit „Open question“-Abschnitt ohne Ursachen-Zeile wird als Lücke gemeldet; mit gültiger Zeile nicht; mit unbekannter Kategorie als Lücke; `--strict` gibt dann Exit 1.
