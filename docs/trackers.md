@@ -20,7 +20,9 @@ The tracker is a mirror for people (phone, overview) and the place for answers a
 | `release-ready` | In Review | `AP: Release ready` |
 | `done` | Done | none |
 
-Create the columns and the labels (`Milestone`, `Fix pack`, and the `AP: ...` labels) once in the project; the mirror reports missing ones instead of guessing. Other column names: `.foreman.json` `tracker.columnAliases`, for example `{ "Action Required": ["<your column>"] }`. Title of a ticket: `[<unit>] <title>`. The mirror prints the ticket ID of a new ticket; the run writes it into `Tracker:` of `STATE.md`.
+New projects are created from the template file `itsaplan-project-template.json` that ships with the foreman plugin (skill `foreman-setup`, folder `references`) (`foreman-setup` imports it once per workspace; `foreman-project` creates the project from it). The one manual step is adding the bot account as a member. A template does not change existing projects. The mirror reports a missing column or label instead of guessing. Other column names: `.foreman.json` `tracker.columnAliases`, for example `{ "Action Required": ["<your column>"] }`. Title of a ticket: `[<unit>] <title>`. The mirror prints the ticket ID of a new ticket; the run writes it into `Tracker:` of `STATE.md`.
+
+**Name check.** `scripts/check-config.sh` reads the columns and labels of the project (it needs `ITSAPLAN_URL`, `ITSAPLAN_API_KEY` and `mirror.itsaplan.projectKey`). The check reports each expected English column or label that is missing, each column or label with a German-looking name (naming the English name where it is known), and each unknown label with the `AP: ` prefix. Extra English names such as Bug or Canceled are fine. Without the variables it prints a note and passes.
 
 ## Answers and approvals per tracker
 

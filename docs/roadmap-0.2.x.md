@@ -379,7 +379,7 @@ Go/no-go: „Neues Projekt“ startet kein Setup mehr.
 **Goal:** Neue itsaplan-Projekte entstehen aus einer Vorlage im Repo mit englischen Spalten und Labels, und `check-config.sh` meldet jeden übersetzten Namen.
 **Coding:** ~3 Tage (Agent)
 **Testing:** ~3 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT abgenommen, 2026-11-21; PR #17 in dev)
 
 ---
 

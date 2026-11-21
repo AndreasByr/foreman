@@ -531,7 +531,7 @@ Next steps:
   5. Install the foreman plugin (claude.ai: Plugins → Add marketplace → AndreasByr/foreman; Claude Code: /plugin marketplace add AndreasByr/foreman) and start with foreman-setup.
 EOF
 if [ "$agent" != claude-code ]; then echo "  AGENTS.md was written. $agent has no Claude hooks: .githooks/pre-push is the push guard (core.hooksPath is set when the target is a git repo). Skills are read from .claude/skills/."; fi
-if has tracker-itsaplan; then echo "  Tracker itsaplan: create the columns and labels (docs/trackers.md), set ITSAPLAN_URL and ITSAPLAN_API_KEY, fill mirror.itsaplan.projectKey, then: node scripts/state-mirror.mjs --dry-run"; fi
+if has tracker-itsaplan; then echo "  Tracker itsaplan: create the project from the foreman template (foreman-setup imports it once, foreman-project uses it), add the bot account as a member, set ITSAPLAN_URL and ITSAPLAN_API_KEY, fill mirror.itsaplan.projectKey, then: node scripts/state-mirror.mjs --dry-run"; fi
 if has tracker-linear; then echo "  Tracker linear: set LINEAR_API_KEY, fill mirror.linear.teamKey, then: node scripts/state-mirror.mjs --dry-run"; fi
 if [ "$tracker" = none ]; then echo "  Tracker none: answers go to docs/answers/<unit>.md, UAT approval to docs/uat/<unit>.md (docs/trackers.md)."; fi
 if has pretest; then echo "  Pretest: fill pretest.* in .foreman.json and build the test login (docs/test-login.md)."; fi

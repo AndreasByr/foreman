@@ -14,7 +14,7 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 | `pretest` | `foreman-pretest`, the headless pretest runner, UAT checklist script, test-login pattern doc | a test login in your app (`docs/test-login.md`), dev or staging environment, Playwright and axe-core installed in the worktree at run time |
 | `docs-notion` | one-way mirror of repo docs to Notion, one page per file, the overview as parent page; run by the batch run, never by a model; it runs after each merge in the batch run via `scripts/post-merge.d` | Notion integration token in `NOTION_API_KEY`, a root page id in `.foreman.json` `docsNotion.rootPageId`, Node 20 |
 
-`tracker-itsaplan` and `tracker-linear` exclude each other.
+`tracker-itsaplan` and `tracker-linear` exclude each other. itsaplan projects are created from the template file `itsaplan-project-template.json` (imported into itsaplan under the name `foreman`); only the bot account is added by hand, and `check-config.sh` reports names that are not English.
 
 **docs-notion** (module `docs-notion`):
 
