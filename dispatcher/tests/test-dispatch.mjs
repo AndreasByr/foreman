@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseCheckOutput, selectTasks, run, redact, parseArgs } from "../dispatch.mjs";
+import { parseCheckOutput, selectTasks, run, redact, parseArgs, safeEnv } from "../dispatch.mjs";
 
 const queue = [];
 const t = (name, fn) => queue.push([name, fn]);
@@ -62,22 +62,22 @@ t("redact and args", () => {
 function sh(cwd, ...args) { return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
 
 /** A local "remote" repository whose scripts/autopilot-check.sh prints `output` and exits with `code`. */
-function makeRemote(dir, output, code = 0) {
+function makeRemote(dir, output, code = 0, checkScript = null) {
   const origin = join(dir, "origin");
   mkdirSync(join(origin, "scripts"), { recursive: true });
   sh(origin, "init", "-q", "-b", "dev");
   sh(origin, "config", "user.email", "t@example.com"); sh(origin, "config", "user.name", "t");
   writeFileSync(join(origin, "out.txt"), output);
-  writeFileSync(join(origin, "scripts/autopilot-check.sh"), `#!/usr/bin/env bash\ncat "$(dirname "$0")/../out.txt"\n[ ${code} = 0 ] || { echo "boom" >&2; exit ${code}; }\n`);
+  writeFileSync(join(origin, "scripts/autopilot-check.sh"), checkScript ?? `#!/usr/bin/env bash\ncat "$(dirname "$0")/../out.txt"\n[ ${code} = 0 ] || { echo "boom" >&2; exit ${code}; }\n`);
   chmodSync(join(origin, "scripts/autopilot-check.sh"), 0o755);
   sh(origin, "add", "."); sh(origin, "commit", "-qm", "init");
   return origin;
 }
 
 const TOKEN = "tok_SECRET_1234567890";
-function setup(output, { code = 0, project = {}, config = {} } = {}) {
+function setup(output, { code = 0, project = {}, config = {}, checkScript = null } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "foreman-disp-"));
-  const origin = makeRemote(dir, output, code);
+  const origin = makeRemote(dir, output, code, checkScript);
   const cfg = {
     workdir: join(dir, "work"), ...config,
     projects: [{ name: "p", repo: origin, branch: "dev", fire_url_env: "P_URL", fire_token_env: "P_TOKEN", ...project }],
@@ -205,6 +205,114 @@ t("dispatch.sh --dry-run end to end", () => {
     assert.ok(out.includes("would start pretest-run u1") && out.includes("would start coding u2"));
     assert.ok(!out.includes(TOKEN));
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+const OTHER_SECRET = "other-secret-token-123";
+
+/** Variable names from `env` output (NAME=value lines only). */
+function envNames(dump) {
+  return dump.split("\n").map((l) => /^([A-Za-z_][A-Za-z0-9_]*)=/.exec(l)?.[1]).filter(Boolean);
+}
+
+t("safeEnv: keeps only PATH, HOME, LANG and the pass_env pairs", () => {
+  const env = { PATH: "/usr/bin", HOME: "/home/u", LANG: "C.UTF-8", OTHER_FIRE_TOKEN: OTHER_SECRET, OTHER_PROJECT_KEY: "other-key-456", P_TOKEN: TOKEN, SRC_TOKEN: "pass-me-123" };
+  assert.deepEqual(safeEnv(env, { DEPLOY_TOKEN: "SRC_TOKEN" }), { PATH: "/usr/bin", HOME: "/home/u", LANG: "C.UTF-8", DEPLOY_TOKEN: "pass-me-123" });
+});
+
+t("safeEnv: PATH, HOME, LANG only when set", () => {
+  assert.deepEqual(safeEnv({ HOME: "/h" }, {}), { HOME: "/h" });
+  assert.deepEqual(safeEnv({}, {}), {});
+});
+
+t("safeEnv: pass_env names PATH, HOME, LANG, empty or invalid are ignored", () => {
+  const env = { PATH: "/usr/bin", HOME: "/home/u", LANG: "C.UTF-8", EVIL: "evil-value", SRC: "src-value" };
+  const out = safeEnv(env, { PATH: "EVIL", HOME: "EVIL", LANG: "EVIL", "": "SRC", "1BAD": "SRC", "BAD-NAME": "SRC", "A B": "SRC", GOOD_NAME: "SRC" });
+  assert.deepEqual(out, { PATH: "/usr/bin", HOME: "/home/u", LANG: "C.UTF-8", GOOD_NAME: "src-value" });
+});
+
+t("safeEnv: missing or empty source variable adds nothing", () => {
+  assert.deepEqual(safeEnv({ PATH: "/p", EMPTY: "" }, { A: "MISSING", B: "EMPTY" }), { PATH: "/p" });
+});
+
+t("safeEnv: other projects' secrets never pass", () => {
+  const out = safeEnv({ PATH: "/usr/bin", OTHER_FIRE_TOKEN: OTHER_SECRET, OTHER_PROJECT_KEY: "other-key-456" }, {});
+  assert.ok(!("OTHER_FIRE_TOKEN" in out) && !("OTHER_PROJECT_KEY" in out));
+  assert.ok(!JSON.stringify(out).includes(OTHER_SECRET));
+});
+
+t("run: the check script gets only PATH, HOME, LANG and pass_env, never other secrets", async () => {
+  const { dir, cfg, env } = setup("", {
+    checkScript: `#!/usr/bin/env bash\nenv > envdump.txt\necho "NOTHING|Nothing to do."\n`,
+    project: { pass_env: { DEPLOY_KEY_VALUE: "SOURCE_DEPLOY_KEY" } },
+  });
+  try {
+    const testEnv = { ...env, LANG: "C.UTF-8", OTHER_FIRE_TOKEN: OTHER_SECRET, OTHER_PROJECT_KEY: "other-key-456", SOURCE_DEPLOY_KEY: "pass-value-42" };
+    const code = await run({ config: cfg, env: testEnv, fetch: async () => { throw new Error("must not be called"); }, log: () => {} });
+    assert.equal(code, 0);
+    const dump = readFileSync(join(cfg.workdir, "repos", "p", "envdump.txt"), "utf8");
+    assert.ok(!dump.includes(OTHER_SECRET), "other project's token leaked to the check");
+    assert.ok(!dump.includes("other-key-456"), "other project's key leaked to the check");
+    assert.ok(!dump.includes(TOKEN), "project fire token leaked to the check");
+    assert.ok(dump.split("\n").includes("DEPLOY_KEY_VALUE=pass-value-42"), "pass_env variable missing under its new name");
+    const allowed = new Set(["PATH", "HOME", "LANG", "DEPLOY_KEY_VALUE", "PWD", "SHLVL", "_", "OLDPWD"]);
+    for (const name of envNames(dump)) assert.ok(allowed.has(name), `unexpected variable ${name} in the check environment`);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("run: fire_command gets FOREMAN_* plus PATH, HOME, LANG and pass_env, never other secrets", async () => {
+  const { dir, cfg, env } = setup(SAMPLE, {
+    project: {
+      fire_command: `env > "$FOREMAN_UNIT.tmp" && mv "$FOREMAN_UNIT.tmp" "$FOREMAN_UNIT.env"`,
+      pass_env: { DEPLOY_KEY_VALUE: "SOURCE_DEPLOY_KEY" },
+      fire_url_env: undefined, fire_token_env: undefined, fire_cwd: undefined,
+    },
+  });
+  // The dispatcher runs under dispatch.sh, which exports the other project's secrets into the process environment.
+  const saved = { OTHER_FIRE_TOKEN: process.env.OTHER_FIRE_TOKEN, P_TOKEN: process.env.P_TOKEN };
+  process.env.OTHER_FIRE_TOKEN = OTHER_SECRET;
+  process.env.P_TOKEN = TOKEN;
+  try {
+    const testEnv = { ...env, LANG: "C.UTF-8", OTHER_FIRE_TOKEN: OTHER_SECRET, SOURCE_DEPLOY_KEY: "pass-value-42" };
+    assert.equal(await run({ config: cfg, env: testEnv, log: () => {} }), 0);
+    const repo = join(cfg.workdir, "repos", "p");
+    for (let i = 0; i < 50 && !(existsSync(join(repo, "u1.env")) && existsSync(join(repo, "u2.env"))); i++) await new Promise((r) => setTimeout(r, 100));
+    const allowed = new Set(["FOREMAN_PROJECT", "FOREMAN_KIND", "FOREMAN_UNIT", "PATH", "HOME", "LANG", "DEPLOY_KEY_VALUE", "PWD", "SHLVL", "_", "OLDPWD"]);
+    for (const [file, kind] of [["u1.env", "pretest-run"], ["u2.env", "coding"]]) {
+      const unit = file.slice(0, -4);
+      const dump = readFileSync(join(repo, file), "utf8");
+      assert.ok(!dump.includes(OTHER_SECRET), `${file}: other project's token leaked to the command`);
+      assert.ok(!dump.includes(TOKEN), `${file}: project fire token leaked to the command`);
+      const lines = dump.split("\n");
+      assert.ok(lines.includes("FOREMAN_PROJECT=p") && lines.includes(`FOREMAN_KIND=${kind}`) && lines.includes(`FOREMAN_UNIT=${unit}`), `${file}: FOREMAN_* missing`);
+      assert.ok(lines.includes("DEPLOY_KEY_VALUE=pass-value-42"), `${file}: pass_env variable missing under its new name`);
+      for (const name of envNames(dump)) assert.ok(allowed.has(name), `${file}: unexpected variable ${name}`);
+    }
+  } finally {
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    await new Promise((r) => setTimeout(r, 200));
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+t("run --dry-run and webhook bodies never contain another project's secret", async () => {
+  const ok = setup(SAMPLE);
+  const bad = setup(SAMPLE, { code: 3 });
+  try {
+    const logs = [];
+    const dryEnv = { ...ok.env, OTHER_FIRE_TOKEN: OTHER_SECRET };
+    assert.equal(await run({ config: ok.cfg, env: dryEnv, dryRun: true, fetch: async () => { throw new Error("must not be called"); }, log: (m) => logs.push(m) }), 0);
+    assert.ok(logs.some((l) => l.includes("would start pretest-run u1")));
+    assert.ok(!logs.join("\n").includes(OTHER_SECRET), "dry-run output");
+    const posts = [];
+    const fetch = async (url, o) => { posts.push(o.body); return { ok: true, status: 200, text: async () => "" }; };
+    await run({ config: bad.cfg, env: { ...bad.env, OTHER_FIRE_TOKEN: OTHER_SECRET, DISPATCHER_ERROR_WEBHOOK_URL: "https://hook.example/x" }, fetch, log: () => {} });
+    assert.equal(posts.length, 1, "one webhook for the failed check");
+    assert.ok(posts[0].includes("check exited with 3"));
+    assert.ok(!posts[0].includes(OTHER_SECRET), "webhook body");
+  } finally {
+    rmSync(ok.dir, { recursive: true, force: true });
+    rmSync(bad.dir, { recursive: true, force: true });
+  }
 });
 
 let n = 0;
