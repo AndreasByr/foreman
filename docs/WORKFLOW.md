@@ -57,3 +57,15 @@ A central dispatcher and one routine run the loop. The human only writes briefs 
 Task kinds the check prints: `pretest-run`, `pretest-result`, `input-received`, `uat-approved`, `batch`, `release-reminder`, `coding`. The first four depend on the tracker (itsaplan or Linear comments, or the files of tracker `none`). Locks last 3 hours, batch windows open every 4 hours (hours 3, 7, 11, 15, 19, 23 in the project's time zone, configurable).
 
 Without a server: Plan B is an hourly Claude Code routine on the smallest model that runs the same check (`template/docs/routines/delegation.md`). Setup steps and prompts: `template/docs/routines/`, dispatcher: `dispatcher/README.md`.
+
+## In a Claude Code project
+
+A project has a project chat (coordinator) and one thread per work package. A thread holds the repo, so the hand-off to a second session falls away. The rules stay the same.
+
+| Who | Does |
+|---|---|
+| Project chat | Triage (question, fix pack, milestone), opens a thread per package, passes UAT lists and PR links on |
+| Thread | Writes the pack or brief files and runs `foreman-fixpack` or `foreman-milestone` itself, with the same gates |
+| Human | Says "go" for PR, merge, release |
+
+The rules live in the project instructions. `foreman-project-mode` writes them (coordinator tool or paste) and refreshes them after an update, by comparing the version in the marker line `foreman-project-block`. Source of the text: `plugins/foreman/skills/foreman-project-mode/references/instruction-block.md`.
