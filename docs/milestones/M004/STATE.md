@@ -1,4 +1,4 @@
-Status: batch-pr · since 2026-11-21T18:55Z · Validierung abgeschlossen, dritte Runde von Andreas freigegeben, alle Gates grün auf 148cd1d
+Status: uat-waiting · since 2026-11-21T19:02Z · PR #12 nach dev gemergt (2f6c075), CI grün; UAT bei Andreas (docs/uat/M004.md)
 Target: dev
 Batch-branch: batch/m004
 Lock: free
@@ -63,3 +63,4 @@ Die Validierung Runde 3 fand einen mittleren Fund (P1-Zuordnung falsch, P2/P3/P5
 - 2026-11-21T18:15Z · S3 rot vor der Änderung: test-project-routing.py Exit 1 (16 FAIL) auf 9a28d30 + Test; grün danach: test-all.sh Exit 0 · 1f8ea67
 - 2026-11-21T18:30Z · R1 1e32242, R2 3da9544, R3 4a54a00 (Antrag); Validierung Runde 3: A/C needs-attention (1 mittel), B pass; test-all.sh Exit 0 auf 4a54a00; Status needs-input
 - 2026-11-21T18:55Z · Andreas gab die dritte Runde frei; R3b 148cd1d; test-all.sh Exit 0; Status batch-pr
+- 2026-11-21T19:02Z · Batch-PR #12 gemergt nach dev (2f6c075), Checks test und guards grün · UAT offen
