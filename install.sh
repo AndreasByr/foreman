@@ -6,7 +6,7 @@
 #                [--scope docs|repo|autopilot] [--agent claude-code|opencode|other]
 #                [--recommended-skills all|none|<name,name>] [--skills-scope global|project]
 #                [--session-model <exact model id>] [--workspace <file>] [--no-staging] [--force] [--dry-run]
-#                [--gateway-url <url> --fallback-model <claude/id> [--chatgpt-via-gateway accepted-risk]]
+#                [--gateway-url <url> --fallback-model <claude/id>] [--chatgpt-via-gateway accepted-risk|declined]
 #
 # Existing files are never overwritten without --force. An existing CLAUDE.md is kept and the
 # foreman rules are written to CLAUDE.foreman.md for you to merge. An existing .claude/settings.json
@@ -33,7 +33,7 @@ TEMPLATE="$HERE/template"
 VERSION="$(cat "$HERE/VERSION" 2>/dev/null || echo 0.2.0)"
 
 target="" project="" name="" modules="" scope="" model="" agent=claude-code rec="" skills_scope="" workspace="" staging=yes force=no dry=no
-gateway_url="" fallback_model="" chatgpt_via_gateway="" gw_key_env="" gw_on=no preset_written=no
+gateway_url="" fallback_model="" chatgpt_via_gateway="" chatgpt_given=no chatgpt="" gw_key_env="" gw_on=no preset_written=no
 while [ $# -gt 0 ]; do
   case "$1" in
     --project) project="$2"; shift 2 ;;
@@ -50,7 +50,7 @@ while [ $# -gt 0 ]; do
     --dry-run) dry=yes; shift ;;
     --gateway-url) gateway_url="$2"; shift 2 ;;
     --fallback-model) fallback_model="$2"; shift 2 ;;
-    --chatgpt-via-gateway) chatgpt_via_gateway="$2"; shift 2 ;;
+    --chatgpt-via-gateway) chatgpt_via_gateway="${2-}"; chatgpt_given=yes; shift 2 ;;
     -h|--help) awk 'NR>1 { if ($0 !~ /^#/) exit; sub(/^# ?/, ""); print }' "$0"; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) target="$1"; shift ;;
@@ -143,6 +143,7 @@ PY
 fi
 ws_gw_url="${ws_gw[0]:-}"; ws_gw_key="${ws_gw[1]:-}"; ws_gw_chatgpt="${ws_gw[2]:-}"
 case "$chatgpt_via_gateway" in ""|accepted-risk|declined) ;; *) gw_fail "--chatgpt-via-gateway accepts only accepted-risk or declined" ;; esac
+[ "$chatgpt_given" != yes ] || [ -n "$chatgpt_via_gateway" ] || gw_fail "--chatgpt-via-gateway needs a value: accepted-risk or declined (informed consent, see README.md)"
 if [ -n "$fallback_model" ]; then
   if [[ "$fallback_model" == *"<"* || "$fallback_model" == *">"* ]] || ! [[ "$fallback_model" =~ ^claude/[A-Za-z0-9._:-]+$ ]]; then
     gw_fail "--fallback-model (fallback model) must be an exact model ID like claude/ID, not a placeholder"
@@ -165,8 +166,9 @@ if [ "$gw_on" = yes ]; then
   for m in delegate gateway; do has "$m" || modules="${modules:+$modules,}$m"; done
   echo "note: gateway URL set; modules now include delegate and gateway"
 else
-  [ "$chatgpt_via_gateway" != accepted-risk ] || gw_fail "--chatgpt-via-gateway accepted-risk needs a gateway URL (--gateway-url, or a running gateway in --workspace with --fallback-model)"
+  [ "$chatgpt_via_gateway" != accepted-risk ] || has gateway || gw_fail "--chatgpt-via-gateway accepted-risk needs module gateway or a gateway URL (--gateway-url, or a running gateway in --workspace with --fallback-model)"
 fi
+chatgpt=""; [ "$chatgpt_via_gateway" = accepted-risk ] && chatgpt=accepted-risk
 
 installed=() kept=() skipped=()
 in_installed() { local x; for x in ${installed[@]+"${installed[@]}"}; do [ "$x" = "$1" ] && return 0; done; return 1; }
@@ -293,7 +295,9 @@ PY
   fi
   if has gateway; then
     mkdir -p "$target/tools/gateway"
-    for g in README.md litellm.config.example.yaml; do
+    gfiles=(README.md litellm.config.example.yaml)
+    [ "$chatgpt" = accepted-risk ] && gfiles+=(litellm.chatgpt.example.yaml)
+    for g in "${gfiles[@]}"; do
       if [ -e "$target/tools/gateway/$g" ] && [ "$force" = no ]; then kept+=("tools/gateway/$g"); continue; fi
       cp "$HERE/gateway/$g" "$target/tools/gateway/$g"; installed+=("tools/gateway/$g")
     done

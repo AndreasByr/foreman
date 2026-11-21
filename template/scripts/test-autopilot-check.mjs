@@ -118,6 +118,77 @@ t("batch: window, overdue, open PR, catch-up, main busy", () => {
   assert.ok(list[0].prompt.includes("Batch branch: batch/dev") && list[0].prompt.includes("Units: A"));
 });
 
+t("settings: mainAutoMerge is true only for the boolean true", () => {
+  assert.equal(S.mainAutoMerge, false);
+  assert.equal(settingsFrom({}, { autopilot: { mainAutoMerge: true } }).mainAutoMerge, true);
+  for (const v of [null, "true", "yes", 1, 0, "false", false, {}, []]) {
+    assert.equal(settingsFrom({}, { autopilot: { mainAutoMerge: v } }).mainAutoMerge, false, `value ${JSON.stringify(v)}`);
+  }
+});
+
+t("batch main: window and overdue start it only with mainAutoMerge true", () => {
+  const m = () => unit("M", "awaiting-merge", { target: "main", ref: "origin/batch/main", since: "2026-03-06T02:00:00Z" });
+  const at = (h) => new Date(`2026-03-06T${h}:10:00Z`);
+  const on = settingsFrom({}, { autopilot: { mainAutoMerge: true } });
+  const strOn = settingsFrom({}, { autopilot: { mainAutoMerge: "true" } });
+  const mainBatch = (list) => kinds(list).filter((k) => k.startsWith("batch:batch:main"));
+  assert.deepEqual(mainBatch(tasks({ units: [m()], now: at("07"), settings: S })), [], "default: no main batch in window");
+  assert.deepEqual(mainBatch(tasks({ units: [m()], now: at("08"), settings: S })), [], "default: no main batch when overdue");
+  assert.deepEqual(kinds(tasks({ units: [m()], now: at("07"), settings: on })), ["batch:batch:main"], "window");
+  assert.deepEqual(kinds(tasks({ units: [m()], now: at("08"), settings: on })), ["batch:batch:main"], "overdue");
+  assert.deepEqual(mainBatch(tasks({ units: [m()], now: at("07"), settings: strOn })), [], "string true is not enabled");
+  assert.deepEqual(mainBatch(tasks({ units: [m()], now: at("08"), settings: strOn })), [], "string true overdue is not enabled");
+});
+
+t("batch main: an open PR is continued with default settings, with and without a waiting unit", () => {
+  const at = (h) => new Date(`2026-03-06T${h}:10:00Z`);
+  const m = unit("M", "awaiting-merge", { target: "main", ref: "origin/batch/main", since: "2026-03-06T07:00:00Z" });
+  const withW = tasks({ units: [m], now: at("08"), settings: S, openPrs: { main: 5 } });
+  const mainWithW = withW.filter((x) => x.kind === "batch" && x.unit === "batch:main");
+  assert.equal(mainWithW.length, 1, "one main batch task with a waiting unit");
+  assert.ok(mainWithW[0].info.includes("#5"), mainWithW[0].info);
+  assert.ok(mainWithW[0].prompt.includes("Units: M"), mainWithW[0].prompt);
+  const noW = tasks({ units: [], now: at("08"), settings: S, openPrs: { main: 5 } });
+  const mainNoW = noW.filter((x) => x.kind === "batch" && x.unit === "batch:main");
+  assert.equal(mainNoW.length, 1, "one main batch task without a waiting unit");
+  assert.ok(mainNoW[0].info.includes("#5"), mainNoW[0].info);
+});
+
+t("batch main: window and overdue without an open PR or catch-up do not start it by default", () => {
+  const at = (h) => new Date(`2026-03-06T${h}:10:00Z`);
+  const m = unit("M", "awaiting-merge", { target: "main", ref: "origin/batch/main", since: "2026-03-06T02:00:00Z" });
+  assert.deepEqual(kinds(tasks({ units: [m], now: at("07"), settings: S })).filter((k) => k.startsWith("batch:")), [], "window, default");
+  assert.deepEqual(kinds(tasks({ units: [m], now: at("08"), settings: S })).filter((k) => k.startsWith("batch:")), [], "overdue, default");
+});
+
+t("batch main: catch-up still starts it without mainAutoMerge", () => {
+  const at = (h) => new Date(`2026-03-06T${h}:10:00Z`);
+  const m = unit("M", "awaiting-merge", { target: "main", ref: "origin/batch/main", since: "2026-03-06T02:00:00Z" });
+  const list = tasks({ units: [m], now: at("08"), settings: S, catchUp: { main: ["M"] } });
+  const mainTask = list.find((x) => x.kind === "batch" && x.unit === "batch:main");
+  assert.ok(mainTask, "main catch-up batch without mainAutoMerge");
+  assert.ok(mainTask.info.includes("catch-up"), mainTask.info);
+});
+
+t("batch main: held without mainAutoMerge, catch-up task carries only the catch-up units", () => {
+  const at = (h) => new Date(`2026-03-06T${h}:10:00Z`);
+  const w = unit("W", "awaiting-merge", { target: "main", ref: "origin/batch/main", since: "2026-03-06T02:00:00Z" });
+  const list = tasks({ units: [w], now: at("08"), settings: S, catchUp: { main: ["C"] } });
+  const mainTasks = list.filter((x) => x.kind === "batch" && x.unit === "batch:main");
+  assert.equal(mainTasks.length, 1, "exactly one main batch task");
+  assert.ok(mainTasks[0].info.includes("catch-up"), mainTasks[0].info);
+  assert.ok(mainTasks[0].prompt.includes("Units: C"), mainTasks[0].prompt);
+  assert.ok(!mainTasks[0].prompt.includes("W"), mainTasks[0].prompt);
+});
+
+t("batch dev: unaffected by mainAutoMerge", () => {
+  const at = (h) => new Date(`2026-03-06T${h}:10:00Z`);
+  const on = settingsFrom({}, { autopilot: { mainAutoMerge: true } });
+  const devUnits = () => [unit("A", "awaiting-merge", { target: "dev", ref: "origin/batch/dev", since: "2026-03-06T07:00:00Z" })];
+  assert.deepEqual(kinds(tasks({ units: devUnits(), now: at("07"), settings: S })), ["batch:batch:dev"], "dev in window, default");
+  assert.deepEqual(kinds(tasks({ units: devUnits(), now: at("07"), settings: on })), ["batch:batch:dev"], "dev in window, mainAutoMerge");
+});
+
 t("release reminder: weekday and hour in the zone, once per day", () => {
   const ready = [unit("R1", "release-ready", { target: "main" }), unit("R2", "release-ready", { target: "main" })];
   const fri9 = new Date("2026-03-06T09:05:00Z");
@@ -291,6 +362,43 @@ t("integration: units from remote branches, verdicts, catch-up, full check outpu
     assert.ok(out.includes("=== PROMPT 1 pretest-result p-one ==="));
     assert.ok(out.split("\n").filter((l) => l.startsWith("TASK|")).length <= 3);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("main: --no-fetch skips the fetch and prints the same TASK lines", async () => {
+  const state = (status, since) => `Status: ${status} since ${since}\nTarget: dev\nBatch-branch: batch/dev\nLock: free\nTracker: -\nPretest-round: 0\n`;
+  const files = {
+    "origin/batch/dev:docs/fixpacks/f-one/STATE.md": state("slice", "2026-03-06T01:00:00Z"),
+    "origin/batch/dev:docs/fixpacks/f-two/STATE.md": state("planning", "2026-03-06T02:00:00Z"),
+  };
+  const run = async (argv) => {
+    const calls = [];
+    const git = (args) => {
+      calls.push(args);
+      if (args[0] === "fetch") return { status: 0, stdout: "" };
+      if (args[0] === "for-each-ref") return { status: 0, stdout: "origin/batch/dev\n" };
+      if (args[0] === "ls-tree") {
+        const [, , , ref, dir] = args;
+        const hits = Object.keys(files).filter((k) => k.startsWith(`${ref}:${dir}/`)).map((k) => k.slice(ref.length + 1));
+        return { status: 0, stdout: hits.join("\n") };
+      }
+      if (args[0] === "show" && args[1] in files) return { status: 0, stdout: files[args[1]] };
+      return { status: 1, stdout: "" };
+    };
+    const lines = [];
+    const orig = console.log;
+    console.log = (...a) => lines.push(a.join(" "));
+    try {
+      await main(argv, { git, conf: {}, openPrs: { dev: null, main: null }, stderr: () => {} });
+    } finally { console.log = orig; }
+    return { calls, out: lines.join("\n") };
+  };
+  const withFetch = await run(["--now", "2026-03-06T08:10:00Z"]);
+  const noFetch = await run(["--no-fetch", "--now", "2026-03-06T08:10:00Z"]);
+  const taskLines = (out) => out.split("\n").filter((l) => l.startsWith("TASK|"));
+  assert.ok(taskLines(withFetch.out).length >= 1, withFetch.out);
+  assert.deepEqual(taskLines(noFetch.out), taskLines(withFetch.out));
+  assert.equal(noFetch.calls.some((c) => c[0] === "fetch"), false, "no fetch with --no-fetch");
+  assert.equal(withFetch.calls.filter((c) => c[0] === "fetch").length, 1, "one fetch without the option");
 });
 
 let n = 0;

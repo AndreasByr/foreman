@@ -26,7 +26,7 @@ Propose by role, fill exact models only after the version check.
 | `execution_simple` | cheap | worker provider | small, well-defined changes only |
 | `completion`, `subagent` | cheap | worker provider | never code |
 | `discuss`, `uat` | session model | session | |
-| fallback when the provider fails (key, limit, network, timeout) | cheapest Claude | Claude | automatic, one retry |
+| fallback when the provider fails (key, limit, network, timeout) | cheapest Claude | Claude | automatic, after up to 3 tries |
 
 Worker provider: Ollama Cloud (`OLLAMA_API_KEY`), the gateway, or Claude only.
 
@@ -39,10 +39,11 @@ Sessions and routines: work run and pretest on the strongest tier, repo sessions
 1. Fetch the worker provider's model list (Ollama Cloud: `ollama.com/search?c=cloud`) and the Anthropic model list.
 2. For each chosen model, check for a newer version in the same family.
 3. Show the table. The human decides per row; without an answer the newest of the same family.
-4. Write exact IDs, no aliases that change silently.
+4. Write the IDs as the Model ID rule below requires.
 
 ## Rules for the session
 
+- **Model ID rule:** exact model IDs for the session and direct providers; `task-*` aliases for gateway roles; the IDs are written only in `tools/delegate/config.toml`.
 - Every task file names a `role`; a task without one exits with code 2.
 - Code changes go through `execution_simple` or `execution`, never `completion` or `subagent`.
 - Accept without believing the report: scope check, tests, typecheck, lint, a test that was red before and green after, then `validation`.

@@ -2,8 +2,20 @@
 
 Why the rules in foreman exist. Skills hold the rule; the story lives here. Projects keep their own `docs/learnings.md` in the same format (one bullet per lesson, newest at the top).
 
+## From foreman itself
+
+- The gateway key had two names (`FOREMAN_GATEWAY_KEY` in the conventions, `LLM_GATEWAY_KEY` in the setup references) and the worker block list knew only one, so the key could reach a Claude worker. One name, `FOREMAN_GATEWAY_*` (the convention name won because the config, README and work-run template already used it), and a test that checks the worker environment for both old and new names. Existing installations that set `LLM_GATEWAY_*` must rename the variables.
+- Aliases like `opusplan` change silently and ran autonomous work on a smaller model, so model IDs are written exact. Gateway roles use the proxy's `task-*` aliases because the proxy maps them to models.
+- Workers in acceptEdits mode could edit skills, hooks and settings under `.claude/`, and with them the guard that restricts them. Workers are kept out of `.claude/`; only the session changes it.
+- A worker that reads a key file puts the secret into its transcript and result file. Existence and permissions are enough to diagnose a problem, so workers never read key files.
+
 ## From the reference project
 
+- A check script saw every variable of the dispatcher process, including the fire tokens of other projects. Scripts and commands now get only `PATH`, `HOME`, `LANG` and the `pass_env` names, because one project's token must never reach another project's script. A `pass_env` name that would override one of the three is ignored.
+- One webhook body with both `text` and `content` fits neither service strictly and hid wrong URLs. `webhook_format` picks the body. An unknown host or invalid URL is logged with the reason and nothing is sent. The URL itself is a secret and never appears in a log.
+- Merging into `main` reaches the outside, so a waiting window must not do it on its own. `mainAutoMerge` defaults to `false`, and only the boolean `true` counts; the string `"true"` in a hand-edited file is not consent. Closing units the human already merged still runs.
+- Environment variables do not cross `ssh`. For a local run the start script on the server holds the project's values; `pass_env` only helps a command that runs on the dispatcher machine.
+- In a Claude Code project the thread already holds the repo; a fix pack handed to a second session was an extra step, and threads fixed things directly outside the rules. The rules now sit in the project instructions (`foreman-project-mode`), so a thread fixes under the same header, gates and branch rules.
 - A cheap model in an hourly routine as dispatcher cost tokens every hour and still got timestamps and locks wrong. The check is a script and a model-free dispatcher fires the work runs; the routine with a model stays as Plan B for people without a server.
 - A separate pretest routine on the human's computer could not be started by API and stood idle whenever the computer was off. The pretest is a step of the work run in the cloud, with a test login instead of a browser session of the human.
 - Environment variable names must match exactly what the script reads. `ITSAPLAN_API_URL` is not `ITSAPLAN_URL`; a wrong name looks like a missing tracker and silently skips all answers and approvals. A name with a space in it never reaches the process at all.

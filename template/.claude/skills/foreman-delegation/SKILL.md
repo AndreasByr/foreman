@@ -17,6 +17,12 @@ description: How every coding order in {{PROJECT_NAME}} is done. Load for any co
 
 Details below. Read them when a case comes up.
 
+## Worker rules
+
+- **Model ID rule:** model IDs are exact (no aliases) for the session and for direct providers (`claude/<id>`, `ollama/<id>`); gateway roles use the `task-*` aliases; they are written only in `tools/delegate/config.toml`.
+- **Claude-dir rule:** workers do not write under `.claude/` (skills, hooks and settings are changed by the session only).
+- **Key-file rule:** workers do not read key files (`.env*`, `*.pem`, `id_*`, `credentials*`); they may check only their existence and permissions.
+
 ## Roles
 
 | Role | Writes code | Use |

@@ -533,5 +533,26 @@ for s in '45 minutes' 'terms of use' 'Codex CLI' 'API key' 'Ollama and Claude on
 done
 
 kill "$GW_PID" ${EXTRA_PIDS:-} 2>/dev/null || true; wait "$GW_PID" 2>/dev/null || true; GW_PID=""
+# 10. ChatGPT via gateway needs the explicit consent option
+mkdir "$T/cg1" && git -C "$T/cg1" init -q
+inst "$T/cg1" --project g --modules delegate,gateway >/dev/null 2>&1 || fail "gateway install without chatgpt option failed"
+[ -e "$T/cg1/tools/gateway/litellm.chatgpt.example.yaml" ] && fail "chatgpt file installed without consent"
+grep -rEq '^[[:space:]]*(-[[:space:]]*)?model:[[:space:]]*chatgpt/' "$T/cg1/tools" && fail "chatgpt model installed without consent: $(grep -rEl '^[[:space:]]*(-[[:space:]]*)?model:[[:space:]]*chatgpt/' "$T/cg1/tools" | head -3)"
+grep -Eq '^[[:space:]]*(-[[:space:]]*)?model:[[:space:]]*chatgpt/' "$T/cg1/tools/gateway/litellm.config.example.yaml" && fail "neutral gateway config contains chatgpt model"
+
+mkdir "$T/cg2" && git -C "$T/cg2" init -q
+inst "$T/cg2" --project g --modules delegate,gateway --chatgpt-via-gateway accepted-risk >/dev/null 2>&1 || fail "chatgpt option with accepted-risk failed"
+grep -Eq '^[[:space:]]*(-[[:space:]]*)?model:[[:space:]]*chatgpt/' "$T/cg2/tools/gateway/litellm.chatgpt.example.yaml" || fail "chatgpt example file has no chatgpt model"
+grep -Eq '^[[:space:]]*(-[[:space:]]*)?model:[[:space:]]*chatgpt/' "$T/cg2/tools/gateway/litellm.config.example.yaml" && fail "neutral gateway config contains chatgpt model with option"
+
+mkdir "$T/cg3" && git -C "$T/cg3" init -q
+rc=0; inst "$T/cg3" --project g --modules delegate,gateway --chatgpt-via-gateway yes >/dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] || fail "chatgpt option value 'yes': expected exit 2, got $rc"
+mkdir "$T/cg4" && git -C "$T/cg4" init -q
+rc=0; inst "$T/cg4" --project g --modules delegate,gateway --chatgpt-via-gateway "" >/dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] || fail "empty chatgpt option value: expected exit 2, got $rc"
+mkdir "$T/cg5" && git -C "$T/cg5" init -q
+rc=0; inst "$T/cg5" --project g --modules delegate --chatgpt-via-gateway accepted-risk >/dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] || fail "chatgpt option without module gateway: expected exit 2, got $rc"
 
 echo "install tests: ok"

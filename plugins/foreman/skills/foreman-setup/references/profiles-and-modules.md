@@ -29,7 +29,7 @@ What each profile produces:
 | `tracker-linear` | the same mirror in Linear, one ticket per unit, no sub-issues | Linear account and team, `LINEAR_API_KEY` | optional; mutually exclusive with itsaplan |
 | (neither) | `none`: `STATE.md` and files only | nothing | fully supported, equal in function; answers and approvals are files |
 | `delegate` | worker roles via `tools/delegate/run_task.py` | `OLLAMA_API_KEY` for Ollama Cloud, or the gateway; otherwise Claude workers | saves Claude quota; optional |
-| `gateway` | LiteLLM proxy example for workers: Ollama and a ChatGPT subscription behind one endpoint, fallback to `claude -p` | a machine for the proxy, `FOREMAN_GATEWAY_KEY` (the URL is no variable: it lives in `tools/delegate/config.toml` under `[gateway] base_url`) | optional; the installer writes the preset when a gateway URL is given; avoid LiteLLM versions 1.82.7 and 1.82.8; virtual keys only for `task-*` roles; no prompt logging |
+| `gateway` | LiteLLM proxy example for workers: Ollama Cloud behind one endpoint, optionally a ChatGPT subscription (only with the human's informed consent), fallback to `claude -p` | a machine for the proxy, `FOREMAN_GATEWAY_KEY`; the URL is `[gateway] base_url` in `tools/delegate/config.toml` (or `FOREMAN_GATEWAY_URL` when `base_url` is empty) | optional; the installer writes the preset when a gateway URL is given; avoid LiteLLM versions 1.82.7 and 1.82.8; virtual keys only for `task-*` roles; no prompt logging |
 | `autopilot` | dispatcher side in the project, work-run routine docs | GitHub, Claude Code routines, a machine for the dispatcher | implied by scope Autopilot |
 | `pretest` | browser pretest in the work run: Playwright, test login pattern, axe-core, role review | test login in the app, `TEST_LOGIN_SECRET`, non-production host | recommended for any product with a UI |
 
@@ -42,6 +42,8 @@ What each profile produces:
 | Claude Code | recommended | routines and the API trigger are the dispatcher's target; hooks and `CLAUDE.md` enforce the rules |
 | OpenCode | supported | `AGENTS.md` carries the rules; skills are referenced from `.claude/skills/*`; the dispatcher fires a command (`fire_command`, prompt on stdin, for example `opencode run`) on the same machine; resuming and parallel runs are yours to manage |
 | other | supported | like OpenCode |
+
+Claude Code without a cloud routine can also run through `fire_command` with the start script `dispatcher/fire-claude.example.sh` over ssh on your own machine (details in `dispatcher/README.md`).
 
 The git push guard also exists as a git hook (`.githooks/pre-push`), so it works without Claude hooks.
 
@@ -56,7 +58,7 @@ No always-on machine: Repo profile, started by hand. If the human still wants sc
   [--scope docs|repo|autopilot] \
   [--modules tracker-itsaplan|tracker-linear,delegate,gateway,autopilot,pretest] \
   [--agent claude-code|opencode|other] \
-  [--session-model <exact model id>] [--no-staging] [--force] [--dry-run] \
+  [--session-model <model id>] [--no-staging] [--force] [--dry-run] \
   [--recommended-skills all|none|<list>] [--skills-scope global|project] \
   [--workspace <file>] [--gateway-url <url> --fallback-model <claude/id>] \
   [--chatgpt-via-gateway accepted-risk|declined]
@@ -67,7 +69,7 @@ Rules for the command you hand out:
 - `--project` is a lowercase slug. `--name` is optional.
 - `--modules` is a comma list without spaces. At most one tracker module.
 - `--agent` defaults to `claude-code`.
-- `--session-model` is an exact model ID, never `opusplan`.
+- `--session-model` never takes `opusplan`.
 - `--no-staging` for projects without a separate staging environment (then `main` is production).
 - `--recommended-skills` and `--skills-scope`: leave out when the human decided in chat and you install the skills yourself or print the commands. Non-interactive without the flag means none.
 - `--workspace <file>`: a confirmed workspace.json, checked first; it becomes the `infra` block of `.foreman.json`.
@@ -80,11 +82,11 @@ Examples:
 
 ```
 # Repo profile, Claude Code, workers on Ollama
-./install.sh ~/code/my-app --project my-app --scope repo --modules delegate --session-model <exact id>
+./install.sh ~/code/my-app --project my-app --scope repo --modules delegate --session-model <model id>
 
 # Autopilot, itsaplan, delegate, pretest
 ./install.sh ~/code/my-app --project my-app --scope autopilot \
-  --modules tracker-itsaplan,delegate,autopilot,pretest --session-model <exact id>
+  --modules tracker-itsaplan,delegate,autopilot,pretest --session-model <model id>
 
 # Autopilot with OpenCode, no tracker
 ./install.sh ~/code/my-app --project my-app --scope autopilot --modules autopilot,pretest --agent opencode
@@ -95,7 +97,7 @@ Examples:
 | Where | Names |
 |---|---|
 | Dispatcher host (`dispatcher.env`) | the fire URL and fire token variable named per project in `config.example.json` (`fire_url_env`, `fire_token_env`), `ITSAPLAN_URL`, `ITSAPLAN_API_KEY` (own bot account), `GITHUB_TOKEN` (read only, for open batch PRs), optional failure webhook variable from `dispatcher.env.example` |
-| Work-run cloud environment | `OLLAMA_API_KEY` or `FOREMAN_GATEWAY_KEY`; tracker variables (`ITSAPLAN_URL`, `ITSAPLAN_API_KEY`, `ITSAPLAN_WEB_URL` or `LINEAR_API_KEY`); `TEST_LOGIN_SECRET` per environment for the pretest; project secrets for read-only API checks |
+| Work-run cloud environment | `OLLAMA_API_KEY` or `FOREMAN_GATEWAY_KEY` (the URL is in `config.toml`, or `FOREMAN_GATEWAY_URL` when `base_url` is empty); tracker variables (`ITSAPLAN_URL`, `ITSAPLAN_API_KEY`, `ITSAPLAN_WEB_URL` or `LINEAR_API_KEY`); `TEST_LOGIN_SECRET` per environment for the pretest; project secrets for read-only API checks |
 | App on dev and staging | `TEST_LOGIN` switch, `TEST_LOGIN_SECRET` (at least 32 characters); never on production |
 | CI | no local `.env` secrets; CI sets its own |
 

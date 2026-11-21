@@ -69,13 +69,24 @@ An item with new or changed UI (new element, new layout, new dialog) follows "de
 4. **Hand off.** **Module autopilot:** commit the pack to the batch branch with `Status: fixpack`. The central dispatcher (LLM-free, on the human's machine, every 10 minutes) sees it and starts a work run. To start at once from chat, fire the work-run routine with the order as payload, one fire per pack. Chat fires only for first starts, answers and approvals; never ask for the fire token. Without autopilot: give the human one line for a coding agent session: `Run fix pack <id>`. Before sending, one sentence to the human: pack with n items, version, batch branch.
 5. **Say what runs:** pack id, wait time (roughly 10 to 15 minutes per item; up to 3 hours if a milestone lock holds), and what happens next:
    - **dev:** `awaiting-merge` → the next bundle window (every 4 hours in the project's time zone: batch PR to `dev`, dev deploy) → cloud pretest in the work run → `uat-ready` with a UAT checklist (in the tracker, or `docs/uat/<unit>.md` with tracker `none`).
-   - **main:** `awaiting-merge` on `batch/main` → waits for the human's "batch PR main" → staging → cloud pretest → UAT → `release-ready`.
+   - **main:** `awaiting-merge` on `batch/main` → waits for the human's "batch PR main" → staging → cloud pretest → UAT → `release-ready`. The dispatcher starts no batch for `main` by itself unless `.foreman.json` has `autopilot.mainAutoMerge: true` (default `false`).
    - **milestone:** as in the milestone (batch PR `batch/mNNN → dev`, retest).
    The pretest is part of the work run. Do not run `foreman-pretest` from chat for the same unit and do not send its findings as a pack unless the human asks for a manual browser test.
 6. **Read the report on request:** `docs/fixpacks/<id>/STATE.md` and `docs/agent-reports/<date>-fixpack-<slug>.md`. Check status and commit per item. Propose open or blocked items for the next pack. Interim state: propose continuing ("Continue fix pack <id>." with the same header).
 7. **"Batch PR main / dev / mNNN":** start the bundle now: fire the work-run routine with this order, or give the human the line for a session. All `awaiting-merge` packs on that batch branch go to the target, CI, merge commit, deploy verification, then pretest. Never to `prod` from here.
 8. **"UAT <unit> approved":** the approval counts when it is recorded: with a tracker, the human ticks the UAT checklist or comments `UAT <unit> approved` under their own account; with tracker `none`, the line `UAT <unit> approved` in `docs/uat/<unit>.md` (a fully ticked checklist counts too). Chat can write that file or fire the payload `UAT <unit> approved` when the human says it here. Packs for `main` then go to `release-ready`. Releases follow `foreman-release`.
 9. **"Answer <unit>: ...":** the human's reply to an intervention (status `needs-input`, tracker status Action Required). Write it as `docs/answers/<unit>.md` with the line `Answer <unit>: ...` on the unit's batch branch (tracker `none`), or fire it as payload. In the tracker, the human's own comment with that prefix is enough; bot comments never count.
+
+## Project mode (Claude Code project)
+
+When `foreman-project-mode` detects a project (project chat plus threads), a thread holds the repo and runs the pack itself:
+
+| Who | Does |
+|---|---|
+| Project chat | Triage: question, fix pack or milestone. Opens one thread for the pack and hands over the findings. Writes no pack files |
+| Thread | Writes header, `ORDER.md` and `STATE.md` (steps 1 to 3), then runs the pack by the repo skill `foreman-fixpack` in the same session. Step 4 (hand-off) falls away; steps 5 to 9 are answered by the thread's own report |
+
+Same rules as everywhere: header, batch branch, failing test first, gates, UAT checklist, push only to `dev`, `batch/*` or the thread's own branch, PR and merge only on the human's go. A small fix during a running milestone goes on `batch/mNNN` in the milestone's thread. If the project instructions lack the foreman block, run `foreman-project-mode` first.
 
 ## Order text
 

@@ -17,6 +17,7 @@ active = "claude-only"
 
 [defaults]
 timeout_seconds = 900                      # per attempt
+                                           # default for every role; a role can set its own `timeout = <seconds>`; zero, negative or non-numeric values are rejected
 claude_login = "inherit"                   # Claude workers reuse the session's login (subscription). Required in
                                            # Claude Code cloud sessions: a clean HOME there means "Not logged in".
                                            # Keys of other providers, trackers and tokens are stripped either way.
@@ -27,12 +28,23 @@ claude_auth_env = ["CLAUDE_CODE_OAUTH_TOKEN"]  # names only, for "isolated" (tok
 # api_key_env     = "OLLAMA_API_KEY"       # NAME of the environment variable, never the value
 # fallback_model  = "claude/<small-model-id>"   # used when the Ollama API is unusable (key, limit, server, network, timeout)
 
+# Limits (optional; all commented out, the defaults apply). Provider locks last for the rest of the run after 3 failures in a row.
+# [limits]
+# max_calls_per_run = 12                 # all worker attempts of one run; reaching it stops the run with exit 1 and a report
+# ledger_file = "tasks/.limits.json"     # default, next to this file; kept out of git by the tasks/* rule
+# [limits.gateway]                       # same for claude, ollama or gateway
+# requests_per_minute = 10               # calls per minute to this provider, counted across runs in the ledger
+# requests_per_hour = 200                # calls per hour to this provider, counted across runs in the ledger
+# pause_seconds = 5                      # pause after a failure; doubles after each failure
+# max_pause_seconds = 60                 # upper bound for that pause
+
 # ===== Preset "claude-only" (active) =====
 # small = cheap/fast model, mid = standard coding model, large = strongest model.
 [roles.research]
 who = "worker"
 model = "claude/<small-model-id>"
 readonly = true
+# timeout = 1800                          # optional per role: this role's attempts abort after 1800 s
 
 [roles.planning]
 who = "worker"
@@ -88,9 +100,10 @@ model = "claude/<small-model-id>"
 # Workers get a virtual key that only reaches the task-* aliases. When the gateway is down or a limit is exhausted,
 # the wrapper repeats the role through `claude -p` with your Claude subscription (fallback_model).
 # [gateway]
-# base_url       = "https://gateway.example.com"       # Anthropic-compatible /v1/messages endpoint of the proxy
+# base_url       = "https://gateway.example.com"       # Anthropic-compatible /v1/messages endpoint of the proxy; empty = FOREMAN_GATEWAY_URL
 # api_key_env    = "FOREMAN_GATEWAY_KEY"               # NAME of the variable; value is a virtual key limited to task-*
 # fallback_model = "claude/<small-model-id>"
+# chatgpt_via_gateway = "accepted-risk"          # only with informed consent; see gateway/README.md (risk notice). Without it a chatgpt/ model is rejected
 #
 # [roles.research]
 # who = "worker"

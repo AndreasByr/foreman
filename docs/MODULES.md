@@ -9,11 +9,20 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 | `tracker-linear` (optional) | the same mirror to Linear, without sub-issues; done tickets archived after 7 days | `LINEAR_API_KEY`, a team with the states `In Progress`, `Wait for Merge`, `Testing`, `In Review`, `Done` (and `Action Required`, else `In Progress` is used) |
 | none (no tracker module) | nothing to mirror; questions, answers and UAT approvals live in files: `docs/answers/<unit>.md` (`Answer <unit>: ...`), `docs/uat/<unit>.md` (`UAT <unit> approved` or all points ticked), or the chat payload | nothing |
 | `delegate` | worker roles on Ollama Cloud models (Anthropic-compatible endpoint) | `OLLAMA_API_KEY` in the cloud environment, network access to `ollama.com` |
-| `gateway` | optional LiteLLM proxy in front of Ollama Cloud and a ChatGPT subscription (Codex OAuth) as a second worker backend; falls back to `claude -p` on your Claude subscription | a small server, `FOREMAN_GATEWAY_KEY` (virtual key); `gateway/` docs are copied to `tools/gateway/` |
+| `gateway` | optional LiteLLM proxy in front of Ollama Cloud and, optionally, a ChatGPT subscription (Codex OAuth, needs `--chatgpt-via-gateway accepted-risk`) as a second worker backend; falls back to `claude -p` on your Claude subscription | a small server, `FOREMAN_GATEWAY_KEY` (virtual key); `gateway/` docs are copied to `tools/gateway/` |
 | `autopilot` | `scripts/autopilot-check.sh` (the dispatcher's check), the work-run routine docs, `foreman-dispatch-run`; the central dispatcher in this repo's `dispatcher/` runs on your server | GitHub or similar, Claude Code routines (API trigger), a machine that is on for the dispatcher (or Plan B, see below) |
 | `pretest` | `foreman-pretest`, the headless pretest runner, UAT checklist script, test-login pattern doc | a test login in your app (`docs/test-login.md`), dev or staging environment, Playwright and axe-core installed in the worktree at run time |
 
 `tracker-itsaplan` and `tracker-linear` exclude each other.
+
+**Dispatcher settings** (module `autopilot`, see `dispatcher/README.md`):
+
+- `webhook_format`: `auto` (default), `discord` or `slack`. Picks the body of the error webhook; `auto` decides by host.
+- `pass_env`: per project in `dispatcher/config.json`. Only these variables plus `PATH`, `HOME` and `LANG` reach the check script and the command.
+- `fire_command`: per project. Local run with Claude Code; template `dispatcher/fire-claude.example.sh`, details in `dispatcher/README.md`.
+- `autopilot.mainAutoMerge`: in `.foreman.json`, default `false`. Only the boolean `true` lets the check start a batch for `main` on its own.
+
+Upgrade note: before this version a check script inherited the whole environment, and `main` started in the merge window. Now variables must be listed in `pass_env`, and `main` needs `mainAutoMerge: true`. `FOREMAN_*` overrides (for example `FOREMAN_TZ`) set in `dispatcher.env` no longer reach the check script unless listed in `pass_env`; move them to `.foreman.json` or to `pass_env`. Proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`) are not passed either. The check script also loses `GITHUB_TOKEN` unless the project lists it in `pass_env`; without it open batch PRs are not seen, so a `main` PR started by the human is not continued.
 
 ## Choosing
 
