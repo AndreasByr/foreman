@@ -43,7 +43,9 @@ Pretest verdict (last line of `docs/pretest/<unit>-round-N.md`): `Verdict: fix-r
 
 Modules in `.foreman.json`: `tracker-itsaplan` or `tracker-linear` (exclusive, none = no tracker), `delegate`, `gateway`, `autopilot`, `pretest`. Agent: `claude-code`, `opencode` or `other`. The chat skills read the project data from the `context` block (`stagingUrl`, `devUrl`, `testTenant`, `offLimits`, `language`, `timeZone`, `releaseDay`, `workRun`).
 
-Environment variable names are exact and contain no spaces: `ITSAPLAN_URL`, `ITSAPLAN_API_KEY`, `ITSAPLAN_WEB_URL`, `LINEAR_API_KEY`, `GITHUB_TOKEN`, `OLLAMA_API_KEY`, `FOREMAN_GATEWAY_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `TEST_LOGIN_SECRET_DEV`, `TEST_LOGIN_SECRET_STAGING`. Documents name variables, never print values.
+Environment variable names are exact and contain no spaces: `ITSAPLAN_URL`, `ITSAPLAN_API_KEY`, `ITSAPLAN_WEB_URL`, `LINEAR_API_KEY`, `GITHUB_TOKEN`, `OLLAMA_API_KEY`, `FOREMAN_GATEWAY_KEY`, `FOREMAN_GATEWAY_URL`, `CLAUDE_CODE_OAUTH_TOKEN`, `TEST_LOGIN_SECRET_DEV`, `TEST_LOGIN_SECRET_STAGING`. Documents name variables, never print values.
+
+The gateway key and URL are always `FOREMAN_GATEWAY_KEY` and `FOREMAN_GATEWAY_URL`; the wrapper never passes either (nor the old `LLM_GATEWAY_*` names) to a Claude worker. `[gateway] base_url` in `config.toml` wins over `FOREMAN_GATEWAY_URL`.
 
 Other `STATE.md` header fields: `Target: dev | main`, `Batch-branch:`, `Lock: free | <ISO time> <run id>`, `Tracker: <id> | -`, `Pretest-round: <N>`. The status line reads `Status: <status> · since <UTC YYYY-MM-DDTHH:MMZ> · <note>`.
 

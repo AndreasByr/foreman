@@ -190,6 +190,56 @@ def test_claude_worker_inherits_login_without_foreign_keys():
             assert bad not in seen, bad
 
 
+def test_gateway_names_not_in_claude_worker_env():
+    markers = {"FOREMAN_GATEWAY_KEY": "fgw-marker-key-111", "FOREMAN_GATEWAY_URL": "https://fgw-marker.example",
+               "LLM_GATEWAY_KEY": "llm-marker-key-222", "LLM_GATEWAY_URL": "https://llm-marker.example"}
+    for login in (None, "isolated"):
+        with tempfile.TemporaryDirectory() as t:
+            t = Path(t)
+            cfg = CONFIG if login is None else CONFIG.replace("timeout_seconds = 60\n",
+                                                              f'timeout_seconds = 60\nclaude_login = "{login}"\n', 1)
+            (t / "config.toml").write_text(cfg)
+            (t / "t.md").write_text("---\nrole: research\n---\nx\n")
+            args = ["t.md", "--config", "config.toml"]
+            env = _fake_claude(t, 'env > "$(dirname "$0")/env.txt"; echo \'{"result":"ok","is_error":false}\'\n')
+            env.update(markers)
+            env["CLAUDE_SESSION_MARKER"] = "keep-me"
+            p = subprocess.run([sys.executable, str(HERE / "run_task.py"), *args], capture_output=True, text=True, cwd=t, env=env)
+            assert p.returncode == 0, (login, p.stdout, p.stderr)
+            seen = (t / "bin" / "env.txt").read_text()
+            if login is None:  # inherited login: unrelated variables pass through; "isolated" uses an allow-list
+                assert "CLAUDE_SESSION_MARKER=keep-me" in seen, (login, "unrelated variable must still pass")
+            for name, value in markers.items():
+                assert value not in seen, (login, name)
+
+
+def test_gateway_base_url_from_env():
+    cfg_no_url = GATEWAY_CONFIG.replace('base_url = "https://gw.example"\n', "")
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        (t / "t.md").write_text("---\nrole: execution_simple\n---\nx\n")
+        dry = ["t.md", "--config", "config.toml", "--dry-run"]
+        (t / "config.toml").write_text(cfg_no_url)
+        # (a) variable supplies the gateway URL
+        env = {**os.environ, "FOREMAN_GATEWAY_URL": "https://gw.example"}
+        p = subprocess.run([sys.executable, str(HERE / "run_task.py"), *dry], capture_output=True, text=True, cwd=t, env=env)
+        assert p.returncode == 0 and "provider: gateway" in p.stdout, p
+        # (b) no variable, no base_url: config error
+        env = {k: v for k, v in os.environ.items() if k != "FOREMAN_GATEWAY_URL"}
+        p = subprocess.run([sys.executable, str(HERE / "run_task.py"), *dry], capture_output=True, text=True, cwd=t, env=env)
+        assert p.returncode == 2 and "[gateway] base_url" in p.stderr, p
+        # config base_url wins over the variable
+        (t / "config.toml").write_text(GATEWAY_CONFIG.replace("https://gw.example", "https://from-config.example"))
+        env = {**os.environ, "FOREMAN_GATEWAY_URL": "https://from-env.example"}
+        p = subprocess.run([sys.executable, str(HERE / "run_task.py"), *dry], capture_output=True, text=True, cwd=t, env=env)
+        assert p.returncode == 0, p
+
+
+def test_gateway_key_default_name():
+    cfg = rt.tomllib.loads(GATEWAY_CONFIG.replace('api_key_env = "TEST_GATEWAY_KEY"\n', ""))
+    assert rt.endpoint_cfg(cfg, "gateway")["api_key_env"] == "FOREMAN_GATEWAY_KEY"
+
+
 def test_config_rejects_api_key_and_bad_login_mode():
     cfg = rt.tomllib.loads(CONFIG)
     cfg.setdefault("env", {}); cfg.setdefault("mcp", {}); cfg.setdefault("claude", {})

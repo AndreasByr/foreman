@@ -72,7 +72,9 @@ It starts nothing and rejects model placeholders that setup has not filled in.
 
 ## Claude login of workers
 
-Claude workers reuse the login of the running session (`claude_login = "inherit"`, the default). This is required in Claude Code cloud sessions and routines: the login belongs to the session, so a worker with a clean `HOME` and no token fails with "Not logged in". Keys of other providers, trackers and tokens (`ANTHROPIC_API_KEY`, `OLLAMA_API_KEY`, `LLM_GATEWAY_KEY`, `ITSAPLAN_*`, `LINEAR_*`, `GITHUB_TOKEN`, `*_FIRE_TOKEN`, Discord tokens) are stripped either way.
+Claude workers reuse the login of the running session (`claude_login = "inherit"`, the default). This is required in Claude Code cloud sessions and routines: the login belongs to the session, so a worker with a clean `HOME` and no token fails with "Not logged in". Keys of other providers, trackers and tokens (`ANTHROPIC_API_KEY`, `OLLAMA_API_KEY`, `FOREMAN_GATEWAY_KEY`, `FOREMAN_GATEWAY_URL`, `ITSAPLAN_*`, `LINEAR_*`, `GITHUB_TOKEN`, `*_FIRE_TOKEN`, Discord tokens) are stripped either way.
+
+The gateway variables never reach Claude workers.
 
 `claude_login = "isolated"` gives workers a clean `HOME`; then only `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) logs them in. `ANTHROPIC_API_KEY` is rejected: subscription only.
 

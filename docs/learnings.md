@@ -2,6 +2,10 @@
 
 Why the rules in foreman exist. Skills hold the rule; the story lives here. Projects keep their own `docs/learnings.md` in the same format (one bullet per lesson, newest at the top).
 
+## From foreman itself
+
+- The gateway key had two names (`FOREMAN_GATEWAY_KEY` in the conventions, `LLM_GATEWAY_KEY` in the setup references) and the worker block list knew only one, so the key could reach a Claude worker. One name, `FOREMAN_GATEWAY_*` (the convention name won because the config, README and work-run template already used it), and a test that checks the worker environment for both old and new names. Existing installations that set `LLM_GATEWAY_*` must rename the variables.
+
 ## From the reference project
 
 - A cheap model in an hourly routine as dispatcher cost tokens every hour and still got timestamps and locks wrong. The check is a script and a model-free dispatcher fires the work runs; the routine with a model stays as Plan B for people without a server.

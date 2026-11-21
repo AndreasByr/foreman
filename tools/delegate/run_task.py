@@ -31,12 +31,14 @@ VALID_PROVIDERS = ("claude", "ollama", "gateway")
 # Providers that talk to an Anthropic-compatible endpoint with their own key (settings: [defaults] for ollama, [gateway]).
 ENDPOINT_PROVIDERS = ("ollama", "gateway")
 DEFAULT_CLAUDE_AUTH_ENV = ["CLAUDE_CODE_OAUTH_TOKEN"]  # subscription token (`claude setup-token`); never an API key
+GATEWAY_URL_ENV = "FOREMAN_GATEWAY_URL"  # gateway base URL when [gateway] / [defaults] set none
+GATEWAY_KEY_ENV = "FOREMAN_GATEWAY_KEY"  # gateway key variable when no api_key_env is configured
 # A Claude worker that cannot log in. In a Claude Code cloud session the login belongs to the session; a worker with a
 # clean HOME and no token gets "Not logged in". Then every further Claude attempt fails the same way (exit 5).
 CLAUDE_LOGIN_ERROR = re.compile(r"not logged in|please run /login|authentication error|invalid (?:x-)?api[ _-]?key|"
                                 r"oauth token (?:has )?expired|credit balance is too low", re.I)
 # Keys that never reach a Claude worker, even with the inherited login.
-NEVER_TO_CLAUDE_WORKER = re.compile(r"^(?:ANTHROPIC_API_KEY|OLLAMA_API_KEY|LLM_GATEWAY_KEY|ITSAPLAN_\w+|LINEAR_\w+|"
+NEVER_TO_CLAUDE_WORKER = re.compile(r"^(?:ANTHROPIC_API_KEY|OLLAMA_API_KEY|FOREMAN_GATEWAY_\w+|LLM_GATEWAY_\w+|ITSAPLAN_\w+|LINEAR_\w+|"
                                     r"GITHUB_TOKEN|GH_TOKEN|DISCORD_\w*TOKEN\w*|\w*_FIRE_TOKEN)$")
 
 # Provider outage patterns (auth, limit, server, network); only checked when an ollama or gateway instance failed.
@@ -180,8 +182,8 @@ def endpoint_cfg(cfg, provider):
     d = cfg["defaults"]
     if provider == "gateway":
         g = cfg.get("gateway", {})
-        return {"base_url": g.get("base_url") or d.get("gateway_base_url", ""),
-                "api_key_env": g.get("api_key_env") or d.get("gateway_api_key_env", ""),
+        return {"base_url": g.get("base_url") or d.get("gateway_base_url") or os.environ.get(GATEWAY_URL_ENV) or "",
+                "api_key_env": g.get("api_key_env") or d.get("gateway_api_key_env") or GATEWAY_KEY_ENV,
                 "fallback_model": g.get("fallback_model", "")}
     return {"base_url": d.get("base_url", ""), "api_key_env": d.get("api_key_env", ""),
             "fallback_model": d.get("fallback_model", "")}

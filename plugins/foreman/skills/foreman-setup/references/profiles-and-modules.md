@@ -29,7 +29,7 @@ What each profile produces:
 | `tracker-linear` | the same mirror in Linear, one ticket per unit, no sub-issues | Linear account and team, `LINEAR_API_KEY` | optional; mutually exclusive with itsaplan |
 | (neither) | `none`: `STATE.md` and files only | nothing | fully supported, equal in function; answers and approvals are files |
 | `delegate` | worker roles via `tools/delegate/run_task.py` | `OLLAMA_API_KEY` for Ollama Cloud, or the gateway; otherwise Claude workers | saves Claude quota; optional |
-| `gateway` | LiteLLM proxy example for workers: Ollama and a ChatGPT subscription behind one endpoint, fallback to `claude -p` | a machine for the proxy, `LLM_GATEWAY_URL`, `LLM_GATEWAY_KEY` | documented, not required; avoid LiteLLM versions 1.82.7 and 1.82.8; virtual keys only for `task-*` roles; no prompt logging |
+| `gateway` | LiteLLM proxy example for workers: Ollama and a ChatGPT subscription behind one endpoint, fallback to `claude -p` | a machine for the proxy, `FOREMAN_GATEWAY_URL`, `FOREMAN_GATEWAY_KEY` | documented, not required; avoid LiteLLM versions 1.82.7 and 1.82.8; virtual keys only for `task-*` roles; no prompt logging |
 | `autopilot` | dispatcher side in the project, work-run routine docs | GitHub, Claude Code routines, a machine for the dispatcher | implied by scope Autopilot |
 | `pretest` | browser pretest in the work run: Playwright, test login pattern, axe-core, role review | test login in the app, `TEST_LOGIN_SECRET`, non-production host | recommended for any product with a UI |
 
@@ -89,7 +89,7 @@ Examples:
 | Where | Names |
 |---|---|
 | Dispatcher host (`dispatcher.env`) | the fire URL and fire token variable named per project in `config.example.json` (`fire_url_env`, `fire_token_env`), `ITSAPLAN_URL`, `ITSAPLAN_API_KEY` (own bot account), `GITHUB_TOKEN` (read only, for open batch PRs), optional failure webhook variable from `dispatcher.env.example` |
-| Work-run cloud environment | `OLLAMA_API_KEY` or `LLM_GATEWAY_URL` and `LLM_GATEWAY_KEY`; tracker variables (`ITSAPLAN_URL`, `ITSAPLAN_API_KEY`, `ITSAPLAN_WEB_URL` or `LINEAR_API_KEY`); `TEST_LOGIN_SECRET` per environment for the pretest; project secrets for read-only API checks |
+| Work-run cloud environment | `OLLAMA_API_KEY` or `FOREMAN_GATEWAY_URL` and `FOREMAN_GATEWAY_KEY`; tracker variables (`ITSAPLAN_URL`, `ITSAPLAN_API_KEY`, `ITSAPLAN_WEB_URL` or `LINEAR_API_KEY`); `TEST_LOGIN_SECRET` per environment for the pretest; project secrets for read-only API checks |
 | App on dev and staging | `TEST_LOGIN` switch, `TEST_LOGIN_SECRET` (at least 32 characters); never on production |
 | CI | no local `.env` secrets; CI sets its own |
 

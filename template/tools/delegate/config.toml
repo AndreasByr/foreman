@@ -88,7 +88,7 @@ model = "claude/<small-model-id>"
 # Workers get a virtual key that only reaches the task-* aliases. When the gateway is down or a limit is exhausted,
 # the wrapper repeats the role through `claude -p` with your Claude subscription (fallback_model).
 # [gateway]
-# base_url       = "https://gateway.example.com"       # Anthropic-compatible /v1/messages endpoint of the proxy
+# base_url       = "https://gateway.example.com"       # Anthropic-compatible /v1/messages endpoint of the proxy; empty = FOREMAN_GATEWAY_URL
 # api_key_env    = "FOREMAN_GATEWAY_KEY"               # NAME of the variable; value is a virtual key limited to task-*
 # fallback_model = "claude/<small-model-id>"
 #
