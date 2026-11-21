@@ -1,4 +1,4 @@
-Status: batch-pr · since 2026-11-21T16:10Z · Validierung Runde 2: A needs-attention, B pass, C needs-attention; Rework R3 fertig, Validierung Runde 3: pass, bereit für Batch-PR
+Status: uat-ready · since 2026-11-21T16:10Z · Validierung Runde 2: A needs-attention, B pass, C needs-attention; Rework R3 fertig, Validierung Runde 3: pass, bereit für Batch-PR
 Target: dev
 Batch-branch: batch/m003
 Lock: free
@@ -64,3 +64,4 @@ One question, options, recommendation.
 - 2026-11-21T19:35Z · Rework R3 fertig, test-all.sh grün (Exit 0) · e3364ec
 - 2026-11-21T19:55Z · Validierung Runde 3: A pass, B pass, C pass; Gesamt pass; Endlauf test-all.sh Exit 0 · 58b1916
 - 2026-11-21T17:19Z · Merge mit origin/dev aufgelöst, Prüflauf (nur niedrig), test-all.sh Exit 0 · 797f8ff
+- 2026-11-21T17:27Z · Batch-PR #7 gemergt nach dev (Merge-Commit d0646ad), CI grün (test, guards); UAT-Liste docs/uat/M003.md · d0646ad
