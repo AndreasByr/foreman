@@ -67,6 +67,9 @@ Read `references/tracker.md`. The tracker is `itsaplan`, `linear` or `none`, tak
 
 ## Quality rules
 
+**Public repos**
+- Before writing planning files into a public repo, check its visibility. In a public repo, no real project, customer, host or person names: use neutral placeholders (Project A, server-1, the maintainer). Run `bash scripts/privacy-scan.sh` before every push.
+
 **Slices**
 - One slice is one bounded agent order, fully doable in one session, with a technically checkable done state ("route returns 200", "form saves to the database").
 - Ordered by technical dependency; no slice builds on an unfinished one. Independent slices may run in parallel.
