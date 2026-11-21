@@ -5,14 +5,15 @@
 const STAND = /^\s*(?:>\s*|[-*]\s+)*(?:\*\*Stand:\*\*|\*\*Stand\*\*:|Stand:)/;
 
 // A version mention: a keyword plus an optional colon and a number, or a lone v/V directly followed by a digit.
-// \b keeps "dev" and "Review" out. Group 1 holds the connected items after the first number,
-// e.g. " bis 27" or ", v10, v11"; ITEM decides which of them count.
-const VERSION = /(?:\b(?:Versionen|Versions|Version|Fassungen|Fassung)\s*:?\s*|\b[vV](?=\d))\d+(?:\.\d+)*((?:\s*(?:,|-|–|&|\b(?:und|and|bis|to)\b)\s*[vV]?\d+(?:\.\d+)*)*)/g;
+// \b keeps "dev" and "Review" out; the flag i makes keywords and v case-insensitive.
+// Group 1 holds the whole chain of connected numbers after the first one, e.g. " bis 27" or ", v10, v11".
+const VERSION = /(?:\b(?:Versionen|Versions|Version|Fassungen|Fassung)\s*:?\s*|\b[vV](?=\d))\d+(?:\.\d+)*((?:\s*(?:,|-|–|&|\b(?:und|and|bis|to)\b)\s*[vV]?\d+(?:\.\d+)*)*)/gi;
 
-// One connected item: its connector and its optional v/V prefix.
-const ITEM = /(,|-|–|&|\b(?:und|and|bis|to)\b)\s*([vV]?)\d+(?:\.\d+)*/g;
-const RANGE = /^(?:-|–|bis|to)$/;
-const PLURAL = /^(?:Versionen|Versions|Fassungen)/;
+// One connected item: its connector, its optional v/V prefix and its number.
+const ITEM = /(?:,|-|–|&|\b(?:und|and|bis|to)\b)\s*([vV]?)\d+(?:\.\d+)*/gi;
+
+// Matches only where no word follows the number (", 12 neue" does not count; ", 21. November" does not either).
+const NO_WORD_AFTER = /^(?!\.?\s*[A-Za-zÄÖÜäöüß])/;
 
 // Dates in dd.mm.yyyy, d.m.yyyy, dd.mm. (no year) or yyyy-mm-dd are not versions.
 const DATE = /\b\d{1,2}\.\d{1,2}\.(?:\d{4}\b|(?!\d))|\b\d{4}-\d{2}-\d{2}\b/g;
@@ -25,12 +26,13 @@ function versionsIn(line) {
   const text = line.replace(DATE, " ").replace(CODE, " ");
   let count = 0;
   for (const m of text.matchAll(VERSION)) {
-    // The first number counts once. A connected item counts if it is a range,
-    // the keyword is plural, or the number has a v prefix.
-    const plural = PLURAL.test(m[0]);
+    // The first number counts once. A connected item counts if it has a v prefix,
+    // or if its bare number is not followed by a word in the rest of the line.
     count += 1;
+    const chainStart = m.index + m[0].length - m[1].length;
     for (const item of m[1].matchAll(ITEM)) {
-      if (RANGE.test(item[1]) || plural || item[2]) count += 1;
+      const rest = text.slice(chainStart + item.index + item[0].length);
+      if (item[1] || NO_WORD_AFTER.test(rest)) count += 1;
     }
   }
   return count;
@@ -41,8 +43,9 @@ export function checkDocs(text) {
   const stand = [];
   let fence = false;
   for (const line of source.split(/\r?\n/)) {
-    // Lines inside ``` fences are code, not the overview.
-    if (/^\s*```/.test(line)) fence = !fence;
+    // A line starting (after spaces or >) with ``` or ~~~ toggles a fenced block; lines inside are code.
+    // An unclosed fence therefore hides everything after it.
+    if (/^[\s>]*(?:```|~~~)/.test(line)) fence = !fence;
     else if (!fence && STAND.test(line)) stand.push(line);
   }
   const problems = [];

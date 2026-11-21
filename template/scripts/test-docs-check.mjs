@@ -63,6 +63,34 @@ t("ok: comma and plain number in the note after a singular keyword", () => {
   expectOk("**Stand:** 14.10.2026, Version 3, 12 neue Milestones");
 });
 
+t("ok: bare number and a word after the comma (12 neue Milestones)", () => {
+  expectOk("**Stand:** 14.10.2026, Version 3, 12 neue Milestones");
+});
+
+t("ok: bare number after the comma is a date with a month name", () => {
+  expectOk("**Stand:** Version 3, 21. November 2026");
+});
+
+t("ok: hyphen range, then a bare number followed by a word", () => {
+  expectOk("**Stand:** 14.10.2026, Version 3 - 5 neue Milestones");
+});
+
+t("ok: en-dash range, then a date with a month name", () => {
+  expectOk("**Stand:** Version 3 – 21. November 2026");
+});
+
+t("ok: lowercase keyword version", () => {
+  expectOk("**Stand:** 14.10.2026, version 3 (Kapitel 4)");
+});
+
+t("ok: Version: 3 form with a colon", () => {
+  expectOk("**Stand:** 14.10.2026, Version: 3 (x)");
+});
+
+t("ok: list prefix before the Stand line", () => {
+  expectOk("- **Stand:** 14.10.2026, Version 3 (x)");
+});
+
 t("ok: date without year", () => {
   expectOk("**Stand:** Version 3, 21.11.");
 });
@@ -126,6 +154,26 @@ t("problem: second version in the note (v-prefix)", () => {
   expectProblem("**Stand:** 14.10.2026, Version 3 (v0.2.2 veröffentlicht)", MULTI);
 });
 
+t("problem: bare-number list after singular Version", () => {
+  expectProblem("**Stand:** 14.10.2026, Version 9, 10, 11 (Verlauf)", MULTI);
+});
+
+t("problem: bare number after und after singular Version", () => {
+  expectProblem("**Stand:** 14.10.2026, Version 2 und 3", MULTI);
+});
+
+t("problem: bare number after & after singular Version", () => {
+  expectProblem("**Stand:** 14.10.2026, Version 26 & 27", MULTI);
+});
+
+t("problem: plural range with a hyphen", () => {
+  expectProblem("**Stand:** 14.10.2026, Versionen 9 - 27", MULTI);
+});
+
+t("problem: lowercase version und version", () => {
+  expectProblem("**Stand:** 14.10.2026, version 3 und version 4", MULTI);
+});
+
 // ----- problem cases: Stand line count -----
 
 t("problem: empty string has no Stand line", () => {
@@ -148,6 +196,28 @@ t("problem: quote-block Stand line plus a normal Stand line", () => {
     "> **Stand:** 14.10.2026, Version 27 (Kapitel 4 ergänzt)\n\nText.\n\n**Stand:** 21.11.2026, Version 28 (M008)\n",
     MANY_STAND,
   );
+});
+
+// ----- fenced blocks and list prefixes -----
+
+t("problem: only Stand line inside a ``` fence", () => {
+  expectProblem("# Roadmap\n\n```\n**Stand:** 14.10.2026, Version 27 (Kapitel 4)\n```\n", NO_STAND);
+});
+
+t("problem: only Stand line inside a ~~~ fence", () => {
+  expectProblem("# Roadmap\n\n~~~\n**Stand:** 14.10.2026, Version 27 (Kapitel 4)\n~~~\n", NO_STAND);
+});
+
+t("ok: real Stand line plus a second one inside a fence", () => {
+  expectOk("**Stand:** 14.10.2026, Version 27 (Kapitel 4)\n\n```md\n**Stand:** 21.11.2026, Version 28 (M008)\n```\n");
+});
+
+t("problem: unclosed fence hides the only Stand line after it", () => {
+  expectProblem("# Roadmap\n\n```\n**Stand:** 14.10.2026, Version 27 (Kapitel 4)\n", NO_STAND);
+});
+
+t("ok: unclosed fence hides a second Stand line after it", () => {
+  expectOk("**Stand:** 14.10.2026, Version 27 (Kapitel 4)\n\n```\n**Stand:** 21.11.2026, Version 28 (M008)\n");
 });
 
 // ----- invariant -----
