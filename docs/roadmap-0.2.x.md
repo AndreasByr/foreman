@@ -477,6 +477,7 @@ Go/no-go: Mirror-Trockenlauf gegen ein Projekt aus der Vorlage endet mit Exit 0.
 | S2 | Upgrade-Abschnitte | `CHANGELOG.md` bekommt je Version einen Abschnitt „Upgrade“ (Dateien, Schritte, optional); ab 0.2.1 nachgetragen | Lint-Test: jede Version hat den Abschnitt |
 | S3 | `install.sh --update` | Update-Modus mit `--dry-run`, beachtet die Klassen, erhöht `version` in `.foreman.json` erst nach Erfolg | Test: Testprojekt mit angepasster `CLAUDE.md` und `config.toml` bleibt dort unverändert, foreman-eigene Dateien aktuell |
 | S4 | Skill | Chat-Skill `foreman-update`: Versionsvergleich, Liste der Änderungen, Checkliste für Schritte außerhalb des Repos, neue Module nur nach Ja | Plugin-Validierung grün; Durchlauf am Testprojekt erzeugt Auftrag und Checkliste |
+| S5 | Projektanweisung | `foreman-update` ruft am Ende `foreman-project-mode` im Auffrischen-Modus auf (Versionsvergleich der Markierung `foreman-project-block`); in einem Claude-Projekt steht die Checkliste-Zeile „Projektanweisung aktuell“ | Test: Testprojekt mit Block v0 meldet „veraltet“, mit aktuellem Block „aktuell“ |
 
 ---
 
@@ -498,6 +499,7 @@ Ein Projekt auf 0.2.1 kommt per `foreman-update` auf den neuen Stand, und alles 
 - [ ] **Anpassungen bleiben** [agent]: Test mit angepasster `CLAUDE.md` und `config.toml` grün.
 - [ ] **Version erst nach Erfolg** [agent]: abgebrochenes Update lässt `version` unverändert.
 - [ ] **Checkliste** [human]: Die Schritte außerhalb des Repos sind nummeriert und mit Minuten versehen.
+- [ ] **Projektanweisung** [agent]: veralteter Block wird erkannt, aktueller als „aktuell“ gemeldet.
 
 Go/no-go: Projekteigene Dateien bleiben beim Update unverändert.
 

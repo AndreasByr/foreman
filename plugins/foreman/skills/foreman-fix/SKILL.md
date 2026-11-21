@@ -77,6 +77,17 @@ An item with new or changed UI (new element, new layout, new dialog) follows "de
 8. **"UAT <unit> approved":** the approval counts when it is recorded: with a tracker, the human ticks the UAT checklist or comments `UAT <unit> approved` under their own account; with tracker `none`, the line `UAT <unit> approved` in `docs/uat/<unit>.md` (a fully ticked checklist counts too). Chat can write that file or fire the payload `UAT <unit> approved` when the human says it here. Packs for `main` then go to `release-ready`. Releases follow `foreman-release`.
 9. **"Answer <unit>: ...":** the human's reply to an intervention (status `needs-input`, tracker status Action Required). Write it as `docs/answers/<unit>.md` with the line `Answer <unit>: ...` on the unit's batch branch (tracker `none`), or fire it as payload. In the tracker, the human's own comment with that prefix is enough; bot comments never count.
 
+## Project mode (Claude Code project)
+
+When `foreman-project-mode` detects a project (project chat plus threads), a thread holds the repo and runs the pack itself:
+
+| Who | Does |
+|---|---|
+| Project chat | Triage: question, fix pack or milestone. Opens one thread for the pack and hands over the findings. Writes no pack files |
+| Thread | Writes header, `ORDER.md` and `STATE.md` (steps 1 to 3), then runs the pack by the repo skill `foreman-fixpack` in the same session. Step 4 (hand-off) falls away; steps 5 to 9 are answered by the thread's own report |
+
+Same rules as everywhere: header, batch branch, failing test first, gates, UAT checklist, push only to `dev`, `batch/*` or the thread's own branch, PR and merge only on the human's go. A small fix during a running milestone goes on `batch/mNNN` in the milestone's thread. If the project instructions lack the foreman block, run `foreman-project-mode` first.
+
 ## Order text
 
 Describe what, not how. Say "the Agent". No model names. The header is mandatory.

@@ -66,6 +66,7 @@ Principles: [docs/PRINCIPLES.md](docs/PRINCIPLES.md). Lifecycle: [docs/WORKFLOW.
 |---|---|
 | `foreman-setup` | set up foreman for your situation, step by step |
 | `foreman-project` | start a new project, full or quick |
+| `foreman-project-mode` | write the foreman rules into a Claude Code project's instructions; also the refresh after an update |
 | `foreman-quick` | write the one-shot prompt for a demo or prototype |
 | `foreman-roast` | challenge an idea and end with `docs/requirements.md` |
 | `foreman-roadmap` | versions, milestones, slices, human test flows |
