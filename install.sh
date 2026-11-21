@@ -5,7 +5,7 @@
 #                [--modules tracker-itsaplan|tracker-linear,delegate,gateway,autopilot,pretest]
 #                [--scope docs|repo|autopilot] [--agent claude-code|opencode|other]
 #                [--recommended-skills all|none|<name,name>] [--skills-scope global|project]
-#                [--session-model <exact model id>] [--no-staging] [--force] [--dry-run]
+#                [--session-model <exact model id>] [--workspace <file>] [--no-staging] [--force] [--dry-run]
 #
 # Existing files are never overwritten without --force. An existing CLAUDE.md is kept and the
 # foreman rules are written to CLAUDE.foreman.md for you to merge. An existing .claude/settings.json
@@ -14,13 +14,15 @@
 # --recommended-skills is the confirmation, or the script asks when it runs in a terminal. Without a terminal and
 # without the flag nothing is installed. The tracker modules tracker-itsaplan and tracker-linear exclude each other;
 # without one, the tracker is "none" (files in the repo).
+# --workspace <file> is checked with scripts/check-workspace.py before anything is written. A valid file becomes the
+# top-level "infra" block of a newly created .foreman.json; a missing or invalid file exits 2 and writes nothing.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE="$HERE/template"
 VERSION="$(cat "$HERE/VERSION" 2>/dev/null || echo 0.2.0)"
 
-target="" project="" name="" modules="" scope="" model="" agent=claude-code rec="" skills_scope="" staging=yes force=no dry=no
+target="" project="" name="" modules="" scope="" model="" agent=claude-code rec="" skills_scope="" workspace="" staging=yes force=no dry=no
 while [ $# -gt 0 ]; do
   case "$1" in
     --project) project="$2"; shift 2 ;;
@@ -31,10 +33,11 @@ while [ $# -gt 0 ]; do
     --agent) agent="$2"; shift 2 ;;
     --recommended-skills) rec="$2"; shift 2 ;;
     --skills-scope) skills_scope="$2"; shift 2 ;;
+    --workspace) workspace="$2"; shift 2 ;;
     --no-staging) staging=no; shift ;;
     --force) force=yes; shift ;;
     --dry-run) dry=yes; shift ;;
-    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) target="$1"; shift ;;
   esac
@@ -72,6 +75,18 @@ if [ -z "$model" ]; then
 fi
 if [ "$model" = "opusplan" ]; then
   echo "refusing --session-model opusplan: autonomous runs never enter plan mode and run on the smaller model" >&2; exit 2
+fi
+if [ -n "$workspace" ]; then
+  # resolve a relative path now, while the start directory is still the current one
+  case "$workspace" in /*) ;; *) workspace="$PWD/$workspace" ;; esac
+  [ -f "$workspace" ] || { echo "workspace: file not found; nothing written" >&2; exit 2; }
+  ws_rc=0
+  ws_out="$(python3 "$HERE/scripts/check-workspace.py" "$workspace" 2>&1)" || ws_rc=$?
+  if [ "$ws_rc" -ne 0 ]; then
+    echo "workspace: file failed validation; nothing written" >&2
+    printf '%s\n' "$ws_out" | grep -v '^workspace: ok$' >&2 || true
+    exit 2
+  fi
 fi
 
 installed=() kept=() skipped=()
@@ -150,9 +165,9 @@ if [ "$dry" = no ]; then
   grep -qxF 'tools/delegate/tasks/*' "$target/.gitignore" || printf '\n# foreman: worker task files\ntools/delegate/tasks/*\n!tools/delegate/tasks/.gitkeep\n' >> "$target/.gitignore"
 
   if [ ! -f "$target/.foreman.json" ] || [ "$force" = yes ]; then
-    python3 - "$target/.foreman.json" "$VERSION" "$project" "$name" "$scope" "$agent" "$modules" "$staging" "$tracker" <<'PY'
+    python3 - "$target/.foreman.json" "$VERSION" "$project" "$name" "$scope" "$agent" "$modules" "$staging" "$tracker" "$workspace" <<'PY'
 import json, sys
-path, version, project, name, scope, agent, modules, staging, tracker = sys.argv[1:10]
+path, version, project, name, scope, agent, modules, staging, tracker, workspace = sys.argv[1:11]
 mods = [m for m in modules.split(",") if m]
 st = staging == "yes"
 conf = {
@@ -174,10 +189,13 @@ if "pretest" in mods:
                   "roles": {"owner": "TEST_LOGIN_USER_OWNER", "member": "TEST_LOGIN_USER_MEMBER"},
                   "fields": {"secret": "secret", "user": "userId", "tenant": "tenant"}},
     }
+if workspace:
+    conf["infra"] = json.load(open(workspace, encoding="utf-8"))
 json.dump(conf, open(path, "w"), indent=2)
 open(path, "a").write("\n")
 PY
     installed+=(".foreman.json")
+    if [ -n "$workspace" ]; then echo "  workspace: infra block written to .foreman.json"; fi
   else
     kept+=(".foreman.json")
   fi

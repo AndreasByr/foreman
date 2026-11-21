@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "machines": [
+    {
+      "name": "myweby",
+      "role": "server",
+      "services": ["docker", "coolify", "itsaplan", "litellm", "dispatcher"],
+      "domain": "yes",
+      "https": "yes"
+    },
+    {
+      "name": "alice",
+      "role": "home-server",
+      "services": ["docker"],
+      "domain": "no",
+      "https": "no"
+    }
+  ],
+  "ai": {
+    "claude": {
+      "plan": "max",
+      "routinesApiTrigger": "yes"
+    },
+    "ollamaCloud": {
+      "plan": "pro"
+    },
+    "chatgpt": {
+      "plan": "plus"
+    }
+  },
+  "notification": ["discord-webhook"],
+  "tracker": {
+    "type": "itsaplan",
+    "url": "https://itsaplan.example.com"
+  },
+  "gateway": {
+    "running": "yes",
+    "url": "https://gateway.example.com",
+    "keyEnv": "FOREMAN_GATEWAY_KEY"
+  },
+  "chatgptViaGateway": "accepted-risk",
+  "agent": "claude-code",
+  "github": "yes"
+}

@@ -153,4 +153,48 @@ echo "$out" | grep -q "would run (global) npx skills add jakubkrehel/skills -g" 
 none=$(inst "$T/s4" --project s --recommended-skills none --dry-run 2>&1); echo "$none" | grep -q "skills:" && fail "none printed skills" || true
 python3 -c 'import json; d=json.load(open("'"$HERE"'/skills.recommended.json")); assert {s["name"] for s in d["skills"]}=={"no-ai-slop","humanizer","hallmark","better-ui"}; assert all(s["repo"].startswith("https://github.com/") and s["purpose"] and s["install_global"] and s["install_project"] for s in d["skills"])' || fail "skills.recommended.json shape"
 
+# 10. --workspace <file>: infra block copied into .foreman.json, invalid or key-like files refused
+WS="$HERE/docs/workspace.example.json"
+[ -f "$WS" ] || fail "docs/workspace.example.json missing"
+cp "$WS" "$T/ws-ok.json"
+mkdir "$T/w" && git -C "$T/w" init -q
+inst "$T/w" --project w --workspace "$T/ws-ok.json" >/dev/null 2>&1 || fail "--workspace install failed"
+python3 - "$T/w/.foreman.json" "$T/ws-ok.json" <<'PY' || fail "infra block does not equal workspace file"
+import json,sys
+d=json.load(open(sys.argv[1])); w=json.load(open(sys.argv[2]))
+assert d["infra"]==w, "infra differs"
+PY
+[ "$(jf "$T/w/.foreman.json" infra.gateway.running)" = yes ] || fail "infra.gateway.running not yes"
+[ "$(jf "$T/w/.foreman.json" foreman)" = "$(cat "$HERE/VERSION")" ] || fail "version changed with --workspace"
+[ "$(jf "$T/w/.foreman.json" tracker.type)" = none ] || fail "tracker type changed with --workspace"
+# without --workspace there is no infra key
+mkdir "$T/w2" && git -C "$T/w2" init -q
+inst "$T/w2" --project w >/dev/null 2>&1 || fail "install without --workspace failed"
+python3 - "$T/w2/.foreman.json" <<'PY' || fail "infra written without --workspace"
+import json,sys
+assert "infra" not in json.load(open(sys.argv[1]))
+PY
+# invalid workspace file (extra top-level field) is refused, nothing written
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); d["bogus"]=1; json.dump(d,open(sys.argv[2],"w"))' "$WS" "$T/ws-bogus.json"
+mkdir "$T/w3" && git -C "$T/w3" init -q
+err=$(inst "$T/w3" --project w --workspace "$T/ws-bogus.json" 2>&1) && fail "invalid workspace accepted" || true
+echo "$err" | grep -qi workspace || fail "invalid workspace message: $err"
+[ -e "$T/w3/.foreman.json" ] && fail ".foreman.json written despite invalid workspace" || true
+# key-like value inside ai is refused, and the value is not echoed
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); d.setdefault("ai",{})["other"]=["sk-" + "ant-abcdefghijklmnop12345"]; json.dump(d,open(sys.argv[2],"w"))' "$WS" "$T/ws-key.json"
+mkdir "$T/w4" && git -C "$T/w4" init -q
+err=$(inst "$T/w4" --project w --workspace "$T/ws-key.json" 2>&1) && fail "key-like workspace value accepted" || true
+echo "$err" | grep -qi workspace || fail "key-like workspace message: $err"
+echo "$err" | grep -q 'sk-ant' && fail "key value echoed in message" || true
+[ -e "$T/w4/.foreman.json" ] && fail ".foreman.json written despite key-like value" || true
+# nonexistent workspace file is refused with a workspace message
+mkdir "$T/w5" && git -C "$T/w5" init -q
+err=$(inst "$T/w5" --project w --workspace "$T/does-not-exist.json" 2>&1) && fail "missing workspace file accepted" || true
+echo "$err" | grep -qi workspace || fail "missing workspace file message: $err"
+# second run with the same --workspace keeps the existing .foreman.json
+cp "$T/w/.foreman.json" "$T/fj.before"
+out=$(inst "$T/w" --project w --workspace "$T/ws-ok.json" 2>&1) || fail "second run with --workspace failed"
+echo "$out" | grep -q 'kept.*\.foreman\.json' || fail "second run did not keep .foreman.json"
+cmp -s "$T/fj.before" "$T/w/.foreman.json" || fail ".foreman.json changed on second run"
+
 echo "install tests: ok"
