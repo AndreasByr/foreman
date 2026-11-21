@@ -1,4 +1,4 @@
-Status: needs-input · since 2026-11-21T18:30Z · Validierung Runde 3: ein mittlerer Fund, in R3 behoben (4a54a00); dritte Reworkrunde braucht die Freigabe von Andreas
+Status: batch-pr · since 2026-11-21T18:55Z · Validierung abgeschlossen, dritte Runde von Andreas freigegeben, alle Gates grün auf 148cd1d
 Target: dev
 Batch-branch: batch/m004
 Lock: free
@@ -42,7 +42,7 @@ Reihenfolge: S1, S2, S4, S3.
 
 | R1 | Rework Runde 1 (Validierung 1): Hinweise/Frage, Zeitzone, Installer-Update, check-config, foreman-setup-Doku | done | 1e32242 | siehe VALIDATION.md | |
 | R2 | Rework Runde 2: leere Zeitzone im Check, `timeZone` in workspace.json, Tracker-Frage | done | 3da9544 | siehe VALIDATION.md | |
-| R3 | Antrag (dritte Runde): Zuordnungstabelle P1 bis P5 | done, wartet auf Freigabe | 4a54a00 | project-questions.md, test-project-routing.py | |
+| R3 | Antrag (dritte Runde): Zuordnungstabelle P1 bis P5 | done (freigegeben) | 4a54a00 | project-questions.md, test-project-routing.py | |
 
 ## Inherited red
 
@@ -62,3 +62,4 @@ Die Validierung Runde 3 fand einen mittleren Fund (P1-Zuordnung falsch, P2/P3/P5
 - 2026-11-21T18:10Z · S4 rot vor der Änderung: test-autopilot-check.mjs, test-check-config.sh, test-install.sh je Exit 1 auf 4f684ed + neue Tests; grün danach: test-all.sh Exit 0 · c836f77
 - 2026-11-21T18:15Z · S3 rot vor der Änderung: test-project-routing.py Exit 1 (16 FAIL) auf 9a28d30 + Test; grün danach: test-all.sh Exit 0 · 1f8ea67
 - 2026-11-21T18:30Z · R1 1e32242, R2 3da9544, R3 4a54a00 (Antrag); Validierung Runde 3: A/C needs-attention (1 mittel), B pass; test-all.sh Exit 0 auf 4a54a00; Status needs-input
+- 2026-11-21T18:55Z · Andreas gab die dritte Runde frei; R3b 148cd1d; test-all.sh Exit 0; Status batch-pr
