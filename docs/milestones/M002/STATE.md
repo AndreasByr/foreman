@@ -1,4 +1,4 @@
-Status: batch-pr · since 2026-11-21T17:00Z · Validierung pass, Batch-PR nach dev
+Status: done · since 2026-11-21T17:35Z · UAT von Andreas freigegeben
 Target: dev
 Batch-branch: batch/m002
 Lock: free
@@ -69,3 +69,4 @@ One question, options, recommendation.
 - 2026-11-21T16:51Z · Rework R4 fertig: 2 Tests rot→grün (41 gesamt), Lint gehärtet, test-all Exit 0 · Commit 646ad52
 - 2026-11-21T16:56Z · Validierung 3: A, B, C je needs-attention, nur 1 mittlerer Befund (STATE.md formal falsch, von der Sitzung selbst behoben); Rest low · 646ad52
 - 2026-11-21T17:00Z · Nachprüfung pass, Endlauf aller Prüfungen Exit 0, VALIDATION.md und Abschlussbericht geschrieben · 610a4ae
+- 2026-11-21T17:35Z · UAT M002 approved (Andreas, im Thread: „ja, uat passt“) · Merge a689250

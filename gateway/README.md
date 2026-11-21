@@ -36,7 +36,7 @@ How to opt in: install with `--chatgpt-via-gateway accepted-risk`. This also cop
 3. Put the proxy behind HTTPS. Do not expose the admin UI.
 4. Sign in the `chatgpt/` provider once (only with the ChatGPT route; device login, subscription account). The token stays on the proxy.
 5. Create a virtual key limited to the five `task-*` aliases (command at the end of the example config). Only this key goes to workers, in the variable named by `[gateway] api_key_env` (default `FOREMAN_GATEWAY_KEY`), in the work run's environment. The master key never leaves the server.
-6. Fill `[gateway]` in `tools/delegate/config.toml` (`base_url`, `api_key_env`, `fallback_model`) and check: `python3 tools/delegate/run_task.py --dry-run --role execution_simple`.
+6. Fill `[gateway]` in `tools/delegate/config.toml` (`base_url`, `api_key_env`, `fallback_model`) and check: `python3 tools/delegate/run_task.py --dry-run --role execution_simple <task file>`.
 
 ## Rules
 
@@ -44,3 +44,10 @@ How to opt in: install with `--chatgpt-via-gateway accepted-risk`. This also cop
 - Virtual keys only for `task-*`; rotate them when a machine is retired.
 - Your Claude subscription stays the fallback and the planner. Keep `CLAUDE_CODE_OAUTH_TOKEN` in the work run environment for that.
 - A subscription has limits. Expect the fallback to start now and then; that is the design.
+
+## Using a ChatGPT plan (accepted-risk)
+
+- The `chatgpt/` provider is not an official Codex client. Automatic use may violate the terms of use and may get your subscription blocked.
+- OpenAI recommends an API key for automation. Alternatives: the official Codex CLI as worker, an API key with its own budget, or Ollama and Claude only.
+- You decide this explicitly. The decision is stored as `chatgptViaGateway` in workspace.json and is not asked again for every project.
+- The installer maps `task-normal` only with `accepted-risk`, given as `--chatgpt-via-gateway accepted-risk` or stored as `chatgptViaGateway` in the workspace file (when `gateway.running` is `yes`). `declined` (flag or workspace) keeps it off, and the flag beats the workspace value. Without a gateway there is no preset and no ChatGPT target.
