@@ -4,6 +4,8 @@ Why the rules in foreman exist. Skills hold the rule; the story lives here. Proj
 
 ## From the reference project
 
+- `install.sh` never overwrote anything, so installed projects fell behind. `--update` replaces only foreman-owned files, keeps project files, and only reports mixed files such as `CLAUDE.md` and `tools/delegate/config.toml`: they cannot be merged automatically, and a project's own edits must survive.
+- The version number in `.foreman.json` is written last. An update that failed halfway is then not mistaken for a finished one, and a rerun completes it.
 - A check script saw every variable of the dispatcher process, including the fire tokens of other projects. Scripts and commands now get only `PATH`, `HOME`, `LANG` and the `pass_env` names, because one project's token must never reach another project's script. A `pass_env` name that would override one of the three is ignored.
 - One webhook body with both `text` and `content` fits neither service strictly and hid wrong URLs. `webhook_format` picks the body. An unknown host or invalid URL is logged with the reason and nothing is sent. The URL itself is a secret and never appears in a log.
 - Merging into `main` reaches the outside, so a waiting window must not do it on its own. `mainAutoMerge` defaults to `false`, and only the boolean `true` counts; the string `"true"` in a hand-edited file is not consent. Closing units the human already merged still runs.

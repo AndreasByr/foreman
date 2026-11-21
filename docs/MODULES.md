@@ -60,3 +60,19 @@ Claude Code is the recommended agent: routines with API trigger are the dispatch
 | execution_simple | small | Ollama or `task-simple` |
 | completion, subagent | small | Ollama or `task-simple` |
 | fallback on provider outage | – | small Claude through `claude -p` |
+
+## Updating a project
+
+Run `./install.sh <target> --update --dry-run` first. It lists what would change. Then run `./install.sh <target> --update` to apply it. The `foreman-update` chat skill guides both steps.
+
+Every file in `template/` has one class in `update-classes.json`:
+
+- `foreman`: replaced by the current version.
+- `project`: kept as it is.
+- `mixed`: `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`, `tools/delegate/config.toml`. Only reported, never changed, because a project's own edits must survive.
+
+`version` in `.foreman.json` is written last. A failed update leaves it unchanged, so a rerun finishes the work. `--update` never adds modules. It stops when foreman-owned files have uncommitted changes.
+
+The steps for each version are in the `### Upgrade` part of its section in `CHANGELOG.md`.
+
+Whoever adds a file to `template/` also adds it to `update-classes.json`. A test enforces this.
