@@ -63,3 +63,4 @@ One question, options, recommendation.
 - 2026-11-21T19:10Z · Validierung Runde 2: A needs-attention (3 mittel), B pass, C needs-attention (nur niedrig); Rework R3 (letzte Runde) · 08db6aa
 - 2026-11-21T19:35Z · Rework R3 fertig, test-all.sh grün (Exit 0) · e3364ec
 - 2026-11-21T19:55Z · Validierung Runde 3: A pass, B pass, C pass; Gesamt pass; Endlauf test-all.sh Exit 0 · 58b1916
+- 2026-11-21T17:19Z · Merge mit origin/dev aufgelöst, Prüflauf (nur niedrig), test-all.sh Exit 0 · 797f8ff
