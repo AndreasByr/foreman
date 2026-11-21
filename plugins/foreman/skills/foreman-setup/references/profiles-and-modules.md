@@ -65,7 +65,7 @@ Rules for the command you hand out:
 - `--project` is a lowercase slug. `--name` is optional.
 - `--modules` is a comma list without spaces. At most one tracker module.
 - `--agent` defaults to `claude-code`.
-- `--session-model` is a concrete model ID, never `opusplan`.
+- `--session-model` never takes `opusplan`.
 - `--no-staging` for projects without a separate staging environment (then `main` is production).
 - `--recommended-skills` and `--skills-scope`: leave out when the human decided in chat and you install the skills yourself or print the commands. Non-interactive without the flag means none.
 - Always propose `--dry-run` first for a beginner.

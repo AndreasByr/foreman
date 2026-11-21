@@ -1,4 +1,4 @@
-Status: validation · since 2026-11-21T17:15Z · Rework-Runde 1 fertig, zweite Validierung offen
+Status: validation · since 2026-11-21T16:51Z · Rework-Runde 2 fertig, dritte Prüfung offen
 Target: dev
 Batch-branch: batch/m002
 Lock: free
@@ -21,6 +21,7 @@ Start commit: e0d84d2
 | R1-rules | Rework: Modell-ID-Regel überall nur einmal, Lint erkennt Wiederholungen mit einem Signaturwort | done | | scripts/test-rules.py, plugins/foreman/skills/{foreman-project,foreman-setup}, docs/learnings.md | VALIDATION C H1, A F2 |
 | R2-wrapper | Rework: Pause auch für Claude, Timeout geht direkt zum Fallback, Zähler „in Folge“, ChatGPT-Prüfung ohne Umgehung, Fallback nur Claude, Tests ohne Umgebungsabhängigkeit | done | | template/tools/delegate/{run_task.py,test_run_task.py}, tools/delegate (Kopie), scripts/test-install.sh | VALIDATION A F1, B M1/M2/L1/L2, C M2-M6 |
 | R3-docs | Rework: Stunden-Limit-Text, „one retry“, ChatGPT-Verweise, CHANGELOG-Hinweis, STATE ehrlich | done | | template/tools/delegate/README.md, plugins/foreman/skills/foreman-setup/references/{delegation,prerequisites,profiles-and-modules}.md, CHANGELOG.md, docs/milestones/M002/STATE.md | VALIDATION A F5/F6/F8 |
+| R4-round2 | Rework Runde 2: Timeout sperrt Anbieter für die Kette ohne falsche Pausenzeile, Claude-Pause auch bei späterem Fallback, Regel-Lint härter | done | | template/tools/delegate/{run_task.py,test_run_task.py}, tools/delegate (Kopie), scripts/test-rules.py, plugins/foreman/skills/{foreman-setup,foreman-orchestrator} | 2. Validierung N1, N2 |
 
 ## Check plan per slice
 
@@ -67,6 +68,6 @@ One question, options, recommendation.
 - 2026-11-21T16:14Z · S2 fertig: 13 Tests rot→grün (25 gesamt), test-all Exit 0 · Commit 968b99b
 - 2026-11-21T16:18Z · S3 fertig: 4 Tests rot→grün (30 gesamt), test-all Exit 0 · Commit 2119a35
 - 2026-11-21T16:22Z · S4 fertig: Lint rot (10 Fehler)→grün, test-all Exit 0 · Commit c8ec48c
-- 2026-11-21T16:27Z · S5 fertig: Tests rot→grün, test-all Exit 0 · Commit im Log der Validierung
-- 2026-11-21T16:45Z · Validierung A needs-attention, B needs-attention, C needs-remediation (H1) -> Gesamt needs-remediation; Rework R1-R3 geplant (Uhrzeiten oben aus git log korrigiert) · 55c77f4
-- 2026-11-21T17:15Z · Rework R1-R3 fertig: 5 Tests und Lint rot→grün (39 Tests), test-all Exit 0 · Commit im Log der zweiten Validierung
+- 2026-11-21T16:27Z · S5 fertig: Tests rot→grün, test-all Exit 0 · Commit 55c77f4
+- 2026-11-21T16:33Z · Validierung 1: A needs-attention, B needs-attention, C needs-remediation (H1) -> Gesamt needs-remediation; Rework R1-R3 geplant (Uhrzeiten oben aus git log korrigiert) · 55c77f4
+- 2026-11-21T16:42Z · Rework R1-R3 fertig: 5 Tests und Lint rot→grün (39 Tests), test-all Exit 0 · Commit 8651cec

@@ -834,6 +834,7 @@ def main(argv=None):
                 if more:
                     print(f"   claude unusable, next attempt in {pause:g}s", flush=True)
                     limits.sleep(pause)
+                    failed_models.discard(res["model"])  # paused to retry: a later fallback may use it again
                 else:
                     limits.drop_last_pause()
         elif not res["login"]:
@@ -845,7 +846,7 @@ def main(argv=None):
     try:
         for idx, r in enumerate(chain):
             prov = provider_of(cfg, r)
-            more = any(provider_of(cfg, x) == "claude" for x in chain[idx + 1:])
+            more = any(provider_of(cfg, x) == "claude" or fallback_of(cfg, x) for x in chain[idx + 1:])
             if claude_login_failed and prov == "claude":
                 print(f"-> {r}: Claude workers cannot log in, skipped.")
                 continue
@@ -870,7 +871,7 @@ def main(argv=None):
                             need_fallback = False
                             break
                         if res["rc"] == 124:  # timeout: no retry, go to the fallback
-                            limits.failure(prov, res["cause"])
+                            limits.lock(prov, f"{res['cause']}; not retried, fallback instead")
                             break
                         pause = limits.failure(prov, res["cause"])
                         if pause is None:

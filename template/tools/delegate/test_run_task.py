@@ -797,6 +797,57 @@ def test_limits_missing_key_lock_in_both_reports():
             assert "- gateway: locked for this run: TEST_GATEWAY_KEY not set" in text, (name, text)
 
 
+# ---------------------------------------------------------------- review rework, round 2
+
+def test_limits_gateway_timeout_locks_provider_for_chain_and_reports_no_pause():
+    cfg = GATEWAY_CONFIG.replace('[roles.execution]\nwho = "worker"\nmodel = "claude/mid-z"\n',
+                                 '[roles.execution]\nwho = "worker"\nprovider = "gateway"\nmodel = "gateway/task-normal"\n')
+    cfg = cfg.replace('model = "gateway/task-simple"\n', 'model = "gateway/task-simple"\ntimeout = 1\n', 1)
+    cfg = cfg.replace('model = "gateway/task-normal"\n', 'model = "gateway/task-normal"\ntimeout = 1\n', 1)
+    assert cfg.count("timeout = 1") == 2 and "task-normal" in cfg
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        script = ('d="$(dirname "$0")"\n'
+                  'if [ -n "$ANTHROPIC_BASE_URL" ]; then echo x >> "$d/gw_calls"; sleep 5; exit 0; fi\n'
+                  'echo x >> "$d/claude_calls"; echo "boom: plain error" >&2; exit 1\n')
+        t0 = time.monotonic()
+        p = _gw_run(t, cfg + _gw_limits(t), script)
+        elapsed = time.monotonic() - t0
+        assert elapsed < 10, elapsed
+        assert _lines(t / "bin" / "gw_calls") == 1, (_lines(t / "bin" / "gw_calls"), p.stdout, p.stderr)
+        res = (t / "t.result.md").read_text()
+        assert any(l.startswith("- gateway: locked for this run") and "timeout" in l for l in res.splitlines()), res
+        for name in ("t.result.md", "t.report.md"):
+            text = (t / name).read_text()
+            assert not any("gateway: paused" in l for l in text.splitlines()), (name, text)
+
+
+def test_limits_claude_pause_kept_when_later_role_has_a_fallback():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        cfg = ('[defaults]\ntimeout_seconds = 60\n'
+               '[gateway]\nbase_url = "https://gw.example"\napi_key_env = "TEST_GATEWAY_KEY"\n'
+               'fallback_model = "claude/small-x"\n'
+               '[roles.execution_simple]\nwho = "worker"\nmodel = "claude/small-x"\n'
+               '[roles.execution]\nwho = "worker"\nprovider = "gateway"\nmodel = "gateway/task-normal"\n'
+               '[escalation]\nexecution_simple = ["execution"]\n'
+               f'[limits]\nledger_file = "{t}/ledger.json"\n'
+               '[limits.claude]\npause_seconds = 0.2\nmax_pause_seconds = 1\n'
+               '[limits.gateway]\npause_seconds = 0.01\nmax_pause_seconds = 0.05\n')
+        script = ('d="$(dirname "$0")"\n'
+                  'if [ -n "$ANTHROPIC_BASE_URL" ]; then echo x >> "$d/gw_calls"; echo "429 Too Many Requests" >&2; exit 1; fi\n'
+                  'echo x >> "$d/claude_calls"; n=$(wc -l < "$d/claude_calls")\n'
+                  'if [ "$n" -eq 1 ]; then echo "429 Too Many Requests" >&2; exit 1; fi\n'
+                  'echo \'{"result":"ok","is_error":false}\'\n')
+        t0 = time.monotonic()
+        p = _gw_run(t, cfg, script)
+        elapsed = time.monotonic() - t0
+        assert p.returncode == 0, (p.returncode, p.stdout, p.stderr)
+        assert elapsed >= 0.2, elapsed
+        res = (t / "t.result.md").read_text()
+        assert any("claude: paused 0.2s before retry" in l for l in res.splitlines()), res
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in sorted(globals().items()):

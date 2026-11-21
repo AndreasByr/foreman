@@ -17,8 +17,10 @@ LEARNINGS_SECTION = "## From foreman itself"
 
 SETS = [("repo skills", REPO_SKILLS), ("chat skills", CHAT_SKILLS)]
 
-MODEL_ID_DUPLICATE = re.compile(r"exact\s+(?:model\s+)?ids?\b", re.IGNORECASE)
-KEY_FILE_DUPLICATE = re.compile(r"key\s+files?|never\s+read\s+\S*\.env", re.IGNORECASE)
+MODEL_ID_DUPLICATE = re.compile(r"(?:exact|concrete|full)\s+(?:model\s+)?ids?\b|no\s+alias(?:es)?\b|alias(?:es)?\s+(?:that\s+)?change", re.IGNORECASE)
+KEY_FILE_DUPLICATE = re.compile(r"key\s+files?|(?:never|not|no|don't)\s+(?:to\s+)?(?:read|open|cat)\w*\b[^.\n]*\.env|\.env\b[^.\n]*\b(?:never|must not)", re.IGNORECASE)
+CLAUDE_DIR_ACTOR = re.compile(r"worker|subagent", re.IGNORECASE)
+CLAUDE_DIR_ACTION = re.compile(r"writ|edit|modif|chang", re.IGNORECASE)
 
 
 def model_id_duplicate(line):
@@ -30,8 +32,11 @@ def key_file_duplicate(line):
 
 
 def claude_dir_duplicate(line):
-    low = line.lower()
-    return all(w in low for w in (".claude/", "worker", "writ"))
+    return (
+        ".claude/" in line.lower()
+        and CLAUDE_DIR_ACTOR.search(line) is not None
+        and CLAUDE_DIR_ACTION.search(line) is not None
+    )
 
 
 # (rule name, label, words the labeled line must contain, test that flags an unlabeled duplicate line)
@@ -302,6 +307,33 @@ def case_unlabeled_key_file_phrase():
     )
 
 
+def case_unlabeled_rephrased(text, rule_name):
+    files = good_files()
+    files["plugins/foreman/skills/demo/SKILL.md"] = RULE_LINES + ("\n" + text + "\n")
+    return run_case(
+        files,
+        lambda errors: any(
+            e.startswith(f"duplicate statement of {rule_name} in plugins/foreman/skills/demo/SKILL.md:")
+            for e in errors
+        ),
+    )
+
+
+def case_labeled_missing_required_word():
+    files = good_files()
+    files["plugins/foreman/skills/demo/SKILL.md"] = RULE_LINES.replace(
+        "pass the exact model ID to each task-* worker.", "pass the model ID to each worker."
+    )
+    return run_case(
+        files,
+        lambda errors: any(
+            e.startswith("Model ID rule: labeled line plugins/foreman/skills/demo/SKILL.md:")
+            and "lacks 'exact', 'task-*'" in e
+            for e in errors
+        ),
+    )
+
+
 def case_clean_tree_passes():
     files = good_files()
     files["plugins/foreman/skills/demo/SKILL.md"] = RULE_LINES + (
@@ -320,6 +352,25 @@ SELFTESTS = [
     ("learnings without section errors", case_learnings_without_section),
     ("unlabeled 'Write exact IDs, no aliases' errors", case_unlabeled_model_id_phrase),
     ("unlabeled 'never read .env files' errors", case_unlabeled_key_file_phrase),
+    ("labeled line without required words errors", case_labeled_missing_required_word),
+    ("unlabeled 'full model ID' errors", lambda: case_unlabeled_rephrased(
+        "Use full model ID strings for each task-* worker.", "Model ID rule")),
+    ("unlabeled 'concrete model IDs' errors", lambda: case_unlabeled_rephrased(
+        "Write concrete model IDs into every task-* config.", "Model ID rule")),
+    ("unlabeled 'no aliases' errors", lambda: case_unlabeled_rephrased(
+        "No aliases in any task-* worker config.", "Model ID rule")),
+    ("unlabeled 'alias that changes' errors", lambda: case_unlabeled_rephrased(
+        "Never let an alias that changes silently pick the model.", "Model ID rule")),
+    ("unlabeled 'key files' errors", lambda: case_unlabeled_rephrased(
+        "Key files stay out of worker prompts.", "Key-file rule")),
+    ("unlabeled 'do not open the .env' errors", lambda: case_unlabeled_rephrased(
+        "Do not open the .env file in a worker session.", "Key-file rule")),
+    ("unlabeled '.env must not reach' errors", lambda: case_unlabeled_rephrased(
+        "The .env file must not reach any worker.", "Key-file rule")),
+    ("unlabeled subagent edit of .claude/ errors", lambda: case_unlabeled_rephrased(
+        "Subagents must not edit anything in .claude/ directly.", "Claude-dir rule")),
+    ("unlabeled worker modify of .claude/ errors", lambda: case_unlabeled_rephrased(
+        "Workers may not modify .claude/ settings.", "Claude-dir rule")),
     ("clean tree with unrelated lines still passes", case_clean_tree_passes),
 ]
 
