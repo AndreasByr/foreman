@@ -19,7 +19,7 @@ Start commit: 2e5bc22
 | S4 | Zusammenfassung vor der Empfehlung | done | eb25e6b | scripts/setup-summary.py, scripts/test-setup-summary.py, SKILL.md | |
 | R1 | Rework Runde 1, Inhalt: ChatGPT-Zustimmung im Katalog (C9), Maschinen-Zwecke, Lücken für unbeantwortete Felder, C8 in der Zusammenfassung, altes Result-Block raus, Variablennamen, Skill-Beschreibung, stärkere Tests | done | 96c5ef7 | plugins/foreman/skills/foreman-setup/**, docs/workspace.schema.json, docs/workspace.example.json, scripts/check-workspace.py, scripts/setup-summary.py, scripts/test-setup-catalog.py, scripts/test-workspace.py, scripts/test-setup-summary.py | |
 | R2 | Rework Runde 1, Installer: einheitliche strenge URL-Prüfung, kein Teil-Install, Probe ohne Redirect/Proxy mit 200-Prüfung, infra-Update bei vorhandener .foreman.json, `declined`, ehrliche Dry-Run-Meldung, Tests | done | 08db6aa | install.sh, scripts/gateway-preset.py, scripts/test-install.sh, gateway/README.md, docs/MODULES.md, references/gateway-block.md | |
-| R3 | Rework Runde 2 (letzte): fehlende C9-/Zweck-Antworten als Lücke, Quick überspringt Block C ohne Empfehlung, keyEnv fragen und zeigen, Linear ohne falsche Lücke, Hinweis mit `--chatgpt`, Schema-URL-Regel gleich, `--help`, `.foreman.json` vorab prüfen | done | R3c | SKILL.md, question-catalog.md, setup-summary.py, check-workspace/schema, install.sh, prerequisites.md, profiles-and-modules.md, gateway/README.md, drei Tests | |
+| R3 | Rework Runde 2 (letzte): fehlende C9-/Zweck-Antworten als Lücke, Quick überspringt Block C ohne Empfehlung, keyEnv fragen und zeigen, Linear ohne falsche Lücke, Hinweis mit `--chatgpt`, Schema-URL-Regel gleich, `--help`, `.foreman.json` vorab prüfen | done | e3364ec | SKILL.md, question-catalog.md, setup-summary.py, check-workspace/schema, install.sh, prerequisites.md, profiles-and-modules.md, gateway/README.md, drei Tests | |
 
 ## Check plan per slice
 
@@ -61,4 +61,4 @@ One question, options, recommendation.
 - 2026-11-21T17:50Z · S4 fertig, test-all.sh grün (Exit 0) · eb25e6b
 - 2026-11-21T18:45Z · Validierung Runde 1: A needs-remediation, B needs-attention, C needs-attention; Rework R1, R2 fertig, test-all.sh grün (Exit 0) · 08db6aa
 - 2026-11-21T19:10Z · Validierung Runde 2: A needs-attention (3 mittel), B pass, C needs-attention (nur niedrig); Rework R3 (letzte Runde) · 08db6aa
-- 2026-11-21T19:35Z · Rework R3 fertig, test-all.sh grün (Exit 0) · R3c
+- 2026-11-21T19:35Z · Rework R3 fertig, test-all.sh grün (Exit 0) · e3364ec
