@@ -69,3 +69,7 @@ Other `STATE.md` header fields: `Target: dev | main`, `Batch-branch:`, `Lock: fr
 | History, reasons, incidents | `docs/learnings.md`, never in a skill |
 
 A rule in a skill states what to do. Why it exists, and which incident caused it, goes into `docs/learnings.md` with a one-line pointer if needed.
+
+## Project documents
+
+Which documents a project has, where they live, who writes them and when a large one is split is set out in `docs/docs-rules.md`. Read it before you create or split a document.
