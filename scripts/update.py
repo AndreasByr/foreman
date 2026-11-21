@@ -240,12 +240,23 @@ def main(argv):
     git_note = False
     if to_update:
         env = dict(os.environ, GIT_OPTIONAL_LOCKS="0")
+        in_tree = False
         try:
             inside = subprocess.run(["git", "-C", target, "rev-parse", "--is-inside-work-tree"],
                                     capture_output=True, env=env)
-            in_tree = inside.returncode == 0 and inside.stdout.strip() == b"true"
         except OSError:
-            in_tree = False
+            if os.path.lexists(os.path.join(target, ".git")):
+                die(2, "git not found, cannot check local changes")
+            inside = None
+        if inside is not None:
+            err = inside.stderr.decode("utf-8", "replace")
+            if inside.returncode == 0 and inside.stdout.strip() == b"true":
+                in_tree = True
+            elif inside.returncode == 128 and "not a git repository" in err:
+                in_tree = False
+            else:
+                first = err.strip().splitlines()[0] if err.strip() else "git exited with %d" % inside.returncode
+                die(2, "cannot check local changes with git: %s" % first)
         if not in_tree:
             git_note = True
         else:
@@ -261,7 +272,7 @@ def main(argv):
 
     # --- version bump text
     bump = None
-    if vo < vn:
+    if old != new and vo <= vn:
         bump_text, n = re.subn(r'("foreman"\s*:\s*")[^"]*(")', lambda m: m.group(1) + new + m.group(2), conf_text, count=1)
         try:
             ok = n == 1 and json.loads(bump_text).get("foreman") == new

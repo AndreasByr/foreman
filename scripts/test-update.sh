@@ -76,6 +76,10 @@ upd "$d"
 [ "$RC" = 0 ] || fail "1: second update exit $RC: $ERR"
 need_line "1 second" "nothing to do"
 [ "$(tree_hash "$d")" = "$h1" ] || fail "1: second update changed the tree"
+for f in "$HERE"/template/.claude/hooks/* "$HERE"/template/.githooks/*; do
+  rel=$(realpath --relative-to="$HERE/template" "$f")
+  cmp -s "$f" "$d/$rel" || fail "1: $rel differs from the template"
+done
 
 # 2. idempotence after a fresh install
 n=0
@@ -192,9 +196,11 @@ git -C "$T/wtmain" worktree add "$T/wtree" -b wtbranch -q || fail "9: worktree a
 [ -f "$T/wtree/.git" ] || fail "9: .git of the worktree is not a file"
 as_old "$T/wtree"; commit "$T/wtree" old
 echo "// local edit" >> "$T/wtree/scripts/lib/state.mjs"
+h=$(tree_hash "$T/wtree")
 upd "$T/wtree"
 [ "$RC" = 2 ] || fail "9: exit $RC, expected 2; stderr: $ERR"
 printf '%s' "$ERR" | grep -q 'scripts/lib/state.mjs' || fail "9: stderr does not name scripts/lib/state.mjs: $ERR"
+[ "$(tree_hash "$T/wtree")" = "$h" ] || fail "9: tree changed"
 
 # 10. subfolder target inside a repo
 gitinit "$T/mono"; mkdir "$T/mono/sub"
@@ -202,9 +208,11 @@ inst "$T/mono/sub" --project mono --session-model test-model-id >/dev/null 2>&1 
 commit "$T/mono" install
 as_old "$T/mono/sub"; commit "$T/mono" old
 echo "// local edit" >> "$T/mono/sub/scripts/lib/state.mjs"
+h=$(tree_hash "$T/mono")
 upd "$T/mono/sub"
 [ "$RC" = 2 ] || fail "10: exit $RC, expected 2; stderr: $ERR"
 printf '%s' "$ERR" | grep -q 'scripts/lib/state.mjs' || fail "10: stderr does not name scripts/lib/state.mjs: $ERR"
+[ "$(tree_hash "$T/mono")" = "$h" ] || fail "10: tree changed"
 
 # 12. a missing mixed file is created
 d="$T/mixmiss"; mkdir "$d"
@@ -214,6 +222,9 @@ upd "$d"
 [ "$RC" = 0 ] || fail "12: update exit $RC: $ERR"
 need_line "12" "  create  tools/delegate/config.toml"
 [ -f "$d/tools/delegate/config.toml" ] || fail "12: config.toml not created"
+if ! grep -q '{{' "$HERE/template/tools/delegate/config.toml"; then
+  cmp -s "$d/tools/delegate/config.toml" "$HERE/template/tools/delegate/config.toml" || fail "12: created config.toml differs from the template"
+fi
 
 # 13. unknown option, and .foreman.json as a symlink out of the target
 d="$T/bog"; mkdir "$d"
@@ -240,5 +251,20 @@ grep -q '"foreman": *"0.2.1-rc1"' "$d/.foreman.json" || fail "14: could not set 
 upd "$d"
 case "$ERR" in *newer*) fail "14: pre-release 0.2.1-rc1 rejected as newer: $ERR" ;; esac
 [ "$RC" = 0 ] || fail "14: update exit $RC: $ERR"
+[ "$(jf "$d/.foreman.json" foreman)" = "$newver" ] || fail "14: foreman version is $(jf "$d/.foreman.json" foreman), expected $newver"
+
+# 15. git cannot check the tree (dubious ownership): refuse, write nothing
+d="$T/own"; gitinit "$d"
+inst "$d" --project own --session-model test-model-id >/dev/null 2>&1 || fail "15: install failed"
+commit "$d" install
+echo "// stale, different text" > "$d/scripts/lib/state.mjs"
+commit "$d" stale
+as_old "$d"; commit "$d" old
+h=$(tree_hash "$d")
+env GIT_TEST_ASSUME_DIFFERENT_OWNER=1 "$HERE/install.sh" "$d" --update >"$T/upd.out" 2>"$T/upd.err" && RC=0 || RC=$?
+OUT=$(cat "$T/upd.out"); ERR=$(cat "$T/upd.err")
+[ "$RC" = 2 ] || fail "15: exit $RC, expected 2; stderr: $ERR"
+case "$ERR" in *"cannot check local changes"*) ;; *) fail "15: stderr lacks 'cannot check local changes': $ERR" ;; esac
+[ "$(tree_hash "$d")" = "$h" ] || fail "15: tree changed"
 
 echo "update tests: ok"

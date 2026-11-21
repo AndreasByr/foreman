@@ -93,6 +93,9 @@ if unreleased:
     if not any(re.search(r"dispatcher", l, re.I) and re.search(r"update", l, re.I)
                for l in unreleased[0]["upgrade"]):
         problems.append("section 'Unreleased': upgrade part has no line with 'dispatcher' and 'update'")
+    if not any(l.startswith("- Steps:") and re.search(r"dispatcher", l, re.I) and re.search(r"pull", l, re.I)
+               for l in unreleased[0]["upgrade"]):
+        problems.append("section 'Unreleased': the '- Steps:' bullet must contain 'dispatcher' and 'pull'")
 
 # 5. Report.
 if problems:

@@ -53,7 +53,7 @@ The first marker line carries a version: `<!-- foreman-project-block v2 -->`. Ru
 - `.foreman.json` changed branches, language or modules
 - the human asks
 
-The version comparison is done by `python3 <skill dir>/scripts/block-status.py <file with the current instructions>`, which prints `current vN` (exit 0), `outdated vK (current is vN)` (exit 1), `newer vK (this skill knows vN)` (exit 0) or `missing` (exit 3). In a chat without code execution, compare the number in the marker with the reference by eye.
+The version comparison is done by `python3 <skill dir>/scripts/block-status.py <file with the current instructions>`, which prints `current vN` (exit 0), `outdated vK (current is vN)` (exit 1), `newer vK (this skill knows vN)` (exit 0), `missing` (exit 3) or `error: ...` (exit 2). In a chat without code execution, compare the number in the marker with the reference by eye.
 
 Compare the version and the filled values. Same: say "up to date" and stop. Different: show what changes in two lines, then apply.
 
