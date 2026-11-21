@@ -67,3 +67,5 @@ If you delegated, end the answer with one line naming role and model per task, f
 - Claude models only. Workers on other providers belong to repo work, not to chat.
 - Subagents run in the same network and with the same rights as the session. Confidential data is delegated only if the human lets it be handled in this session anyway.
 - Routing itself must cost almost nothing: sort in one thought, no explanation to the human.
+- **Claude-dir rule:** subagents and workers do not write under `.claude/`.
+- **Key-file rule:** subagents and workers do not read key files such as `.env*`, `*.pem`, `id_*` or `credentials*`; only their existence and permissions may be checked.

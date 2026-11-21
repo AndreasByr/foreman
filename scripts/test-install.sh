@@ -153,4 +153,26 @@ echo "$out" | grep -q "would run (global) npx skills add jakubkrehel/skills -g" 
 none=$(inst "$T/s4" --project s --recommended-skills none --dry-run 2>&1); echo "$none" | grep -q "skills:" && fail "none printed skills" || true
 python3 -c 'import json; d=json.load(open("'"$HERE"'/skills.recommended.json")); assert {s["name"] for s in d["skills"]}=={"no-ai-slop","humanizer","hallmark","better-ui"}; assert all(s["repo"].startswith("https://github.com/") and s["purpose"] and s["install_global"] and s["install_project"] for s in d["skills"])' || fail "skills.recommended.json shape"
 
+# 10. ChatGPT via gateway needs the explicit consent option
+mkdir "$T/g1" && git -C "$T/g1" init -q
+inst "$T/g1" --project g --modules delegate,gateway >/dev/null 2>&1 || fail "gateway install without chatgpt option failed"
+[ -e "$T/g1/tools/gateway/litellm.chatgpt.example.yaml" ] && fail "chatgpt file installed without consent"
+grep -rEq '^[[:space:]]*(-[[:space:]]*)?model:[[:space:]]*chatgpt/' "$T/g1/tools" && fail "chatgpt model installed without consent: $(grep -rEl '^[[:space:]]*(-[[:space:]]*)?model:[[:space:]]*chatgpt/' "$T/g1/tools" | head -3)"
+grep -Eq '^[[:space:]]*(-[[:space:]]*)?model:[[:space:]]*chatgpt/' "$T/g1/tools/gateway/litellm.config.example.yaml" && fail "neutral gateway config contains chatgpt model"
+
+mkdir "$T/g2" && git -C "$T/g2" init -q
+inst "$T/g2" --project g --modules delegate,gateway --chatgpt-via-gateway accepted-risk >/dev/null 2>&1 || fail "chatgpt option with accepted-risk failed"
+grep -Eq '^[[:space:]]*(-[[:space:]]*)?model:[[:space:]]*chatgpt/' "$T/g2/tools/gateway/litellm.chatgpt.example.yaml" || fail "chatgpt example file has no chatgpt model"
+grep -Eq '^[[:space:]]*(-[[:space:]]*)?model:[[:space:]]*chatgpt/' "$T/g2/tools/gateway/litellm.config.example.yaml" && fail "neutral gateway config contains chatgpt model with option"
+
+mkdir "$T/g3" && git -C "$T/g3" init -q
+rc=0; inst "$T/g3" --project g --modules delegate,gateway --chatgpt-via-gateway yes >/dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] || fail "chatgpt option value 'yes': expected exit 2, got $rc"
+mkdir "$T/g4" && git -C "$T/g4" init -q
+rc=0; inst "$T/g4" --project g --modules delegate,gateway --chatgpt-via-gateway "" >/dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] || fail "empty chatgpt option value: expected exit 2, got $rc"
+mkdir "$T/g5" && git -C "$T/g5" init -q
+rc=0; inst "$T/g5" --project g --modules delegate --chatgpt-via-gateway accepted-risk >/dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] || fail "chatgpt option without module gateway: expected exit 2, got $rc"
+
 echo "install tests: ok"
