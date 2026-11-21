@@ -21,7 +21,7 @@ Start commit: 302496a
 Reihenfolge: S1, S4, S2, S3.
 
 | R1 | Rework Runde 1: Fund 1 bis 9 aus VALIDATION.md | done | 6c27c0d | scripts/check-config.sh, template/scripts/check-config.sh, scripts/lib/itsaplan-template.mjs, Tests, docs/trackers.md, template/docs/trackers.md | Funde 10 bis 12 offen (low) |
-| R2 | Rework Runde 2: Fund aus Validierung 2 (deutsch aussehende Namen, Proxy, Kopien-Test, CLI-Meldung, Wortliste, Doku) | done | R2COMMIT | scripts/check-config.sh, template/scripts/check-config.sh, scripts/lib/itsaplan-template.mjs, scripts/check-itsaplan-template.mjs, Tests, Doku | |
+| R2 | Rework Runde 2: Fund aus Validierung 2 (deutsch aussehende Namen, Proxy, Kopien-Test, CLI-Meldung, Wortliste, Doku) | done | 540c1c5 | scripts/check-config.sh, template/scripts/check-config.sh, scripts/lib/itsaplan-template.mjs, scripts/check-itsaplan-template.mjs, Tests, Doku | |
 
 ## Check plan per slice
 
@@ -58,4 +58,4 @@ Keine: `bash scripts/test-all.sh` auf dem Startstand 302496a (dev) lief mit Exit
 - 2026-11-21T20:05Z · S2/S3 rot vor der Änderung: `python3 scripts/test-itsaplan-skills.py` Exit 1 (17 FAIL) auf 7914f15 + Test; grün danach: Exit 0, `bash scripts/test-all.sh` Exit 0 · 1090506
 - 2026-11-21T20:30Z · Validierung Runde 1: A/B/C needs-remediation (1 high); R1 rot vor der Änderung 449a3ee (test-check-config.sh Exit 1, test-itsaplan-template.mjs Exit 1); grün danach: beide Exit 0, `bash scripts/test-all.sh` Exit 0 · 6c27c0d
 - 2026-11-21T20:30Z · Koordinator: kein Merge nach dev, bis die Historie umgeschrieben ist; danach batch/m005 auf neues dev aufsetzen
-- 2026-11-21T20:55Z · Validierung Runde 2: A needs-attention (1 medium: requirements verlangt, dass übersetzte Namen Fehler sind), B pass, C needs-attention (gleicher medium-Fund); R2 rot vor der Änderung ddfdd86; grün danach: test-check-config.sh, test-itsaplan-template.mjs Exit 0, dev eingemergt (4479319), `bash scripts/test-all.sh` Exit 0 · R2COMMIT
+- 2026-11-21T20:55Z · Validierung Runde 2: A needs-attention (1 medium: requirements verlangt, dass übersetzte Namen Fehler sind), B pass, C needs-attention (gleicher medium-Fund); R2 rot vor der Änderung ddfdd86; grün danach: test-check-config.sh, test-itsaplan-template.mjs Exit 0, dev eingemergt (4479319), `bash scripts/test-all.sh` Exit 0 · 540c1c5
