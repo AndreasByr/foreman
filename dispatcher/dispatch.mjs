@@ -64,7 +64,10 @@ export function redact(text, secrets) {
 }
 
 function loadState(path) {
-  try { return JSON.parse(readFileSync(path, "utf8")); } catch { return { fired: {} }; }
+  try {
+    const data = JSON.parse(readFileSync(path, "utf8"));
+    return data && typeof data === "object" && !Array.isArray(data) ? data : { fired: {} };
+  } catch { return { fired: {} }; }
 }
 
 /** Picks the tasks to start: at most `max` (never above 3), one per unit, none fired within the cooldown. */
@@ -206,19 +209,245 @@ export function webhookRequest(config, env, message) {
   return { url, body: JSON.stringify(kind === "discord" ? { content: message } : { text: message }) };
 }
 
+/** Sends a webhook. Returns "sent", "none" (no URL set, or URL/format unusable) or "failed". */
 async function notify(config, env, message, fetchImpl, log) {
   let req;
-  try { req = webhookRequest(config, env, message); } catch (e) { log(`webhook not used: ${e.message}`); return; }
-  if (!req) return;
+  try { req = webhookRequest(config, env, message); } catch (e) { log(`webhook not used: ${e.message}`); return "none"; }
+  if (!req) return "none";
   try {
     // redirect: "error" keeps the request on the host that was checked
     const res = await fetchImpl(req.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: req.body, redirect: "error", signal: AbortSignal.timeout(15000) });
-    if (res && res.ok === false) log(`webhook failed: answered ${res.status}`);
-  } catch (e) { log(`webhook failed: ${redact(e.message, [req.url])}`); }
+    if (res && res.ok === false) { log(`webhook failed: answered ${res.status}`); return "failed"; }
+    return "sent";
+  } catch (e) { log(`webhook failed: ${redact(e.message, [req.url])}`); return "failed"; }
+}
+
+const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+const REPO_NAME = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const DEFAULT_VERSION_FILE = resolve(fileURLToPath(new URL(".", import.meta.url)), "..", "VERSION");
+const stripV = (s) => (s.startsWith("v") ? s.slice(1) : s);
+
+/** Parses MAJOR.MINOR.PATCH[-pre] with one optional leading v (at most 40 characters). Returns null when invalid. */
+export function parseSemver(s) {
+  if (typeof s !== "string") return null;
+  const v = stripV(s);
+  const m = v.length <= 40 ? SEMVER.exec(v) : null;
+  if (!m) return null;
+  return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]), pre: m[4] ? m[4].split(".") : [] };
+}
+
+/** SemVer 2.0 precedence: -1, 0 or 1. Null when either version is invalid. */
+export function compareVersions(a, b) {
+  const x = parseSemver(a), y = parseSemver(b);
+  if (!x || !y) return null;
+  for (const k of ["major", "minor", "patch"]) if (x[k] !== y[k]) return x[k] < y[k] ? -1 : 1;
+  if (!x.pre.length || !y.pre.length) return x.pre.length === y.pre.length ? 0 : x.pre.length ? -1 : 1;
+  for (let i = 0; i < Math.max(x.pre.length, y.pre.length); i++) {
+    const p = x.pre[i], q = y.pre[i];
+    if (p === undefined) return -1;
+    if (q === undefined) return 1;
+    const pn = /^\d+$/.test(p), qn = /^\d+$/.test(q);
+    if (pn && qn) { if (Number(p) !== Number(q)) return Number(p) < Number(q) ? -1 : 1; }
+    else if (pn !== qn) return pn ? -1 : 1;
+    else if (p !== q) return p < q ? -1 : 1;
+  }
+  return 0;
+}
+
+/** True only when both versions are valid and the project's version is older. */
+export function isOutdated(projectVersion, currentVersion) {
+  return compareVersions(projectVersion, currentVersion) === -1;
+}
+
+/** The current foreman version: `{ version }` (no v) or `{ error }`. Never throws. */
+export async function foremanVersion(config, { fetch: fetchImpl = fetch, versionFile = DEFAULT_VERSION_FILE } = {}) {
+  const source = config.foreman_version_source ?? "release";
+  if (source === "local") {
+    try {
+      const v = readFileSync(versionFile, "utf8").trim();
+      return parseSemver(v) ? { version: stripV(v) } : { error: `${versionFile} has no valid version` };
+    } catch (e) { return { error: `cannot read ${versionFile}: ${e.code ?? "error"}` }; }
+  }
+  if (source !== "release") return { error: `unknown foreman_version_source: ${source}` };
+  const repo = config.foreman_repo ?? "AndreasByr/foreman";
+  if (!REPO_NAME.test(repo)) return { error: "invalid foreman_repo: use owner/name" };
+  let res;
+  try {
+    res = await fetchImpl(`https://api.github.com/repos/${repo}/releases/latest`, {
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "foreman-dispatcher" },
+      redirect: "error", signal: AbortSignal.timeout(15000),
+    });
+  } catch (e) { return { error: `release lookup failed: ${String(e?.message ?? e).split("\n")[0]}` }; }
+  if (!res.ok) return { error: `release lookup answered ${res.status}` };
+  try {
+    const tag = (await res.json())?.tag_name;
+    return parseSemver(tag) ? { version: stripV(tag) } : { error: "latest release has no valid tag_name" };
+  } catch { return { error: "release lookup answered invalid JSON" }; }
+}
+
+/** The project's foreman version from .foreman.json: `{ version }` (no v) or `{ error }`. Never throws. */
+export async function projectVersion(dir) {
+  let json;
+  try { json = JSON.parse(readFileSync(join(dir, ".foreman.json"), "utf8")); } catch { return { error: "no readable .foreman.json" }; }
+  const v = json?.foreman;
+  return parseSemver(v) ? { version: stripV(v) } : { error: "no valid foreman version in .foreman.json" };
+}
+
+/** Logs one line when the project is behind the foreman release; the release is looked up once per run. Never throws.
+ *  Returns { old, current } when both versions are usable, otherwise nothing. */
+async function checkForemanVersion(project, config, dir, cache, { fetch, versionFile, say }) {
+  try {
+    if (!cache.done) {
+      cache.done = true;
+      cache.current = await foremanVersion(config, { fetch, versionFile });
+      if (cache.current.error) say(`foreman version unknown: ${cache.current.error}`);
+    }
+    if (cache.current.error) return;
+    const p = await projectVersion(dir);
+    if (p.error) say(`${project.name}: foreman version not usable: ${p.error}`);
+    else {
+      if (isOutdated(p.version, cache.current.version)) say(`${project.name}: foreman update available: ${p.version} -> ${cache.current.version}`);
+      return { old: p.version, current: cache.current.version };
+    }
+  } catch (e) { say(`${project.name}: foreman version check failed: ${String(e?.message ?? e).split("\n")[0]}`); }
+}
+
+/** Small itsaplan REST client (same calls and errors as scripts/lib/itsaplan-api.mjs). */
+function itsaplanApi(url, key, fetchImpl) {
+  const base = url.replace(/\/$/, ""), id = encodeURIComponent;
+  async function request(path, method = "GET", body) {
+    const res = await fetchImpl(`${base}${path}`, {
+      method, headers: { "content-type": "application/json", "x-api-key": key },
+      ...(body ? { body: JSON.stringify(body) } : {}), redirect: "error", signal: AbortSignal.timeout(15000),
+    });
+    const text = await res.text();
+    let data;
+    try { data = text ? JSON.parse(text) : {}; } catch { data = { error: text }; }
+    if (res.status >= 400) {
+      const error = new Error(`itsaplan API ${res.status}: ${String(data.error ?? res.statusText).split(key).join("[redacted]")}`);
+      error.status = res.status;
+      throw error;
+    }
+    return data;
+  }
+  return {
+    project: (k) => request(`/projects/${id(k)}`),
+    async list(k) {
+      const list = [];
+      let cursor;
+      do {
+        const q = new URLSearchParams({ limit: "500", includeArchived: "true" });
+        if (cursor) q.set("cursor", cursor);
+        const data = await request(`/projects/${id(k)}/issues?${q}`);
+        const page = data.items ?? data.issues ?? data;
+        list.push(...page);
+        cursor = data.nextCursor;
+        if (!cursor && page.length === 500) throw new Error("More than 500 issues and no cursor, cannot page");
+      } while (cursor);
+      return list;
+    },
+    create: (k, body) => request(`/projects/${id(k)}/issues`, "POST", body),
+    move: (issueId, columnId) => request(`/issues/${id(issueId)}`, "PATCH", { columnId }),
+    comment: (issueId, body) => request(`/issues/${id(issueId)}/comments`, "POST", { body }),
+  };
+}
+
+/**
+ * Reports "foreman update available" once per version: an itsaplan ticket (only with module tracker-itsaplan) and a
+ * webhook, remembered in state.update. Closes tickets of versions the project has reached. Never throws.
+ * Returns true when a part failed. Writes the state itself (not on a dry run).
+ */
+async function updateStep(project, config, env, dir, state, statePath, { old, current }, { fetch: fetchImpl, say: log, dryRun, now, secrets }) {
+  const name = project.name, u = state.update, outdated = isOutdated(old, current), before = JSON.stringify(state);
+  const hookEnv = config.webhook_url_env ?? "DISPATCHER_ERROR_WEBHOOK_URL";
+  const say = (m) => log(redact(m, [env[hookEnv]]));
+  let failed = false;
+  const fail = (part, e) => { failed = true; say(`${name}: update ${part} failed: ${redact(String(e?.message ?? e).split("\n")[0], secrets)}`); };
+  let fj = {};
+  try { fj = JSON.parse(readFileSync(join(dir, ".foreman.json"), "utf8")) ?? {}; } catch { /* projectVersion found it before */ }
+  const pass = safeEnv(env, project.pass_env), url = pass.ITSAPLAN_URL, key = pass.ITSAPLAN_API_KEY, pk = fj.mirror?.itsaplan?.projectKey;
+  const tracker = Array.isArray(fj.modules) && fj.modules.includes("tracker-itsaplan");
+  const repo = REPO_NAME.test(config.foreman_repo ?? "") ? config.foreman_repo : "AndreasByr/foreman";
+  const changelog = `https://github.com/${repo}/blob/main/CHANGELOG.md`;
+  try {
+    if (dryRun) {
+      const ticket = tracker && pk && url && key && !u.ticket[current];
+      if (tracker) {
+        for (const [v, issueId] of Object.entries(u.ticket)) {
+          if (compareVersions(old, v) >= 0) say(`${name}: would close update ticket ${issueId} (the project is on foreman ${old})`);
+          else if (outdated && v !== current) say(`${name}: would close update ticket ${issueId} (superseded by foreman ${current})`);
+        }
+      }
+      if (outdated) say(`${name}: would report update ${old} → ${current} (ticket: ${ticket ? "yes" : "no"}, webhook: ${!u.webhook[current] && env[hookEnv] ? "yes" : "no"})`);
+      return false;
+    }
+    if (tracker && (outdated || Object.keys(u.ticket).length)) {
+      if (!pk) { if (outdated) say(`${name}: update ticket skipped: mirror.itsaplan.projectKey missing`); }
+      else if (!url || !key) { if (outdated) say(`${name}: update ticket skipped: ITSAPLAN_URL or ITSAPLAN_API_KEY missing in pass_env`); }
+      else {
+        try {
+          const api = itsaplanApi(url, key, fetchImpl);
+          let columns;
+          const columnId = async (label, names) => {
+            columns ??= (await api.project(pk)).columns ?? [];
+            const aliases = fj.tracker?.columnAliases?.[label];
+            const want = [label, ...names, ...(Array.isArray(aliases) ? aliases : [])].map((n) => String(n).toLowerCase());
+            const c = columns.find((x) => want.includes(String(x.name).toLowerCase()));
+            if (!c) throw new Error(`no column "${label}"`);
+            return c.id;
+          };
+          // moves a recorded ticket to Done with a comment; a missing issue (404) is dropped from the state
+          const retire = async (v, issueId, text) => {
+            const done = await columnId("Done", []);
+            try { await api.move(issueId, done); } catch (e) {
+              if (e.status !== 404) throw e;
+              say(`${name}: update ticket ${issueId} not found, dropped from the state`);
+              delete u.ticket[v];
+              return;
+            }
+            delete u.ticket[v];
+            try { await api.comment(issueId, text); } catch (e) {
+              say(`${name}: update ticket comment failed: ${redact(String(e?.message ?? e).split("\n")[0], secrets)}`);
+            }
+          };
+          for (const [v, issueId] of Object.entries(u.ticket)) {
+            if (compareVersions(old, v) >= 0) await retire(v, issueId, `Closed by the dispatcher: the project is on foreman ${old}.`);
+          }
+          if (outdated) {
+            if (!u.ticket[current]) {
+              const title = `foreman update available: ${old} → ${current}`;
+              const column = await columnId("Action Required", ["Intervention needed"]);
+              const found = (await api.list(pk)).find((i) => i.title === title);
+              const description = [
+                `The project is on foreman ${old}; the current version is ${current}.`, "",
+                "1. Open the project chat and run `foreman-update`. It compares the versions and lists the changes.",
+                `2. Read the Upgrade section for ${current}: ${changelog}`,
+                "3. Run the order it writes in the project (`install.sh --update`, dry run first).", "",
+                `This ticket closes itself once .foreman.json shows ${current}. Created by the dispatcher.`,
+              ].join("\n");
+              u.ticket[current] = found?.id ?? (await api.create(pk, { title, description, columnId: column })).id;
+            }
+            for (const [v, issueId] of Object.entries(u.ticket)) if (v !== current) await retire(v, issueId, `Superseded by foreman ${current}.`);
+          }
+        } catch (e) { fail("ticket", e); }
+      }
+    }
+    if (outdated) {
+      for (const v of Object.keys(u.webhook)) if (v !== current) delete u.webhook[v];
+      if (!u.webhook[current]) {
+        const msg = `foreman update available for ${name}: ${old} → ${current}. Run foreman-update in the project chat. Upgrade notes: ${changelog}`;
+        const r = await notify(config, env, msg, fetchImpl, say);
+        if (r === "sent") u.webhook[current] = new Date(now).toISOString();
+        else if (r === "failed") fail("webhook", new Error("delivery failed, see the webhook line above"));
+      }
+    }
+    if (JSON.stringify(state) !== before) writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
+  } catch (e) { fail("state", e); }
+  return failed;
 }
 
 /** Runs the dispatcher for all projects. Returns the exit code (1 when any project failed). */
-export async function run({ config, env = process.env, dryRun = false, only = null, update = true, now = Date.now(), fetch: fetchImpl = fetch, log = (m) => console.log(m) } = {}) {
+export async function run({ config, env = process.env, dryRun = false, only = null, update = true, now = Date.now(), fetch: fetchImpl = fetch, log = (m) => console.log(m), versionFile = undefined } = {}) {
   const workdir = expandHome(config.workdir || "~/.local/share/foreman-dispatcher");
   const stateDir = join(workdir, "state");
   mkdirSync(stateDir, { recursive: true });
@@ -226,6 +455,7 @@ export async function run({ config, env = process.env, dryRun = false, only = nu
   if (!dryRun && !acquireLock(lock)) { log("another dispatcher run is active; skipping"); return 0; }
   const cooldownMs = (config.cooldown_minutes ?? 45) * 60 * 1000;
   let failed = false;
+  const versionCache = { done: false, current: null };
   try {
     for (const project of config.projects ?? []) {
       if (project.enabled === false || (only && project.name !== only)) continue;
@@ -235,12 +465,18 @@ export async function run({ config, env = process.env, dryRun = false, only = nu
         let dir = join(workdir, "repos", project.name);
         if (update) dir = updateRepo(project, workdir, env, say);
         else if (!existsSync(join(dir, ".git"))) throw new Error("no clone yet (run without --no-update first)");
+        const statePath = join(stateDir, `${project.name}.json`);
+        const state = loadState(statePath);
+        state.fired ??= {};
+        state.update = { ...state.update, webhook: state.update?.webhook ?? {}, ticket: state.update?.ticket ?? {} };
+        if (project.update_notice !== false && config.update_notice !== false) {
+          const versions = await checkForemanVersion(project, config, dir, versionCache, { fetch: fetchImpl, versionFile, say });
+          if (versions) failed = (await updateStep(project, config, env, dir, state, statePath, versions, { fetch: fetchImpl, say, dryRun, now, secrets })) || failed;
+        }
         const { stdout, stderr } = runCheck(project, dir, env);
         for (const l of stderr.split("\n").filter(Boolean)) say(`${project.name}: check note: ${l}`);
         const parsed = parseCheckOutput(stdout);
         if (parsed.nothing || !parsed.tasks.length) { say(`${project.name}: nothing to do`); continue; }
-        const statePath = join(stateDir, `${project.name}.json`);
-        const state = loadState(statePath);
         const { chosen, skipped } = selectTasks(parsed.tasks, state, now, { max: project.max_tasks ?? HARD_MAX_TASKS, cooldownMs });
         for (const s of skipped) say(`${project.name}: skip ${s.kind} ${s.unit} (${s.why})`);
         for (const task of chosen) {
