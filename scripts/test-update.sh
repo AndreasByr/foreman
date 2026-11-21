@@ -261,7 +261,7 @@ echo "// stale, different text" > "$d/scripts/lib/state.mjs"
 commit "$d" stale
 as_old "$d"; commit "$d" old
 h=$(tree_hash "$d")
-env GIT_TEST_ASSUME_DIFFERENT_OWNER=1 "$HERE/install.sh" "$d" --update >"$T/upd.out" 2>"$T/upd.err" && RC=0 || RC=$?
+env GIT_TEST_ASSUME_DIFFERENT_OWNER=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 "$HERE/install.sh" "$d" --update >"$T/upd.out" 2>"$T/upd.err" && RC=0 || RC=$?
 OUT=$(cat "$T/upd.out"); ERR=$(cat "$T/upd.err")
 [ "$RC" = 2 ] || fail "15: exit $RC, expected 2; stderr: $ERR"
 case "$ERR" in *"cannot check local changes"*) ;; *) fail "15: stderr lacks 'cannot check local changes': $ERR" ;; esac

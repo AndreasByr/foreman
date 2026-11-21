@@ -239,7 +239,7 @@ def main(argv):
     to_update = [p[1] for p in plan if p[0] == "update" and os.path.lexists(os.path.join(target, *p[1].split("/")))]
     git_note = False
     if to_update:
-        env = dict(os.environ, GIT_OPTIONAL_LOCKS="0")
+        env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", LC_ALL="C", LANGUAGE="C")
         in_tree = False
         try:
             inside = subprocess.run(["git", "-C", target, "rev-parse", "--is-inside-work-tree"],
