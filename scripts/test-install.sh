@@ -123,6 +123,33 @@ err=$(inst "$T/dno" --project p --modules notion 2>&1) || rc=$?
 [ "$rc" != 0 ] || fail "old module name 'notion' accepted"
 echo "$err" | grep -q 'docs-notion' || fail "old module name 'notion': message lacks docs-notion: $err"
 
+# 4c. docs-notion post-merge hook: installed with the module, dry run works without a key, absent by default; the batch-run step is generic
+mkdir "$T/pm1" && git -C "$T/pm1" init -q
+inst "$T/pm1" --project p --modules docs-notion >/dev/null 2>&1 || fail "post-merge: docs-notion install failed"
+[ -f "$T/pm1/scripts/post-merge.d/docs-notion.sh" ] || fail "post-merge: scripts/post-merge.d/docs-notion.sh missing"
+[ -x "$T/pm1/scripts/post-merge.d/docs-notion.sh" ] || fail "post-merge: docs-notion.sh not executable"
+out=$(cd "$T/pm1" && env -u NOTION_API_KEY bash scripts/post-merge.d/docs-notion.sh --dry-run 2>&1) || fail "post-merge: dry run exited nonzero: $out"
+echo "$out" | grep -q '^sync docs/' || fail "post-merge: dry run prints no line starting with 'sync docs/': $out"
+
+# default install (no docs-notion): no post-merge.d folder
+[ -e "$T/dn0/scripts/post-merge.d" ] && fail "post-merge.d installed without docs-notion" || true
+
+# autopilot + docs-notion: batch-run.md names the post-merge step and says it never blocks
+mkdir "$T/pm2" && git -C "$T/pm2" init -q
+inst "$T/pm2" --project p --scope autopilot --modules autopilot,docs-notion >/dev/null 2>&1 || fail "post-merge: autopilot,docs-notion install failed"
+br="$T/pm2/.claude/skills/foreman-dispatch-run/references/batch-run.md"
+[ -f "$br" ] || fail "post-merge: batch-run.md missing with autopilot"
+grep -q 'post-merge.d' "$br" || fail "post-merge: batch-run.md lacks the post-merge.d step"
+grep -q 'never blocks' "$br" || fail "post-merge: batch-run.md lacks 'never blocks'"
+
+# autopilot without docs-notion: the step stays generic, nothing about notion
+mkdir "$T/pm3" && git -C "$T/pm3" init -q
+inst "$T/pm3" --project p --modules autopilot >/dev/null 2>&1 || fail "post-merge: autopilot install failed"
+br3="$T/pm3/.claude/skills/foreman-dispatch-run/references/batch-run.md"
+[ -f "$br3" ] || fail "post-merge: batch-run.md missing with autopilot only"
+grep -q 'post-merge.d' "$br3" || fail "post-merge: batch-run.md lacks post-merge.d without docs-notion"
+grep -qi 'notion' "$br3" && fail "post-merge: batch-run.md mentions notion without docs-notion" || true
+
 # 5. agents: opencode and other get AGENTS.md and the git guard
 for ag in opencode other; do
   mkdir "$T/$ag" && git -C "$T/$ag" init -q
