@@ -90,6 +90,8 @@ Principles: [docs/PRINCIPLES.md](docs/PRINCIPLES.md). Lifecycle: [docs/WORKFLOW.
 | `autopilot` | check script for the central dispatcher, work-run routine, batch windows |
 | `pretest` | browser pretest inside the work run: Playwright, test login, axe, verdict file |
 
+With module `autopilot`, the check starts the batch PR in the merge window: the local hours in `context.timeZone` listed in `autopilot.batchHours` (default 3, 7, 11, 15, 19, 23). Outside the window it starts the batch after the wait time in `autopilot.waitHours` (default 4 hours). `main` merges by itself only with `autopilot.mainAutoMerge: true`, which defaults to `false`; otherwise `main` waits for your "Batch PR main". `foreman-project` asks these values per project. The installer takes them as `--tz`, `--batch-hours`, `--wait-hours` and `--main-auto-merge yes|no`. Without these options the installer writes `UTC` and no `autopilot` block, so the defaults apply.
+
 Details: [docs/MODULES.md](docs/MODULES.md). Agents other than Claude Code: `--agent opencode` or `--agent other` writes an `AGENTS.md`; see [docs/MODULES.md](docs/MODULES.md).
 
 ## Recommended skills

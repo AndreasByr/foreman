@@ -1,6 +1,6 @@
 ---
 name: foreman-setup
-description: "Guided setup of the foreman workflow. Use at first setup or when the environment changed (machines, plans, gateway, tracker), not for every new project; new projects use foreman-project. Asks a short adaptive question catalog, recommends Quick, Repo or Autopilot, and returns the install command and a checklist."
+description: "Guided setup of the foreman workflow. Use at first setup (first time) or when the environment changed (new machine, new server, plans, gateway, tracker), not for every new project; new projects use foreman-project. Asks a short adaptive question catalog, recommends Quick, Repo or Autopilot, and returns the install command and a checklist."
 ---
 
 # foreman-setup
@@ -107,6 +107,13 @@ When the human reports the install ran: check `.foreman.json` (version `0.2.0`, 
 ### 9. Claude Code project (optional, 2 min)
 
 If you run in a Claude Code project (project chat plus threads), run `foreman-project-mode` after the install: it writes the foreman rules into the project instructions, so every thread works the same way. It is also the update path for projects that already have foreman.
+
+## Merge window per project
+
+- The batch PR starts inside the merge window: hours from `autopilot.batchHours`, read in `context.timeZone`. Outside the window it starts after `autopilot.waitHours` (default 4 hours).
+- `main` merges by itself only with `autopilot.mainAutoMerge: true` (default `false`).
+- `foreman-project` asks these values per project. Setup does not ask them.
+- After every change of the environment, refresh the chat copy of `workspace.json` (Claude project "foreman", docs), because `foreman-project` reads it. Tell the human to update that copy.
 
 ## Rules
 

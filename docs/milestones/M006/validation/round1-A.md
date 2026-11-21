@@ -39,5 +39,5 @@ Verdict: needs-remediation
 
 **Unclear / not found**
 - I could not run the tests myself. Running test scripts needs approval, and I am read-only here, so "green" rests on STATE.md alone.
-- The F2/F3 analyses for Guildora and Kasev are not in the repo (`docs/fixpacks/` holds only `_TEMPLATE`). Whether project-specific changes there (for example Kasev's check script without `--no-fetch`, `requirements.md:50`) are correctly classed as foreman-owned under `scripts/` cannot be judged.
+- The F2/F3 analyses for Projekt A and Projekt B are not in the repo (`docs/fixpacks/` holds only `_TEMPLATE`). Whether project-specific changes there (for example Projekt B's check script without `--no-fetch`, `requirements.md:50`) are correctly classed as foreman-owned under `scripts/` cannot be judged.
 - No test shows that the update never reads key files (`.env`, `*.pem`). The code only reads files that exist in the template plus `.foreman.json` and `.claude/settings.json`.

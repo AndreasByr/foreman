@@ -25,4 +25,4 @@ Rohberichte der Prüfer: `docs/milestones/M001/validation/round1-a.md` bis `roun
 - Der rote Lauf für R1-5 (Redirect) wurde erst nach Runde 3 einzeln aufgezeichnet (Exit 1 ohne `redirect: "error"`, 31 Tests grün mit); im R1-Bericht steht er als gemeinsamer Lauf mit R1-4.
 
 ## Nicht geprüft von Prüfern oder Session
-Echte Discord-Meldung, Lauf auf myweby, Produktentscheidung zum Standardverhalten: Human only (UAT, `docs/uat/M001.md`).
+Echte Discord-Meldung, Lauf auf server-1, Produktentscheidung zum Standardverhalten: Human only (UAT, `docs/uat/M001.md`).

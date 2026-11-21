@@ -848,6 +848,27 @@ def test_limits_claude_pause_kept_when_later_role_has_a_fallback():
         assert any("claude: paused 0.2s before retry" in l for l in res.splitlines()), res
 
 
+def test_worker_preamble_carries_the_three_rules():
+    for name, text in (("PREAMBLE", rt.PREAMBLE), ("READONLY_PREAMBLE", rt.READONLY_PREAMBLE)):
+        for needle in (".claude/", "key files", "existence and permissions", "config.toml", "model IDs"):
+            assert needle in text, (name, needle)
+
+
+def test_worker_prompt_reaches_the_worker_with_the_rules():
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        args = setup(t, "---\nrole: execution\n---\nx\n")
+        env = _fake_claude(t, 'printf \'%s\' "$2" > "$(dirname "$0")/prompt.txt"; echo \'{"result":"ok","is_error":false}\'\n')
+        for role in ("execution", "research"):
+            (t / "t.md").write_text(f"---\nrole: {role}\n---\nx\n")
+            p = subprocess.run([sys.executable, str(HERE / "run_task.py"), *args], capture_output=True, text=True,
+                               cwd=t, env=env)
+            assert p.returncode == 0, (role, p.returncode, p.stdout, p.stderr)
+            sent = (t / "bin" / "prompt.txt").read_text()
+            for needle in ("existence and permissions", ".claude/"):
+                assert needle in sent, (role, needle, sent)
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in sorted(globals().items()):

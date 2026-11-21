@@ -1,0 +1,8 @@
+# sha256 of lowercase words that must never appear in tracked files (hashes, so the list itself leaks nothing).
+# Add one with: python3 scripts/privacy-scan.py --hash <word>
+4e8fc3a9f68563d9af9c8410e5dfae583e3f815a884e42318295e2b2b6d68d60
+f498470b6ed2e37b60f8bfcfaf5c12b394c0cc820a58e5e71892a5b8c6857b2a
+6ca5ef303a23782002fee1218a32158fc5e61cd3c7650b3b6f4a1111e4766173
+2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90
+e87f468fb9123488462f1a724eda5ea081994db60e5dddd442c6f7a58d801323
+107eaa270bb4d71418a08f6d239f74d9463826418f23c80bfccbc3f14115bc53

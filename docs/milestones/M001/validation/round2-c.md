@@ -57,4 +57,4 @@ Alle bleiben offen: Roadmap `:107,118-128`. In `docs/milestones/M001/` gibt es k
 **Unclear / not found**
 - Ob die roten Läufe und `test-all.sh` wirklich gelaufen sind. Ich konnte nur lesen, Bash wurde abgelehnt. Grün habe ich nicht selbst geprüft.
 - Ob der R1-1-Test gegen `dd4d933` tatsächlich rot war. Logisch ja, aufgezeichnet ist es nicht.
-- Ob der tatsächliche myweby-Patch dem übernommenen Verhalten entspricht. Der Patch liegt nicht im Repo.
+- Ob der tatsächliche server-1-Patch dem übernommenen Verhalten entspricht. Der Patch liegt nicht im Repo.
