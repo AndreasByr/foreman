@@ -80,7 +80,7 @@ function setup(output, { code = 0, project = {}, config = {}, checkScript = null
   const dir = mkdtempSync(join(tmpdir(), "foreman-disp-"));
   const origin = makeRemote(dir, output, code, checkScript);
   const cfg = {
-    workdir: join(dir, "work"), ...config,
+    workdir: join(dir, "work"), update_notice: false, ...config,
     projects: [{ name: "p", repo: origin, branch: "dev", fire_url_env: "P_URL", fire_token_env: "P_TOKEN", ...project }],
   };
   const env = { P_URL: "https://fire.example/api", P_TOKEN: TOKEN, PATH: process.env.PATH, HOME: process.env.HOME };
@@ -518,6 +518,295 @@ t("run: a webhook that answers an error status is logged with the status only", 
     assert.equal(code, 1);
     assert.ok(logs.some((l) => l.includes("answered 404")), "the webhook's status is logged");
     assert.ok(!logs.join("\n").includes("abc"), "log must not contain the webhook URL");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ---- foreman version check (M007 slice S1): these tests fail until the functions exist ----
+// Every new export is reached through dispatchModule.<name>, so a missing one fails only its own test.
+const RELEASE_URL = "https://api.github.com/repos/AndreasByr/foreman/releases/latest";
+const FIRE = "https://fire.example/api";
+
+/** A fetch response with text() and json(), as the dispatcher may read them. */
+function jsonResponse(status, body) {
+  const text = typeof body === "string" ? body : JSON.stringify(body);
+  return { ok: status >= 200 && status < 300, status, text: async () => text, json: async () => JSON.parse(text) };
+}
+
+/** Header names in lower case, so the test does not depend on how the dispatcher spells them. */
+function lowerKeys(h) {
+  return Object.fromEntries(Object.entries(h ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
+}
+
+t("compareVersions: numeric and SemVer pre-release precedence, a leading v is ignored", () => {
+  const cmp = dispatchModule.compareVersions;
+  assert.equal(cmp("0.2.1", "0.2.4"), -1);
+  assert.equal(cmp("0.2.4", "0.2.1"), 1);
+  assert.equal(cmp("0.2.9", "0.2.10"), -1, "numeric, not text");
+  assert.equal(cmp("0.2.2-rc.1", "0.2.2"), -1, "a pre-release is older than its release");
+  assert.equal(cmp("0.2.2-rc.1", "0.2.2-rc.2"), -1);
+  assert.equal(cmp("0.2.4", "0.2.4"), 0);
+  assert.equal(cmp("v0.2.4", "0.2.4"), 0);
+});
+
+t("parseSemver: MAJOR.MINOR.PATCH with optional pre-release, one leading v, up to 40 characters", () => {
+  const ps = dispatchModule.parseSemver;
+  assert.deepEqual(ps("0.2.2-rc.1"), { major: 0, minor: 2, patch: 2, pre: ["rc", "1"] });
+  assert.deepEqual(ps("v0.2.4"), { major: 0, minor: 2, patch: 4, pre: [] });
+  const fortyChars = `1.2.3-${"a".repeat(34)}`;
+  assert.equal(fortyChars.length, 40);
+  assert.ok(ps(fortyChars), "40 characters are accepted");
+});
+
+const INVALID_VERSIONS = ["", "abc", "1.2", "0.2.1\n# x", "1.2.3+build", `1.2.3-${"a".repeat(35)}`, "1.2.3 ", "**1.2.3**", "vv0.2.4"];
+t("parseSemver and compareVersions: invalid input gives null, on either side", () => {
+  for (const v of INVALID_VERSIONS) {
+    assert.equal(dispatchModule.parseSemver(v), null, JSON.stringify(v));
+    assert.equal(dispatchModule.compareVersions(v, "0.2.4"), null, JSON.stringify(v));
+    assert.equal(dispatchModule.compareVersions("0.2.4", v), null, JSON.stringify(v));
+  }
+});
+
+t("isOutdated: true only when both are valid and the project is older", () => {
+  const io = dispatchModule.isOutdated;
+  assert.equal(io("0.2.1", "0.2.4"), true);
+  assert.equal(io("0.2.4", "0.2.4"), false);
+  assert.equal(io("0.3.0", "0.2.4"), false);
+  assert.equal(io("abc", "0.2.4"), false);
+  assert.equal(io("0.2.1", "abc"), false);
+});
+
+t("foremanVersion release: tag v0.2.4 gives version 0.2.4, default URL, GitHub headers, redirects refused", async () => {
+  const calls = [];
+  const fetch = async (url, o) => { calls.push({ url, o }); return jsonResponse(200, { tag_name: "v0.2.4" }); };
+  assert.deepEqual(await dispatchModule.foremanVersion({ foreman_version_source: "release" }, { fetch }), { version: "0.2.4" });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, RELEASE_URL);
+  const h = lowerKeys(calls[0].o.headers);
+  assert.equal(h.accept, "application/vnd.github+json");
+  assert.equal(h["user-agent"], "foreman-dispatcher");
+  assert.equal(calls[0].o.redirect, "error");
+  assert.ok(calls[0].o.signal, "the request has a timeout");
+});
+
+t("foremanVersion release: default source is release; foreman_repo selects the repository; invalid repo makes no call", async () => {
+  const urls = [];
+  const fetch = async (url) => { urls.push(url); return jsonResponse(200, { tag_name: "0.2.4" }); };
+  assert.deepEqual(await dispatchModule.foremanVersion({}, { fetch }), { version: "0.2.4" });
+  assert.deepEqual(await dispatchModule.foremanVersion({ foreman_repo: "someone/fork" }, { fetch }), { version: "0.2.4" });
+  assert.deepEqual(urls, [RELEASE_URL, "https://api.github.com/repos/someone/fork/releases/latest"]);
+  for (const bad of ["a/b/c", "x y", "owner", "a/b;c", "https://evil.example/x"]) {
+    const calls = [];
+    const r = await dispatchModule.foremanVersion({ foreman_version_source: "release", foreman_repo: bad }, { fetch: async (u) => { calls.push(u); return jsonResponse(200, { tag_name: "0.2.4" }); } });
+    assert.equal(typeof r.error, "string", JSON.stringify(bad));
+    assert.equal(calls.length, 0, `no call for ${JSON.stringify(bad)}`);
+  }
+});
+
+t("foremanVersion release: HTTP errors, network errors, bad JSON and bad tags give { error }, never throw", async () => {
+  const cases = [
+    ["404", async () => jsonResponse(404, { message: "Not Found" }), /404/],
+    ["403", async () => jsonResponse(403, { message: "rate limit" }), /403/],
+    ["429", async () => jsonResponse(429, { message: "slow down" }), /429/],
+    ["500", async () => jsonResponse(500, {}), /500/],
+    ["network throw", async () => { throw new Error("getaddrinfo ENOTFOUND api.github.com"); }, null],
+    ["non-JSON body", async () => ({ ok: true, status: 200, text: async () => "<html>", json: async () => { throw new SyntaxError("Unexpected token <"); } }), null],
+    ["JSON without tag_name", async () => jsonResponse(200, { name: "x" }), null],
+    ["tag latest", async () => jsonResponse(200, { tag_name: "latest" }), null],
+  ];
+  for (const [name, fetch, status] of cases) {
+    const r = await dispatchModule.foremanVersion({ foreman_version_source: "release" }, { fetch });
+    assert.equal(r.version, undefined, name);
+    assert.equal(typeof r.error, "string", name);
+    assert.ok(r.error.length > 0 && !r.error.includes("\n"), `${name}: one-line reason`);
+    if (status) assert.match(r.error, status, name);
+  }
+});
+
+t("foremanVersion local: reads the version file, makes no network call; bad content, missing file and unknown source give { error }", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "foreman-ver-"));
+  try {
+    const versionFile = join(dir, "VERSION");
+    let calls = 0;
+    const fetch = async () => { calls++; throw new Error("must not be called"); };
+    writeFileSync(versionFile, "0.3.0\n");
+    assert.deepEqual(await dispatchModule.foremanVersion({ foreman_version_source: "local" }, { fetch, versionFile }), { version: "0.3.0" });
+    assert.equal(calls, 0, "local reads no network");
+
+    writeFileSync(versionFile, "not a version\n");
+    const bad = await dispatchModule.foremanVersion({ foreman_version_source: "local" }, { fetch, versionFile });
+    assert.equal(bad.version, undefined);
+    assert.equal(typeof bad.error, "string");
+
+    const missing = await dispatchModule.foremanVersion({ foreman_version_source: "local" }, { fetch, versionFile: join(dir, "nope") });
+    assert.equal(typeof missing.error, "string");
+
+    writeFileSync(versionFile, "0.3.0\n");
+    const unknown = await dispatchModule.foremanVersion({ foreman_version_source: "nightly" }, { fetch, versionFile });
+    assert.equal(unknown.version, undefined);
+    assert.equal(typeof unknown.error, "string");
+    assert.equal(calls, 0, "no network call for any local or unknown source");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+/** A temp dir holding .foreman.json with `content` (written as is), or no file when content is null. */
+function dirWithForemanJson(content) {
+  const d = mkdtempSync(join(tmpdir(), "foreman-pv-"));
+  if (content !== null) writeFileSync(join(d, ".foreman.json"), content);
+  return d;
+}
+
+t("projectVersion: the foreman field, normalized; a missing file, bad JSON, no field or bad version gives { error }", async () => {
+  const dirs = [];
+  try {
+    const plain = dirWithForemanJson('{ "foreman": "0.2.1" }'); dirs.push(plain);
+    const prefixed = dirWithForemanJson('{ "foreman": "v0.2.1" }'); dirs.push(prefixed);
+    assert.deepEqual(await dispatchModule.projectVersion(plain), { version: "0.2.1" });
+    assert.deepEqual(await dispatchModule.projectVersion(prefixed), { version: "0.2.1" });
+    const bad = [
+      ["missing file", null],
+      ["invalid JSON", "{ foreman: "],
+      ["no foreman field", '{ "name": "x" }'],
+      ["invalid version", JSON.stringify({ foreman: "0.2.1\n# x" })],
+    ];
+    for (const [name, content] of bad) {
+      const d = dirWithForemanJson(content); dirs.push(d);
+      const r = await dispatchModule.projectVersion(d);
+      assert.equal(r.version, undefined, name);
+      assert.equal(typeof r.error, "string", name);
+    }
+  } finally { for (const d of dirs) rmSync(d, { recursive: true, force: true }); }
+});
+
+// ---- run(): the release check, one line per project, never a change of the exit code ----
+/** setup() with the update notice on (setup turns it off, so the older tests make no release call). */
+function setupNotice(output, opts = {}) {
+  return setup(output, { ...opts, config: { update_notice: true, ...opts.config } });
+}
+
+/** Commits `text` as .foreman.json into the origin of a setup() dispatch; call before run(). */
+function commitForemanJson(dir, text) {
+  const origin = join(dir, "origin");
+  writeFileSync(join(origin, ".foreman.json"), text);
+  sh(origin, "add", ".foreman.json");
+  sh(origin, "commit", "-qm", "foreman version");
+}
+
+/** A fetch for run(): the GitHub call answers with release(), every other URL is a fire call. */
+function routedFetch(calls, release) {
+  return async (url, o) => {
+    calls.push({ url, o });
+    if (url.startsWith("https://api.github.com/")) return release();
+    return jsonResponse(200, {});
+  };
+}
+const releaseAt = (tag) => async () => jsonResponse(200, { tag_name: tag });
+const releaseDown = async () => { throw new Error("network down"); };
+const fireCalls = (calls) => calls.filter((c) => c.url === FIRE).length;
+const releaseCalls = (calls) => calls.filter((c) => c.url.startsWith("https://api.github.com/")).length;
+const versionLines = (logs) => logs.filter((l) => l.includes("foreman update available") || l.includes("foreman version"));
+
+t("run: project behind the release logs one update line, exit 0, the check runs and tasks start", async () => {
+  const { dir, cfg, env } = setupNotice(SAMPLE);
+  try {
+    commitForemanJson(dir, '{ "foreman": "0.2.1" }');
+    const calls = [], logs = [];
+    const code = await run({ config: cfg, env, fetch: routedFetch(calls, releaseAt("v0.2.4")), log: (m) => logs.push(m), now: Date.parse("2026-01-01T10:00:00Z") });
+    assert.equal(code, 0);
+    assert.equal(logs.filter((l) => l.includes("p: foreman update available: 0.2.1 -> 0.2.4")).length, 1);
+    assert.equal(releaseCalls(calls), 1);
+    assert.equal(fireCalls(calls), 2, "the check ran and its tasks started");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("run: project at the release or newer logs no version line", async () => {
+  for (const v of ["0.2.4", "0.3.0"]) {
+    const { dir, cfg, env } = setupNotice(SAMPLE);
+    try {
+      commitForemanJson(dir, JSON.stringify({ foreman: v }));
+      const calls = [], logs = [];
+      const code = await run({ config: cfg, env, fetch: routedFetch(calls, releaseAt("v0.2.4")), log: (m) => logs.push(m) });
+      assert.equal(code, 0, v);
+      assert.deepEqual(versionLines(logs), [], `project ${v}`);
+      assert.equal(fireCalls(calls), 2, `project ${v}: tasks start`);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }
+});
+
+t("run: release lookup fails -> 'foreman version unknown', exit 0, tasks still start", async () => {
+  const { dir, cfg, env } = setupNotice(SAMPLE);
+  try {
+    commitForemanJson(dir, '{ "foreman": "0.2.1" }');
+    const calls = [], logs = [];
+    const code = await run({ config: cfg, env, fetch: routedFetch(calls, releaseDown), log: (m) => logs.push(m) });
+    assert.equal(code, 0);
+    assert.ok(logs.some((l) => l.includes("foreman version unknown")), "the failure is logged");
+    assert.ok(!logs.some((l) => l.includes("foreman update available")));
+    assert.equal(fireCalls(calls), 2, "tasks still start");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("run: two projects make one release call per run and one line each; a failing lookup is logged once", async () => {
+  for (const [release, expectUnknown] of [[releaseAt("v0.2.4"), false], [releaseDown, true]]) {
+    const { dir, cfg, env } = setupNotice(SAMPLE);
+    try {
+      commitForemanJson(dir, '{ "foreman": "0.2.1" }');
+      cfg.projects.push({ name: "q", repo: join(dir, "origin"), branch: "dev", fire_url_env: "P_URL", fire_token_env: "P_TOKEN" });
+      const calls = [], logs = [];
+      const code = await run({ config: cfg, env, fetch: routedFetch(calls, release), log: (m) => logs.push(m) });
+      assert.equal(code, 0);
+      assert.equal(releaseCalls(calls), 1, "release asked once per run");
+      assert.equal(fireCalls(calls), 4, "both projects start their tasks");
+      if (expectUnknown) {
+        assert.equal(logs.filter((l) => l.includes("foreman version unknown")).length, 1, "logged once");
+      } else {
+        assert.ok(logs.some((l) => l.includes("p: foreman update available: 0.2.1 -> 0.2.4")));
+        assert.ok(logs.some((l) => l.includes("q: foreman update available: 0.2.1 -> 0.2.4")));
+      }
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }
+});
+
+t("run: update_notice false on the project or on the config makes no release call and no version line", async () => {
+  for (const opts of [{ project: { update_notice: false } }, { config: { update_notice: false } }]) {
+    const { dir, cfg, env } = setupNotice(SAMPLE, opts);
+    try {
+      commitForemanJson(dir, '{ "foreman": "0.2.1" }');
+      const calls = [], logs = [];
+      const code = await run({ config: cfg, env, fetch: routedFetch(calls, releaseAt("v0.2.4")), log: (m) => logs.push(m) });
+      assert.equal(code, 0);
+      assert.equal(releaseCalls(calls), 0, JSON.stringify(opts));
+      assert.deepEqual(versionLines(logs), [], JSON.stringify(opts));
+      assert.equal(fireCalls(calls), 2);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }
+});
+
+t("run: project without a usable .foreman.json logs 'foreman version not usable', tasks still start", async () => {
+  for (const text of [null, JSON.stringify({ foreman: "0.2.1\n# x" })]) {
+    const { dir, cfg, env } = setupNotice(SAMPLE);
+    try {
+      if (text !== null) commitForemanJson(dir, text);
+      const calls = [], logs = [];
+      const code = await run({ config: cfg, env, fetch: routedFetch(calls, releaseAt("v0.2.4")), log: (m) => logs.push(m) });
+      assert.equal(code, 0, String(text));
+      assert.ok(logs.some((l) => l.includes("p: foreman version not usable")), String(text));
+      assert.equal(fireCalls(calls), 2, "tasks still start");
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }
+});
+
+t("run: foreman_version_source local reads versionFile and makes no GitHub call", async () => {
+  const { dir, cfg, env } = setupNotice(SAMPLE, { config: { foreman_version_source: "local" } });
+  try {
+    commitForemanJson(dir, '{ "foreman": "0.2.1" }');
+    const versionFile = join(dir, "VERSION");
+    writeFileSync(versionFile, "0.2.4\n");
+    const calls = [], logs = [];
+    const code = await run({ config: cfg, env, fetch: routedFetch(calls, releaseDown), versionFile, log: (m) => logs.push(m) });
+    assert.equal(code, 0);
+    assert.ok(logs.some((l) => l.includes("p: foreman update available: 0.2.1 -> 0.2.4")));
+    assert.equal(releaseCalls(calls), 0, "local reads no network");
+    assert.equal(fireCalls(calls), 2);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

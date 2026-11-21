@@ -1,4 +1,4 @@
-Status: planning · since 2026-11-21T19:10Z · Brief und Role Review geschrieben
+Status: slice · since 2026-11-21T19:20Z · S1 done, S2 als Nächstes
 Target: dev
 Batch-branch: batch/m007
 Lock: free
@@ -7,13 +7,13 @@ Pretest-round: 0
 
 # M007: Update-Meldung im Dispatcher
 
-Start commit: 7f8c84c (dev, Baseline: bash scripts/test-all.sh noch zu laufen)
+Start commit: 7f8c84c (dev, Baseline: bash scripts/test-all.sh exit 0)
 
 ## Slices
 
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
-| S1 | Versionsvergleich und Quelle | open | | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
+| S1 | Versionsvergleich und Quelle | done | S1SHA | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
 | S2 | Ticket (itsaplan) | open | | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
 | S3 | Webhook | open | | dispatcher/dispatch.mjs, dispatcher/tests/test-dispatch.mjs | |
 | S4 | Doku und Learnings | open | | dispatcher/README.md, dispatcher/config.example.json, docs/MODULES.md, CHANGELOG.md, docs/learnings.md, scripts/test-dispatcher-docs.sh | |
@@ -40,7 +40,7 @@ Start commit: 7f8c84c (dev, Baseline: bash scripts/test-all.sh noch zu laufen)
 
 ## Inherited red
 
-Keine bekannt. Baseline wird vor Slice S1 mit `bash scripts/test-all.sh` auf dem Startcommit belegt.
+Keine bekannt. Baseline: `bash scripts/test-all.sh` auf `7f8c84c`, Exit 0.
 
 ## Open question (when `needs-input`)
 
@@ -49,3 +49,4 @@ Keine.
 ## Log
 
 - 2026-11-21T19:10Z · Brief, Role Review und STATE.md geschrieben · batch/m007
+- 2026-11-21T19:20Z · S1 rot vor Änderung: `node dispatcher/tests/test-dispatch.mjs` Exit 1 (TypeError cmp is not a function) auf 7f8c84c; grün danach: Exit 0, 47 Tests; `bash scripts/test-all.sh` Exit 0 · S1SHA

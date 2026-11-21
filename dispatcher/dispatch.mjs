@@ -217,8 +217,94 @@ async function notify(config, env, message, fetchImpl, log) {
   } catch (e) { log(`webhook failed: ${redact(e.message, [req.url])}`); }
 }
 
+const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+const REPO_NAME = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const DEFAULT_VERSION_FILE = resolve(fileURLToPath(new URL(".", import.meta.url)), "..", "VERSION");
+const stripV = (s) => (s.startsWith("v") ? s.slice(1) : s);
+
+/** Parses MAJOR.MINOR.PATCH[-pre] with one optional leading v (at most 40 characters). Returns null when invalid. */
+export function parseSemver(s) {
+  if (typeof s !== "string") return null;
+  const v = stripV(s);
+  const m = v.length <= 40 ? SEMVER.exec(v) : null;
+  if (!m) return null;
+  return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]), pre: m[4] ? m[4].split(".") : [] };
+}
+
+/** SemVer 2.0 precedence: -1, 0 or 1. Null when either version is invalid. */
+export function compareVersions(a, b) {
+  const x = parseSemver(a), y = parseSemver(b);
+  if (!x || !y) return null;
+  for (const k of ["major", "minor", "patch"]) if (x[k] !== y[k]) return x[k] < y[k] ? -1 : 1;
+  if (!x.pre.length || !y.pre.length) return x.pre.length === y.pre.length ? 0 : x.pre.length ? -1 : 1;
+  for (let i = 0; i < Math.max(x.pre.length, y.pre.length); i++) {
+    const p = x.pre[i], q = y.pre[i];
+    if (p === undefined) return -1;
+    if (q === undefined) return 1;
+    const pn = /^\d+$/.test(p), qn = /^\d+$/.test(q);
+    if (pn && qn) { if (Number(p) !== Number(q)) return Number(p) < Number(q) ? -1 : 1; }
+    else if (pn !== qn) return pn ? -1 : 1;
+    else if (p !== q) return p < q ? -1 : 1;
+  }
+  return 0;
+}
+
+/** True only when both versions are valid and the project's version is older. */
+export function isOutdated(projectVersion, currentVersion) {
+  return compareVersions(projectVersion, currentVersion) === -1;
+}
+
+/** The current foreman version: `{ version }` (no v) or `{ error }`. Never throws. */
+export async function foremanVersion(config, { fetch: fetchImpl = fetch, versionFile = DEFAULT_VERSION_FILE } = {}) {
+  const source = config.foreman_version_source ?? "release";
+  if (source === "local") {
+    try {
+      const v = readFileSync(versionFile, "utf8").trim();
+      return parseSemver(v) ? { version: stripV(v) } : { error: `${versionFile} has no valid version` };
+    } catch (e) { return { error: `cannot read ${versionFile}: ${e.code ?? "error"}` }; }
+  }
+  if (source !== "release") return { error: `unknown foreman_version_source: ${source}` };
+  const repo = config.foreman_repo ?? "AndreasByr/foreman";
+  if (!REPO_NAME.test(repo)) return { error: "invalid foreman_repo: use owner/name" };
+  let res;
+  try {
+    res = await fetchImpl(`https://api.github.com/repos/${repo}/releases/latest`, {
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "foreman-dispatcher" },
+      redirect: "error", signal: AbortSignal.timeout(15000),
+    });
+  } catch (e) { return { error: `release lookup failed: ${String(e?.message ?? e).split("\n")[0]}` }; }
+  if (!res.ok) return { error: `release lookup answered ${res.status}` };
+  try {
+    const tag = (await res.json())?.tag_name;
+    return parseSemver(tag) ? { version: stripV(tag) } : { error: "latest release has no valid tag_name" };
+  } catch { return { error: "release lookup answered invalid JSON" }; }
+}
+
+/** The project's foreman version from .foreman.json: `{ version }` (no v) or `{ error }`. Never throws. */
+export async function projectVersion(dir) {
+  let json;
+  try { json = JSON.parse(readFileSync(join(dir, ".foreman.json"), "utf8")); } catch { return { error: "no readable .foreman.json" }; }
+  const v = json?.foreman;
+  return parseSemver(v) ? { version: stripV(v) } : { error: "no valid foreman version in .foreman.json" };
+}
+
+/** Logs one line when the project is behind the foreman release; the release is looked up once per run. Never throws. */
+async function checkForemanVersion(project, config, dir, cache, { fetch, versionFile, say }) {
+  try {
+    if (!cache.done) {
+      cache.done = true;
+      cache.current = await foremanVersion(config, { fetch, versionFile });
+      if (cache.current.error) say(`foreman version unknown: ${cache.current.error}`);
+    }
+    if (cache.current.error) return;
+    const p = await projectVersion(dir);
+    if (p.error) say(`${project.name}: foreman version not usable: ${p.error}`);
+    else if (isOutdated(p.version, cache.current.version)) say(`${project.name}: foreman update available: ${p.version} -> ${cache.current.version}`);
+  } catch (e) { say(`${project.name}: foreman version check failed: ${String(e?.message ?? e).split("\n")[0]}`); }
+}
+
 /** Runs the dispatcher for all projects. Returns the exit code (1 when any project failed). */
-export async function run({ config, env = process.env, dryRun = false, only = null, update = true, now = Date.now(), fetch: fetchImpl = fetch, log = (m) => console.log(m) } = {}) {
+export async function run({ config, env = process.env, dryRun = false, only = null, update = true, now = Date.now(), fetch: fetchImpl = fetch, log = (m) => console.log(m), versionFile = undefined } = {}) {
   const workdir = expandHome(config.workdir || "~/.local/share/foreman-dispatcher");
   const stateDir = join(workdir, "state");
   mkdirSync(stateDir, { recursive: true });
@@ -226,6 +312,7 @@ export async function run({ config, env = process.env, dryRun = false, only = nu
   if (!dryRun && !acquireLock(lock)) { log("another dispatcher run is active; skipping"); return 0; }
   const cooldownMs = (config.cooldown_minutes ?? 45) * 60 * 1000;
   let failed = false;
+  const versionCache = { done: false, current: null };
   try {
     for (const project of config.projects ?? []) {
       if (project.enabled === false || (only && project.name !== only)) continue;
@@ -235,6 +322,9 @@ export async function run({ config, env = process.env, dryRun = false, only = nu
         let dir = join(workdir, "repos", project.name);
         if (update) dir = updateRepo(project, workdir, env, say);
         else if (!existsSync(join(dir, ".git"))) throw new Error("no clone yet (run without --no-update first)");
+        if (project.update_notice !== false && config.update_notice !== false) {
+          await checkForemanVersion(project, config, dir, versionCache, { fetch: fetchImpl, versionFile, say });
+        }
         const { stdout, stderr } = runCheck(project, dir, env);
         for (const l of stderr.split("\n").filter(Boolean)) say(`${project.name}: check note: ${l}`);
         const parsed = parseCheckOutput(stdout);
