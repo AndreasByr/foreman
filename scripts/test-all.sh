@@ -13,6 +13,7 @@ node dispatcher/tests/test-dispatch.mjs
 python3 scripts/test-setup-catalog.py
 python3 scripts/test-workspace.py
 python3 scripts/test-setup-summary.py
+python3 scripts/test-project-routing.py
 bash dispatcher/tests/test-fire-claude.sh
 bash scripts/test-install.sh
 bash scripts/test-check-config.sh

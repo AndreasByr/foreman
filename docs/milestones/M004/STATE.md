@@ -1,4 +1,4 @@
-Status: in progress · since 2026-11-21T17:50Z · Brief geschrieben, Slices S1 bis S4 offen
+Status: in progress · since 2026-11-21T17:50Z · S1, S2 done; S4, S3 offen
 Target: dev
 Batch-branch: batch/m004
 Lock: free
@@ -13,8 +13,8 @@ Start commit: c3fb926
 
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
-| S1 | Erkennen statt neu einrichten (foreman-project liest workspace.json, eine Rückfrage, Regel „not installed → setup“ fällt weg) | open | | plugins/foreman/skills/foreman-project/SKILL.md | |
-| S2 | Skill-Beschreibungen abgrenzen, Routing-Test | open | | plugins/foreman/skills/foreman-project/SKILL.md, foreman-setup/SKILL.md (nur Beschreibung), scripts/test-project-routing.py, scripts/test-all.sh | |
+| S1 | Erkennen statt neu einrichten (foreman-project liest workspace.json, eine Rückfrage, Regel „not installed → setup“ fällt weg) | done | S1S2COMMIT | plugins/foreman/skills/foreman-project/SKILL.md | |
+| S2 | Skill-Beschreibungen abgrenzen, Routing-Test | done | S1S2COMMIT | plugins/foreman/skills/foreman-project/SKILL.md, foreman-setup/SKILL.md (nur Beschreibung), scripts/test-project-routing.py, scripts/test-all.sh | |
 | S4 | Installer-Werte (Flags, autopilot.waitHours im Check, check-config) | open | | install.sh, template/scripts/lib/autopilot-check.mjs, template/scripts/check-config.sh, scripts/check-config.sh, Tests | |
 | S3 | Projektfragen und Zusammenfassung (nach S4) | open | | plugins/foreman/skills/foreman-project/SKILL.md, references/project-questions.md, scripts/test-project-routing.py, docs/MODULES.md, README.md, docs/CONVENTIONS.md | |
 
@@ -44,7 +44,7 @@ Reihenfolge: S1, S2, S4, S3.
 
 Failures that existed before this milestone, each with the run on the start commit (command, exit code, SHA).
 
-(wird beim ersten Lauf auf dem Startstand eingetragen)
+Keine: `bash scripts/test-all.sh` auf dem Startstand c377703 (Brief-Commit, gleicher Inhalt wie dev c3fb926 plus Brief) lief mit Exit 0.
 
 ## Open question (when `needs-input`)
 
@@ -53,3 +53,5 @@ One question, options, recommendation.
 ## Log
 
 - 2026-11-21T17:50Z · Brief und STATE geschrieben · (Commit folgt)
+- 2026-11-21T17:50Z · Rot vor der Änderung: `python3 scripts/test-project-routing.py` Exit 1 (9 FAIL) auf c377703 + Test
+- 2026-11-21T17:58Z · S1+S2 fertig: test-project-routing.py Exit 0, test-all.sh Exit 0 · S1S2COMMIT

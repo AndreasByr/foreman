@@ -1,6 +1,6 @@
 ---
 name: foreman-project
-description: Guide a new project from idea to first milestone with foreman. Use when the human starts a project. Asks Quick or full first with a recommendation; full path runs roast, requirements, roadmap, design, repo setup, tracker, dispatcher entry and first milestone.
+description: "foreman-project guides a new project when the environment is already set up. New project and start a project always come here. First asks Quick or full, with a recommendation; full runs roast, requirements, roadmap, design, repo setup, tracker, dispatcher entry and first milestone. Not for first setup or a changed environment (machines, plans, gateway, tracker): that is foreman-setup."
 ---
 
 # foreman-project
@@ -28,6 +28,17 @@ Mixed signals: recommend Quick and say that the same repo can move to full later
 
 ## 2. Collect project data once
 
+### Detect the environment (before any question)
+
+- Read `workspace.json`: the copy in the chat project's docs (project "foreman"), else the `infra` block of `.foreman.json` in the repo. Use what it says (machines, tracker, gateway, plans, notification, time zone, language) and do not ask it again. Show each value in one short line so the human can object.
+- If there is no `workspace.json`, look for hints first: project docs, `.foreman.json`, `dispatcher/`, earlier answers in this chat. If the hints settle it, say what you found.
+- If it is still unclear, ask exactly one question, and only when `workspace.json` is missing: `Is foreman already set up?` Never guess.
+- On "yes": do not start `foreman-setup`; continue below and ask only the project questions. Values the human does not know stay empty.
+- On "no": hand over to `foreman-setup` and return here when it is done.
+- An empty new repo does not mean a new environment.
+
+### Project questions
+
 Read `.foreman.json` in the repo (if the repo exists), the chat project's files and `docs/`. Ask only what is missing, one round of at most 3:
 
 - project name and slug, one-sentence goal
@@ -37,8 +48,6 @@ Read `.foreman.json` in the repo (if the repo exists), the chat project's files 
 - tracker: itsaplan, linear or none (from `.foreman.json` modules)
 
 Offer to record the answers under `context` in `.foreman.json` (keys: `name`, `goal`, `stagingUrl`, `devUrl`, `testTenant`, `offLimits`, `language`, `timeZone`, `releaseDay`, `workRun`). Never store tokens or secrets there.
-
-If foreman is not installed in the repo yet, run `foreman-setup` first (or at least give the install command) and return here.
 
 ## 3. Check what exists
 
