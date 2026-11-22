@@ -1,4 +1,4 @@
-Status: rework · since 2026-11-22T12:05Z · Validierung Runde 2: 3x needs-attention, Nacharbeit R2
+Status: validation · since 2026-11-22T12:30Z · Validierung Runde 3: A pass, B pass, C needs-attention (Evidenz), Nacharbeit R3 erledigt, Prüfer C läuft erneut
 Target: dev
 Batch-branch: batch/m012
 Lock: free
@@ -19,6 +19,7 @@ Start commit: 5e090af (dev nach M010)
 | S3 | README | done | af3bde6 (rot), bf1c630, 375f439 | README.md, docs/learnings.md | |
 | S4 | Rollout-Aufträge | done | bf1c630 (rot), 375f439 | docs/rollout/ | |
 | R1 | Nacharbeit nach Validierung Runde 1 | done | ecc32b9, 4c6cc2c, 875daac | Tests, Skills, README, Bericht | |
+| R3 | Nacharbeit nach Validierung Runde 3 (Evidenz, Kommentar, Checkbox-Test) | done | 5c72d8c | scripts/test-rules.py, test-rollout.sh, README, Bericht | |
 | R2 | Nacharbeit nach Validierung Runde 2 | done | c810de3 | Board- und Cause-Wächter, CI strikt, Zahlen | |
 
 ## Check plan per slice
@@ -64,3 +65,5 @@ Categories: missing-requirement, open-decision, missing-infra, merge-conflict, u
 - 2026-11-22T12:00Z · Validierung Runde 2 (875daac): A, B, C needs-attention; mittlere Befunde: Board-Regel als zweite Kopie im Fix-Paket-Skill (nicht als bewusst vermerkt, ohne Wächter), falsche Begründung zur Cause-Zeile, Evidenz fehlt im Log
 - 2026-11-22T12:10Z · R2 Evidenz auf c810de3: python3 scripts/test-rules.py Exit 0; node scripts/measure-reads.mjs Exit 0 (Milestone -351 B, Fix-Paket -709 B, Batch -44 B); bash scripts/test-all.sh Exit 0; bash scripts/check-config.sh Exit 0; CI=1 bash scripts/test-readme.sh im flachen Klon Exit 1 (Basis fehlt), ohne CI Exit 0
 - 2026-11-22T12:10Z · Frühere Läufe: R1 auf 875daac test-all Exit 0, check-config Exit 0 (vor R2); Red-Beweise gegen 5e090af: test-measure-reads Exit 1, test-readme Exit 1, test-rollout Exit 1, test-rules Exit 1
+- 2026-11-22T12:20Z · Validierung Runde 3 (62f22d1): A pass, B pass, C needs-attention (N1 mittel: Evidenz nannte nicht den End-Commit; Läufe liefen vor dem Commit im Arbeitsbaum; Rest low)
+- 2026-11-22T12:35Z · R3 Evidenz auf 5c72d8c (Code-Stand, danach nur dieser Eintrag und der Bericht): bash scripts/test-all.sh Exit 0; bash scripts/check-config.sh Exit 0; node scripts/measure-reads.mjs Exit 0 (Milestone -351 B, Fix-Paket -709 B, Batch -44 B); CI=1 bash scripts/test-readme.sh im flachen Klon (depth 1) von 5c72d8c Exit 1 mit "baseline commit 9c51ceb missing in CI"
