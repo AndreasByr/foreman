@@ -20,11 +20,11 @@ Findings: none
 | SC2: correct body each for discord and slack; `auto` picks by host; unknown host or invalid URL gives a defined error without a crash | covered | `dispatch.mjs:182-218` (`notify` catches the error; a 4xx/5xx answer is logged at `:216`) | `test-dispatch.mjs:369-426`, `:500-522` |
 | SC3: no `batch:main` without `mainAutoMerge`; with `true` yes; `null` and text count as `false` | covered | `lib/autopilot-check.mjs:30`, `:137-138` | `test-autopilot-check.mjs:121-141`, `:157-162` |
 | SC4: same `TASK` lines with and without `--no-fetch`; no silent fetch; `check-config` reports a missing option | covered | as capability 4 | `test-autopilot-check.mjs:399-401`; `test-check-config.sh:46-56` |
-| SC5: dry run with `fire_command` shows "would start … via command"; 0 secret hits | covered (the run on server-1 is UAT) | `dispatch.mjs:247` | `test-dispatch.mjs:428-446` |
+| SC5: dry run with `fire_command` shows "would start … via command"; 0 secret hits | covered (the run on Host 1 is UAT) | `dispatch.mjs:247` | `test-dispatch.mjs:428-446` |
 | SC6: MODULES and README describe the 4 terms; reasons in `learnings.md`; skills carry only the rule | covered | `docs/MODULES.md:18-25`; `README.md:10`, `:15-33`, `:76`; `docs/learnings.md:7-10` | `test-dispatcher-docs.sh` (whole file, including the `forbid` checks `:40`, `:70-72`); wired in at `scripts/test-all.sh:12-15` |
 | Fixed: dispatcher stays model-free | covered | `dispatch.mjs` makes no model call; `claude -p` runs only in the copied start script | – |
 | Fixed: each fix gets a red test first | consistent | `M001-R1.md:13-20` (red/green table with commands, exit codes, `dd4d933`/`ec00abf`); slice reports | – |
-| Fixed: take over the server-1 patch's behaviour, not the patch text | not checkable | the patch is not in the repo | – |
+| Fixed: take over the Host 1 patch's behaviour, not the patch text | not checkable | the patch is not in the repo | – |
 | Out of scope: no `fire_command` monitoring, no M004/M007 work, nothing in Project A/B/C | kept | the diff's file list (`m001.diff`, 19 files) contains none of it; `README.md:32` says the dispatcher does not watch the run | – |
 | Verification: `test-all.sh` includes the new tests | covered | `scripts/test-all.sh:8`, `:11-15` | – |
 
@@ -60,4 +60,4 @@ Round 2 low items I also checked, all fixed:
 - `requirements.md:26` says `pass_env` passes project variables through for the local run. Over `ssh` that is impossible. The repo documents this instead: `learnings.md:10`, `README.md:30`, `fire-claude.example.sh:5-6`. Whether that counts as fulfilled is a product question.
 - The SC1 test models the "second project" as a variable in the dispatcher environment, not as a second project entry in the config. As I read `dispatch.mjs:232`, that is equivalent, because redaction and `safeEnv` work per project.
 - I ran nothing myself. The reds and greens rest on `M001-R1.md` and the slice reports, and those are consistent.
-- Whether the server-1 patch was taken over exactly cannot be checked, because it is not in the repo.
+- Whether the Host 1 patch was taken over exactly cannot be checked, because it is not in the repo.

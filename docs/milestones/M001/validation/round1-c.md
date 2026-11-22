@@ -39,7 +39,7 @@ I found two medium and five low findings. Criteria 1–4 each have at least one 
 - **Criterion 6:** The README, MODULES and learnings terms are checked by `test-dispatcher-docs.sh`, and all three scripts are wired into `test-all.sh` (`m001.diff:765-768`).
 - **Test counts are consistent:** `test-dispatch.mjs` has 26 tests (S5 log), and `test-autopilot-check.mjs` has 27 (S4 log). Both match the current files. S2 25 → S5 26 also matches the one added test.
 - **Done claims:** every one in `STATE.md:58-63` and in the reports names a command and an exit code. The SHA is given only as "Commit „M001 Sx“"; I checked that this is internally consistent, not against git.
-- **Human-only items** (real Discord message, dry run on server-1) are open and not claimed as proven: `S2.md:16`, `S5.md:18`, roadmap `:107` and Flows A–C (`:117-128`) are unchecked.
+- **Human-only items** (real Discord message, dry run on Host 1) are open and not claimed as proven: `S2.md:16`, `S5.md:18`, roadmap `:107` and Flows A–C (`:117-128`) are unchecked.
 
 **Unclear / not found**
 

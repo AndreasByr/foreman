@@ -163,14 +163,14 @@ def check_example():
     )
     by_name = {m.get("name"): m for m in machines if isinstance(m, dict)} if isinstance(machines, list) else {}
     check(
-        "example: server-1 carries purposes dispatcher-host, app-hosting, tracker-host, gateway-host",
-        sorted(dig(by_name, "server-1", "purposes") or []) == sorted(
+        "example: host-1 carries purposes dispatcher-host, app-hosting, tracker-host, gateway-host",
+        sorted(dig(by_name, "host-1", "purposes") or []) == sorted(
             ["dispatcher-host", "app-hosting", "tracker-host", "gateway-host"]
         ),
     )
     check(
-        "example: server-2 carries purpose local-runs",
-        dig(by_name, "server-2", "purposes") == ["local-runs"],
+        "example: host-2 carries purpose local-runs",
+        dig(by_name, "host-2", "purposes") == ["local-runs"],
     )
     check(
         "example gateway is running with a url",

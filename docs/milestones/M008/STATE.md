@@ -27,7 +27,7 @@ Start commit: c6b3149 (Baseline: bash scripts/test-all.sh exit 0)
 |---|---|---|---|---|
 | S1 | Regeldatei liegt in `template/docs/`, nennt je Dokumentart Ort, Schreiber und Zeitpunkt; keine Überschrift der Regeldatei steht auch in `docs/CONVENTIONS.md` | `bash scripts/test-docs-rules.sh` | automatic | n/a, keine UI |
 | S2 | Regel enthält Übersicht + gleichnamigen Ordner, Tabelle „Datei, Inhalt, Lesen bei“, Konfliktreihenfolge, Schwelle als Zahl (5000), Stand-Zeilen-Regel | `bash scripts/test-docs-rules.sh` | automatic | n/a |
-| S3 | `docs-check` gibt Exit 1 bei Versionsbereich, Versionsliste, mehreren „Version N“, fehlender und doppelter Stand-Zeile; Exit 0 bei einer Version mit Datum und Ziffern in der Notiz und auf `docs/roadmap-0.2.x.md`; Projekt B-Beispiel rot | `node template/scripts/test-docs-check.mjs`, `node template/scripts/docs-check.mjs docs/roadmap-0.2.x.md` | automatic | n/a |
+| S3 | `docs-check` gibt Exit 1 bei Versionsbereich, Versionsliste, mehreren „Version N“, fehlender und doppelter Stand-Zeile; Exit 0 bei einer Version mit Datum und Ziffern in der Notiz und auf `docs/roadmap-0.2.x.md`; Referenzprojekt 2-Beispiel rot | `node template/scripts/test-docs-check.mjs`, `node template/scripts/docs-check.mjs docs/roadmap-0.2.x.md` | automatic | n/a |
 | S4 | `foreman-roast` und `foreman-roadmap` nennen die Regeldatei; beide `SKILL.md` unter 8 KB; Plugin-Validierung grün; Begründung in `docs/learnings.md` | `bash scripts/test-plugin.sh`, `bash scripts/test-all.sh` | automatic | n/a |
 
 ## Mandatory questions per slice
