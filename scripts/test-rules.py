@@ -100,6 +100,63 @@ def check_set(root, set_name, rel_dir, errors):
                 errors.append(f"duplicate statement of {rule_name} in {f}:{n}")
 
 
+DELEGATION = "template/.claude/skills/foreman-delegation/SKILL.md"
+MILESTONE = "template/.claude/skills/foreman-milestone/SKILL.md"
+
+# (rule name, label or None, owner file or None, words the labeled line must contain, detector regex)
+SINGLE_SOURCE = [
+    ("Review gate", "**Review gate:**", DELEGATION, ["validation", "needs-input"],
+     re.compile(r"at most (?:2|two)\b[^.\n]{0,20}rounds?", re.IGNORECASE)),
+    ("Hand nothing on", "**Hand nothing on:**", DELEGATION, ["temporarily", "second account"],
+     re.compile(r"temporarily", re.IGNORECASE)),
+    ("Evidence rule", "**Evidence rule:**", DELEGATION, ["command", "exit code", "SHA"],
+     re.compile(r"command,?\s+exit code,?\s+and\s+(?:commit\s+)?sha", re.IGNORECASE)),
+    ("Board check", "**Board check:**", MILESTONE, ["design board", "needs-input"],
+     re.compile(r"board missing for", re.IGNORECASE)),
+    ("Version rule", None, None, [],
+     re.compile(r"human sets the (?:version )?number|never decides a version", re.IGNORECASE)),
+]
+
+PRINCIPLES = os.path.join("docs", "PRINCIPLES.md")
+PRINCIPLES_ROUNDS = re.compile(r"three (?:rework )?rounds", re.IGNORECASE)
+
+
+def check_single_source(root, errors):
+    lines = set_lines(root, REPO_SKILLS)
+    for name, label, owner, required, detector in SINGLE_SOURCE:
+        labeled = []
+        if label is not None:
+            labeled = [(f, n, t) for f, n, t in lines if label in t]
+            if len(labeled) != 1:
+                detail = ""
+                if labeled:
+                    detail = ": " + ", ".join(f"{f}:{n}" for f, n, _ in labeled)
+                errors.append(f"{name}: {len(labeled)} occurrences in repo skills (expected 1){detail}")
+            for f, n, t in labeled:
+                if f != owner:
+                    errors.append(f"{name}: labeled line must be in {owner}, found in {f}:{n}")
+                low = t.lower()
+                missing = [w for w in required if w.lower() not in low]
+                if missing:
+                    errors.append(f"{name}: labeled line {f}:{n} lacks {', '.join(repr(w) for w in missing)}")
+        labeled_keys = {(f, n) for f, n, _ in labeled}
+        for f, n, t in lines:
+            if (f, n) in labeled_keys:
+                continue
+            if detector.search(t):
+                errors.append(f"duplicate statement of {name} in {f}:{n}")
+
+
+def check_principles(root, errors):
+    path = os.path.join(root, PRINCIPLES)
+    if not os.path.isfile(path):
+        return
+    with open(path, encoding="utf-8", newline="") as f:
+        for number, line in enumerate(f.read().splitlines(), 1):
+            if PRINCIPLES_ROUNDS.search(line):
+                errors.append(f"docs/PRINCIPLES.md:{number}: review rounds are two, as in foreman-delegation")
+
+
 def check_rendered(root, errors):
     template_dir = os.path.join(root, REPO_SKILLS)
     rendered_dir = os.path.join(root, RENDERED_ROOT)
@@ -148,6 +205,8 @@ def check(root):
     errors = []
     for set_name, rel_dir in SETS:
         check_set(root, set_name, rel_dir, errors)
+    check_single_source(root, errors)
+    check_principles(root, errors)
     check_rendered(root, errors)
     check_learnings(root, errors)
     return errors
@@ -179,11 +238,33 @@ LEARNINGS_OK = (
 )
 
 
+DELEGATION_TEXT = (
+    "# Delegation\n"
+    "\n"
+    "- **Review gate:** at most 2 rework rounds, then the validation role decides or the task goes to needs-input.\n"
+    "- **Hand nothing on:** a blocked step is only temporarily open; use a second account instead of passing it on.\n"
+    "- **Evidence rule:** every claim names the command, exit code and commit SHA.\n"
+    "\n"
+    "# {{PROJECT_NAME}} delegation\n"
+)
+MILESTONE_TEXT = (
+    "# Milestone\n"
+    "\n"
+    "- **Board check:** without an approved design board the slice goes to needs-input.\n"
+    "\n"
+    "# {{PROJECT_NAME}} milestone\n"
+)
+
+
 def good_files():
     return {
         "template/.claude/skills/demo/SKILL.md": TEMPLATE_TEXT,
+        "template/.claude/skills/foreman-delegation/SKILL.md": DELEGATION_TEXT,
+        "template/.claude/skills/foreman-milestone/SKILL.md": MILESTONE_TEXT,
         "plugins/foreman/skills/demo/SKILL.md": RULE_LINES,
         ".claude/skills/demo/SKILL.md": RENDERED_TEXT,
+        ".claude/skills/foreman-delegation/SKILL.md": DELEGATION_TEXT.replace("{{PROJECT_NAME}}", "foreman"),
+        ".claude/skills/foreman-milestone/SKILL.md": MILESTONE_TEXT.replace("{{PROJECT_NAME}}", "foreman"),
         "docs/learnings.md": LEARNINGS_OK,
     }
 
@@ -342,8 +423,80 @@ def case_clean_tree_passes():
     return run_case(files, lambda errors: errors == [])
 
 
+EXTRA = "template/.claude/skills/demo/extra.md"
+DELEGATION_PATH = "template/.claude/skills/foreman-delegation/SKILL.md"
+MILESTONE_PATH = "template/.claude/skills/foreman-milestone/SKILL.md"
+
+
+def case_ss_expect(files, needle):
+    return run_case(files, lambda errors: any(needle in e for e in errors))
+
+
+def case_ss_second_labeled_line():
+    files = good_files()
+    files[EXTRA] = "- **Review gate:** at most 2 rounds, validation, needs-input.\n"
+    return run_case(
+        files,
+        lambda errors: any(
+            e.startswith("Review gate: 2 occurrences in repo skills (expected 1)") for e in errors
+        ),
+    )
+
+
+def case_ss_wrong_file():
+    files = good_files()
+    files[DELEGATION_PATH] = DELEGATION_TEXT.replace("- **Evidence rule:**", "- Evidence rule:")
+    files[EXTRA] = "- **Evidence rule:** command, exit code and commit SHA.\n"
+    return case_ss_expect(files, f"Evidence rule: labeled line must be in {DELEGATION_PATH}, found in {EXTRA}:1")
+
+
+def case_ss_missing_owner_line():
+    files = good_files()
+    files[MILESTONE_PATH] = "# Milestone\n"
+    files[".claude/skills/foreman-milestone/SKILL.md"] = "# Milestone\n"
+    return case_ss_expect(files, "Board check: 0 occurrences in repo skills (expected 1)")
+
+
+def case_ss_unlabeled(text, name):
+    files = good_files()
+    files[EXTRA] = text + "\n"
+    return case_ss_expect(files, f"duplicate statement of {name} in {EXTRA}:1")
+
+
+def case_ss_pointer_ok():
+    files = good_files()
+    files[EXTRA] = "Review gate: see foreman-delegation.\nBoard check: see foreman-milestone.\n"
+    return run_case(files, lambda errors: errors == [])
+
+
+def case_principles(text, expect_error):
+    files = good_files()
+    files["docs/PRINCIPLES.md"] = text
+    if expect_error:
+        return case_ss_expect(files, "docs/PRINCIPLES.md:3: review rounds are two, as in foreman-delegation")
+    return run_case(files, lambda errors: errors == [])
+
+
 SELFTESTS = [
     ("correct tree gives no errors", case_correct),
+    ("second labeled line in another file errors", case_ss_second_labeled_line),
+    ("labeled line in wrong file errors", case_ss_wrong_file),
+    ("missing owner line errors", case_ss_missing_owner_line),
+    ("unlabeled 'at most 2 rework rounds' errors", lambda: case_ss_unlabeled(
+        "Use at most 2 rework rounds per task.", "Review gate")),
+    ("unlabeled 'temporarily blocked' errors", lambda: case_ss_unlabeled(
+        "A step that is temporarily blocked waits.", "Hand nothing on")),
+    ("unlabeled evidence phrase errors", lambda: case_ss_unlabeled(
+        "Every report names command, exit code and commit SHA.", "Evidence rule")),
+    ("unlabeled 'Board missing for' errors", lambda: case_ss_unlabeled(
+        "Board missing for <element> means stop.", "Board check")),
+    ("'The human sets the number' in a repo skill errors", lambda: case_ss_unlabeled(
+        "The human sets the number.", "Version rule")),
+    ("pointer line does not error", case_ss_pointer_ok),
+    ("PRINCIPLES.md with 'three rounds' errors", lambda: case_principles(
+        "# Principles\n\nWe allow three rounds of review.\n", True)),
+    ("PRINCIPLES.md with 'two rounds' passes", lambda: case_principles(
+        "# Principles\n\nWe allow two rounds of review.\n", False)),
     ("chat set missing a rule errors", case_chat_missing_rule),
     ("rule twice in repo set errors and lists both files", case_repo_rule_twice),
     ("unlabeled duplicate statement errors", case_unlabeled_duplicate),
@@ -387,6 +540,9 @@ def main():
             failed = True
     if failed:
         return 1
+    if "--selftest-only" in sys.argv[1:]:
+        print("selftests ok")
+        return 0
 
     errors = check(ROOT)
     if errors:
