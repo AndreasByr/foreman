@@ -1,7 +1,7 @@
 # Messwerte
 
 Zeitraum: 2026-11-01T00:00:00.000Z bis 2026-11-22T23:59:59.999Z
-Erzeugt: 2026-11-22T09:49:02.503Z
+Erzeugt: 2026-11-22T10:27:10.561Z
 Diese Datei wird von scripts/measure.mjs erzeugt. Nicht von Hand ändern.
 
 ## Läufe
@@ -18,9 +18,9 @@ Diese Datei wird von scripts/measure.mjs erzeugt. Nicht von Hand ändern.
 | M009 | Meilenstein | 75 | 0 | 0 |
 | M010 | Meilenstein | 635 | 0 | 1 |
 | M011 | Meilenstein | 42 | 0 | 1 |
-| M012 | Meilenstein | 80 | 0 | 0 |
+| M012 | Meilenstein | 195 | 0 | 1 |
 
-Summe Laufzeit: 1843 Min
+Summe Laufzeit: 1958 Min
 
 ## Eingriffe
 | Ursache | Anzahl |
@@ -47,3 +47,4 @@ Keine Worker-Läufe gefunden.
 - M008: intervention without valid cause (missing)
 - M009: log line without valid time
 - M010: log line without valid time
+- M012: log times not ascending

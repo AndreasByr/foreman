@@ -1,4 +1,4 @@
-Status: validation · since 2026-11-22T12:30Z · Validierung Runde 3: A pass, B pass, C needs-attention (Evidenz), Nacharbeit R3 erledigt, Prüfer C läuft erneut
+Status: batch-pr · since 2026-11-22T10:30Z · Validierung Runde 4: pass, nur niedrige Funde
 Target: dev
 Batch-branch: batch/m012
 Lock: free
@@ -67,3 +67,4 @@ Categories: missing-requirement, open-decision, missing-infra, merge-conflict, u
 - 2026-11-22T12:10Z · Frühere Läufe: R1 auf 875daac test-all Exit 0, check-config Exit 0 (vor R2); Red-Beweise gegen 5e090af: test-measure-reads Exit 1, test-readme Exit 1, test-rollout Exit 1, test-rules Exit 1
 - 2026-11-22T12:20Z · Validierung Runde 3 (62f22d1): A pass, B pass, C needs-attention (N1 mittel: Evidenz nannte nicht den End-Commit; Läufe liefen vor dem Commit im Arbeitsbaum; Rest low)
 - 2026-11-22T12:35Z · R3 Evidenz auf 5c72d8c (Code-Stand, danach nur dieser Eintrag und der Bericht): bash scripts/test-all.sh Exit 0; bash scripts/check-config.sh Exit 0; node scripts/measure-reads.mjs Exit 0 (Milestone -351 B, Fix-Paket -709 B, Batch -44 B); CI=1 bash scripts/test-readme.sh im flachen Klon (depth 1) von 5c72d8c Exit 1 mit "baseline commit 9c51ceb missing in CI"
+- 2026-11-22T10:30Z · Validierung Runde 4 (nur C erneut, A und B waren in Runde 3 pass): pass. Hinweis: Zeitstempel der Log-Zeilen bis hier waren geschätzt und lagen vor R3 bis zu 2 h zu spät; maßgeblich sind die Commit-Zeiten (`git log`). VALIDATION.md, UAT-Liste docs/uat/M012.md · folgt im nächsten Commit
