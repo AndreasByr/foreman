@@ -10,7 +10,7 @@ description: How every coding order in foreman is done. Load for any code change
 3. Run the `verify` command yourself once before delegating.
 4. Never trust a worker's report. Read the diff and run the checks yourself. Order: scope check, tests/typecheck/lint, red-then-green test, then role `validation`. Stop at the first red.
 5. Exit code 1 from the wrapper = all steps failed; only then code it yourself.
-6. Push only to `dev`, `batch/*` or your `agent/*` branch. Never to `main` or `prod`. No force push. No PR, merge, tag, deploy or branch deletion without an explicit order in this session (batch and release skills define the orders).
+6. Push targets and orders (PR, merge, tag, deploy, branch deletion): section "Git rules" below.
 7. Before every push: `git rev-parse --abbrev-ref HEAD` and read the target. `main` or `prod` = abort.
 8. Never touch production tenants or data. Test only against `<test-tenant>`.
 9. A security finding (secrets, permissions, tenant isolation) goes to `needs-input` after the first failed rework.
@@ -86,10 +86,14 @@ A `## Findings` section in the result (file changed outside `files:`, or a reado
 2. **Mechanical:** tests, typecheck, lint; run the production build when app code changed. Run them yourself.
 3. **Red-then-green:** every fix has an automatic test that failed before the change and passes after it. Record both runs with commit SHA. No such test = not done.
 4. **UI:** check the rendered output (local screenshot or component render) against the design board, not only the typecheck.
-5. **`validation`:** only now, with the diff and the sources in the task. `needs-attention`, `needs-remediation` or findings of medium or higher block completion. Rework and review again, at most 2 rounds. A security finding escalates after the first failed rework. Still open: unit becomes `needs-input`, never `awaiting-merge`.
+5. **`validation`:** only now, with the diff and the sources in the task. Review gate below.
 6. Flaky tests (red then green without code change): record in `docs/flaky-tests.md`, report as own item, never skip or weaken.
 
-Evidence rule: every "done" names command, exit code and commit SHA. Without all three it counts as open.
+**Review gate:** The `validation` verdict must be `pass` and no finding of medium or higher; `needs-attention` and `needs-remediation` block completion; no "continue with a note". Rework and review again, at most 2 rounds. A security finding escalates after the first failed rework. Still open: unit `needs-input` with the open finding as the question, never `awaiting-merge`, `pretest-waiting` or a batch PR. Low findings may stay open and go into the report.
+
+**Hand nothing on:** Whatever the session can check (tests, API call, test-tenant call, local browser run) it checks itself in this unit; only what needs a real second account or a product decision goes to UAT. Nothing is "temporarily" blocked, hidden or disabled until someone tests. A needed test is built in the same unit; if that is impossible, the step is `blocked` with the concrete question (unit `needs-input`).
+
+**Evidence rule:** every "done" names command, exit code and commit SHA (git rev-parse --short HEAD). Without all three it counts as open. A command that fails for technical reasons (for example e2e does not start) is an open point, never "done".
 
 ## Git rules
 

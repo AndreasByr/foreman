@@ -20,9 +20,9 @@ Also load `foreman-delegation`, and per unit type `foreman-milestone` or `forema
    - pretest result taken over, input received: `references/payload.md`.
    - UAT approval: `references/uat-approval.md`, then `references/reflect.md`.
 4. **Gates before any unit is closed** (these block, they do not note):
-   - **Board check:** no new or changed interface without an approved design board (see `foreman-milestone`); missing: `needs-input` with "Board missing for <element>". The Agent creates no boards.
-   - **Review gate:** the `validation` verdict must be `pass` without findings of medium or higher; at most 2 rework rounds; else `needs-input`, never `awaiting-merge` or `pretest-waiting`. A fix without a red-then-green test, and a UI change without a check of the rendered output, also block.
-   - **Hand nothing on:** what the Agent can test itself (automated tests, API call, test-tenant call, local browser run) it tests in this unit. Only what needs a real second account or a product decision goes to UAT. Nothing is "temporarily" blocked or hidden until someone tests; else `needs-input` with the concrete question.
+   - Board check: `foreman-milestone`; no new or changed interface without an approved design board, else `needs-input`.
+   - Review gate: `foreman-delegation`. A fix without a red-then-green test, and a UI change without a check of the rendered output, also block.
+   - Hand nothing on: `foreman-delegation`.
 5. **Set the next status**, release the lock (`Lock: free`), update the `STATE.md` header and log, commit, push.
 6. **Mirror:** when a tracker module is on (`tracker-itsaplan` or `tracker-linear`), run `node scripts/state-mirror.mjs`. The script writes tracker statuses and labels from `STATE.md`. Never set a tracker status by hand; if a tracker disagrees with `STATE.md`, `STATE.md` wins. Add the human-readable comment per step (time in UTC, step, result in 1 to 3 sentences, commit, check result, new status) with `node scripts/tracker-comment.mjs <ticket> --text "..."`; the comment is text, the status stays the script's. Write the ticket ID the mirror prints for a new ticket into `Tracker:` of `STATE.md`. Without a tracker, skip the mirror; the log in `STATE.md` is the record.
 7. **Intervention (`needs-input`):** `references/intervention.md`. The step is not finished without the explanation comment; the check `node scripts/state-mirror.mjs --check` fails until it exists.
