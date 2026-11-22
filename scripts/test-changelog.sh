@@ -88,8 +88,8 @@ for s in sections:
         if word not in text:
             problems.append(f"section '{s['title']}': upgrade part does not contain '{word}'")
 
-# 4c. Unreleased upgrade part says the dispatcher code must be updated.
-if unreleased:
+# 4c. An Unreleased upgrade part says the dispatcher code must be updated (a released patch section may not change it).
+if unreleased and unreleased[0]["title"].startswith("Unreleased"):
     if not any(re.search(r"dispatcher", l, re.I) and re.search(r"update", l, re.I)
                for l in unreleased[0]["upgrade"]):
         problems.append("section 'Unreleased': upgrade part has no line with 'dispatcher' and 'update'")
