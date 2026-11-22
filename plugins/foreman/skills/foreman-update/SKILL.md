@@ -11,15 +11,29 @@ Answer in the preferred language (`.foreman.json` `context.language`), else the 
 
 ## 1. Read versions
 
+### Source of the target version
+
+In chat there is no checkout. Fetch these files yourself with the web fetch tool. Never ask the human for the changelog.
+
+- `https://raw.githubusercontent.com/AndreasByr/foreman/<tag>/VERSION`
+- `https://raw.githubusercontent.com/AndreasByr/foreman/<tag>/CHANGELOG.md`
+- `https://raw.githubusercontent.com/AndreasByr/foreman/<tag>/update-classes.json`
+
+Tag: release tags have no `v` prefix (0.2.2, not v0.2.2). Find the newest tag at `https://api.github.com/repos/AndreasByr/foreman/releases/latest` (field `tag_name`). Fallback if that fails: use `main` as <tag>.
+
+Use a local checkout's files only if the human names one or the session runs in one; then the local files win.
+
+Ask only if both the release lookup and the `main` fallback failed; then say which URL failed.
+
 - Installed: the `foreman` value in the project's `.foreman.json`.
-- Available: the `VERSION` file of the foreman checkout or release the human names (in claude.ai: the plugin version).
-- Equal: say "up to date" and go to step 7. Exception: if the foreman checkout's `CHANGELOG.md` has an `## Unreleased` section, still run the dry run (step 4) and show its list.
+- Available: the target version from the fetched `VERSION` (or the local checkout's).
+- Equal: say "up to date" and go to step 7. Exception: if the fetched `CHANGELOG.md` has an `## Unreleased` section, still run the dry run (step 4) and show its list.
 - Project newer than the release: stop and say so.
 - `.foreman.json` or its `foreman` value missing: stop and ask for the installed version.
 
 ## 2. List the changes
 
-Read `CHANGELOG.md`: every version after the installed one, up to the target. The `### Upgrade` part of each version is the source for files, steps and optional items. Show them as **Files**, **Steps**, **Optional**, grouped by version, at most 12 lines in total. The rest: "N more in CHANGELOG.md".
+Read the fetched `CHANGELOG.md`: every version after the installed one, up to the target. The `### Upgrade` part of each version is the source for files, steps and optional items. Show them as **Files**, **Steps**, **Optional**, grouped by version, at most 12 lines in total. The rest: "N more in CHANGELOG.md".
 
 ## 3. Explain what happens to files
 

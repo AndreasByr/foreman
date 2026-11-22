@@ -130,6 +130,22 @@ with tempfile.TemporaryDirectory() as T:
 if "Unreleased" not in t:
     problems.append("SKILL.md does not mention 'Unreleased'")
 
+# F. no manual changelog: chat fetches CHANGELOG.md and VERSION itself
+RAW = "https://raw.githubusercontent.com/AndreasByr/foreman/"
+if RAW not in body:
+    problems.append(f"body lacks '{RAW}'")
+else:
+    if not any("CHANGELOG.md" in l and RAW in l for l in lines):
+        problems.append("no line with 'CHANGELOG.md' and the raw GitHub URL")
+    if not any("VERSION" in l and RAW in l for l in lines):
+        problems.append("no line with 'VERSION' and the raw GitHub URL")
+if "no `v` prefix" not in body:
+    problems.append("body lacks 'no `v` prefix'")
+if "Never ask the human for the changelog" not in body:
+    problems.append("body lacks 'Never ask the human for the changelog'")
+if not any("main" in l.lower() and "fallback" in l.lower() for l in lines):
+    problems.append("no line with 'main' and 'fallback'")
+
 if problems:
     for p in problems:
         print(f"update skill: {p}")
