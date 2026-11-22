@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lint: three rules must each stand exactly once in the repo skills and once in the chat skills.
+"""Lint: single-source rules, the Cause line, the board check copies and the rendered copies.
 Run: python3 scripts/test-rules.py
 """
 import os
@@ -120,8 +120,8 @@ SINGLE_SOURCE = [
 PRINCIPLES = os.path.join("docs", "PRINCIPLES.md")
 PRINCIPLES_ROUNDS = re.compile(r"(?:three|3)\s+(?:rework\s+|review\s+)?rounds", re.IGNORECASE)
 
-# Drift guard: the M011 test pins the Cause line into milestone and fixpack, intervention.md owns the rule;
-# this guard keeps the three files in step.
+# Drift guard: intervention.md owns the Cause rule; milestone and fixpack keep the one-line mention.
+# The M011 test only requires the word **Cause:** there; this guard keeps the line identical in the three files.
 CAUSE_LINE = "**Cause:** <category> · <one sentence>"
 CAUSE_FILES = [
     "template/.claude/skills/foreman-dispatch-run/references/intervention.md",
