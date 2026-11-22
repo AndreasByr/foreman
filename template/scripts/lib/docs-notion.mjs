@@ -241,8 +241,11 @@ const sha16 = (buf) => createHash("sha256").update(buf).digest("hex").slice(0, 1
 
 // ---------------------------------------------------------------- plan
 
+// Page title: an optional item.title (wiki publishing) wins over the repo path.
+const titleOf = (item) => item.title ?? item.path;
+
 const pageBlocks = (item) => {
-  const marker = `Mirrored from ${item.path}. Edits here are overwritten. sha256:${item.hash}`;
+  const marker = `Mirrored from ${titleOf(item)}. Edits here are overwritten. sha256:${item.hash}`;
   const first = { object: "block", type: "paragraph", paragraph: { rich_text: [{ type: "text", text: { content: marker } }] } };
   return [first, ...markdownToBlocks(item.buf.toString("utf8"))];
 };
@@ -257,7 +260,8 @@ export function buildPlan(root, entries, existing) {
   const items = entries.map((e) => {
     const buf = readFileSync(join(root, e.path));
     const hash = sha16(buf);
-    let ex = existing?.byTitle.get(e.path);
+    // A page found by title is reused only when it carries the mirror marker; a foreign page with that title stays untouched.
+    let ex = existing?.all.find((p) => p.title === titleOf(e) && isMirrored(p));
     if (ex) used.add(ex.id);
     const item = { ...e, buf, hash };
     byPath.set(e.path, item);
@@ -356,7 +360,7 @@ async function createPage(client, parentId, item) {
   const head = chunks[0] && !chunks[0].big ? chunks.shift().blocks : [];
   const page = await client.call("POST", "/pages", {
     parent: { page_id: parentId },
-    properties: { title: { title: [{ type: "text", text: { content: item.path } }] } },
+    properties: { title: { title: [{ type: "text", text: { content: titleOf(item) } }] } },
     children: head,
   });
   try {

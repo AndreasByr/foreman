@@ -281,7 +281,7 @@ skip_file() {
     case "$rel" in .claude/skills/foreman-pretest/*|scripts/pretest-run.mjs|scripts/pretest-prepare.sh|scripts/pretest/*|scripts/test-pretest.mjs|scripts/lib/pretest-run.mjs|docs/test-login.md) return 0 ;; esac
   fi
   if ! has docs-notion; then
-    case "$rel" in scripts/docs-notion.mjs|scripts/lib/docs-notion.mjs|scripts/lib/docs-notion-md.mjs|scripts/test-docs-notion.mjs|scripts/post-merge.d/docs-notion.sh) return 0 ;; esac
+    case "$rel" in scripts/docs-notion.mjs|scripts/lib/docs-notion.mjs|scripts/lib/docs-notion-md.mjs|scripts/test-docs-notion.mjs|scripts/post-merge.d/docs-notion.sh|scripts/lib/docs-wiki.mjs|scripts/lib/docs-wiki-scan.mjs|scripts/lib/docs-wiki-publish.mjs|scripts/test-docs-wiki.mjs|.claude/skills/foreman-wiki/*) return 0 ;; esac
   fi
   [ "$rel" = AGENTS.md ] && [ "$agent" = claude-code ] && return 0
   return 1
@@ -377,6 +377,7 @@ if "docs-notion" in mods:
         "rootPageId": "", "include": ["docs/**/*.md"],
         "exclude": ["docs/agent-reports/**", "docs/answers/**", "docs/uat/**", "docs/wiki/**", "**/STATE.md"],
     }
+    conf["wiki"] = {"enabled": False, "language": "", "audiences": [], "rootPageId": "", "forbidden": []}
 ap = {}
 if batch:
     ap["batchHours"] = [int(x) for x in batch.split(",")]
@@ -412,6 +413,7 @@ if "docs-notion" in modules.split(","):
         "rootPageId": "", "include": ["docs/**/*.md"],
         "exclude": ["docs/agent-reports/**", "docs/answers/**", "docs/uat/**", "docs/wiki/**", "**/STATE.md"],
     })
+    conf.setdefault("wiki", {"enabled": False, "language": "", "audiences": [], "rootPageId": "", "forbidden": []})
 if workspace:
     conf["infra"] = json.load(open(workspace, encoding="utf-8"))
 if tz:

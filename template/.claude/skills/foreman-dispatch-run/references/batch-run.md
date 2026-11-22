@@ -25,6 +25,7 @@ The `Units:` line of the order is authoritative: touch only those units (for tar
 
 ## Rules
 
+- With `wiki.enabled`, for every milestone unit in the batch run `node scripts/state-mirror.mjs --local --dry-run --unit <Mnnn>` and treat a non-zero exit as a blocker.
 - Never `prod`.
 - At most 2 batches per day and target.
 - Fixes for `main` are checked by pretest and UAT before any `main` to `prod` release.

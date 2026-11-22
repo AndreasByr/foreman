@@ -14,6 +14,13 @@ export function field(text, name) {
   return m ? m[1].trim() : "";
 }
 
+/** Header of STATE.md: the lines before the first line starting with "#". */
+function header(text) {
+  const lines = String(text ?? "").split(/\r?\n/);
+  const end = lines.findIndex((l) => l.startsWith("#"));
+  return end < 0 ? lines.join("\n") : lines.slice(0, end).join("\n");
+}
+
 /** Milliseconds of an ISO UTC stamp with or without seconds and trailing Z; null when invalid. */
 export function stamp(value) {
   if (typeof value !== "string" || !new RegExp(`^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2})?Z?$`).test(value)) return null;
@@ -44,6 +51,7 @@ export function parseState(text) {
     tracker: tracker && tracker !== "-" ? tracker.split(/\s/)[0].replace(/`/g, "") : "",
     pretestRound: parseInt(field(text, "Pretest-round") || "0", 10) || 0,
     lock: lockStamp ? stamp(lockStamp) : null,
+    wiki: field(header(text), "Wiki"),
   };
 }
 

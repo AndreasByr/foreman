@@ -457,4 +457,60 @@ echo "ok k-no-key-in-output"
 cmp -s "$HERE/scripts/check-config.sh" "$HERE/template/scripts/check-config.sh" || fail "k-copy-identical: template/scripts/check-config.sh differs from scripts/check-config.sh (copy the file so both are identical)"
 echo "ok k-copy-identical"
 
+# l. wiki block in .foreman.json: exit 1 with a FAIL line naming the field, exit 0 with the ok line otherwise
+# good_value NAME JSON: .foreman.json holding JSON must exit 0 and print the ok line
+good_value() {
+  local p
+  p=$(new_project "$1")
+  printf '%s\n' "$2" > "$p/.foreman.json"
+  run_check "$p"
+  [ "$RC" -eq 0 ] || fail "$1: exit $RC, expected 0: $OUT"
+  grep -q "foreman config check: ok" <<<"$OUT" || fail "$1: missing ok line: $OUT"
+  echo "ok $1"
+}
+
+# l-no-wiki: no wiki key: exit 0 and ok line
+good_value l-no-wiki '{"unrelated":true}'
+
+# l-enabled-*: enabled must be a boolean
+bad_value l-enabled-string '{"wiki":{"enabled":"true"}}' wiki.enabled
+bad_value l-enabled-null '{"wiki":{"enabled":null}}' wiki.enabled
+bad_value l-enabled-number '{"wiki":{"enabled":1}}' wiki.enabled
+
+# l-disabled-empty: enabled false needs nothing else: empty language, audiences and rootPageId pass
+good_value l-disabled-empty '{"wiki":{"enabled":false,"language":"","audiences":[],"rootPageId":"","forbidden":[]}}'
+
+# l-lang-*: enabled true needs a language, from wiki.language or context.language
+bad_value l-lang-empty '{"wiki":{"enabled":true,"language":"","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"123"}}' wiki.language
+good_value l-ok-wiki-language '{"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"123","forbidden":["Projekt B"]}}'
+good_value l-ok-context-language '{"context":{"language":"de"},"wiki":{"enabled":true,"language":"","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"123","forbidden":[]}}'
+
+# l-audiences-*: enabled true needs a non-empty list of audiences, each with a non-empty name, names unique (case-insensitive)
+bad_value l-audiences-empty '{"wiki":{"enabled":true,"language":"de","audiences":[],"rootPageId":"123"}}' wiki.audiences
+bad_value l-audiences-string '{"wiki":{"enabled":true,"language":"de","audiences":"Spieler und Tester","rootPageId":"123"}}' wiki.audiences
+bad_value l-audience-noname '{"wiki":{"enabled":true,"language":"de","audiences":[{"description":"ohne Name"}],"rootPageId":"123"}}' wiki.audiences
+bad_value l-audience-blank-name '{"wiki":{"enabled":true,"language":"de","audiences":[{"name":"","description":"leerer Name"}],"rootPageId":"123"}}' wiki.audiences
+bad_value l-audience-dup '{"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Tester"},{"name":"tester"}],"rootPageId":"123"}}' wiki.audiences
+
+# l-rootpage-empty: enabled true needs a rootPageId
+bad_value l-rootpage-empty '{"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":""}}' wiki.rootPageId
+# l-rootpage-missing: enabled true with no rootPageId key at all: FAIL naming wiki.rootPageId
+bad_value l-rootpage-missing '{"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}]}}' wiki.rootPageId
+
+# l-forbidden-*: entries must be non-empty strings, also when disabled
+bad_value l-forbidden-number '{"wiki":{"enabled":false,"forbidden":[42]}}' wiki.forbidden
+bad_value l-forbidden-empty-string '{"wiki":{"enabled":false,"forbidden":[""]}}' wiki.forbidden
+bad_value l-forbidden-enabled-empty '{"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"123","forbidden":[""]}}' wiki.forbidden
+
+# l-root-*: with the wiki enabled, wiki.rootPageId must differ from docsNotion.rootPageId
+bad_value l-root-same '{"docsNotion":{"rootPageId":"123"},"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"123"}}' wiki.rootPageId
+good_value l-root-different '{"docsNotion":{"rootPageId":"456"},"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"123"}}'
+# l-root-same-normalized: the ids are equal once dashes are removed and case is ignored
+bad_value l-root-same-dashes '{"docsNotion":{"rootPageId":"0123456789abcdef0123456789abcdef"},"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"0123-4567-89AB-CDEF-0123-4567-89AB-CDEF"}}' wiki.rootPageId
+bad_value l-root-same-case '{"docsNotion":{"rootPageId":"0123456789ABCDEF0123456789ABCDEF"},"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":"0123456789abcdef0123456789abcdef"}}' wiki.rootPageId
+
+# l-audience-slug-*: an audience name needs a non-empty slug, and two names must not share one
+bad_value l-audience-slug-empty '{"wiki":{"enabled":true,"language":"de","audiences":[{"name":"!!!"}],"rootPageId":"123"}}' wiki.audiences
+bad_value l-audience-slug-dup '{"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler/Tester"},{"name":"Spieler Tester"}],"rootPageId":"123"}}' wiki.audiences
+
 echo "check-config tests: ok"

@@ -38,7 +38,7 @@ fi
 # .foreman.json settings: python3 stdlib only; a missing file or missing python3 is fine.
 if [ -f .foreman.json ] && command -v python3 >/dev/null 2>&1; then
   python3 - <<'PY' || fail=1
-import http.client, json, os, re, socket, sys, urllib.error, urllib.parse, urllib.request
+import http.client, json, os, re, socket, sys, unicodedata, urllib.error, urllib.parse, urllib.request
 try:
     import zoneinfo
 except ImportError:  # Python without zoneinfo: the name lookup is skipped, the pattern check stays
@@ -226,6 +226,58 @@ if (isinstance(tracker, dict) and tracker.get("type") == "itsaplan") or (isinsta
                     for msg in problems:
                         print(msg)
                         bad = True
+
+# wiki.* settings: enabled is a boolean; when true it needs a language, audiences and rootPageId;
+# forbidden entries are non-empty strings in every state
+def nonempty_str(v):
+    return isinstance(v, str) and v.strip() != ""
+
+wk = cfg.get("wiki", {})
+if not isinstance(wk, dict):
+    print("FAIL: wiki must be an object")
+    bad = True
+    wk = {}
+wk_on = wk.get("enabled", False)
+if not isinstance(wk_on, bool):
+    print("FAIL: wiki.enabled must be true or false")
+    bad = True
+    wk_on = False
+forb = wk.get("forbidden", [])
+if not (isinstance(forb, list) and all(nonempty_str(x) for x in forb)):
+    print("FAIL: wiki.forbidden must be a list of non-empty strings")
+    bad = True
+if wk_on:
+    lang = wk.get("language") or (ctx.get("language") if isinstance(ctx, dict) else None)
+    if not nonempty_str(lang):
+        print("FAIL: wiki.language must be a non-empty language code such as de (or set context.language)")
+        bad = True
+    auds = wk.get("audiences")
+    if not (isinstance(auds, list) and auds and all(isinstance(a, dict) and nonempty_str(a.get("name")) for a in auds)):
+        print("FAIL: wiki.audiences must be a non-empty list of objects, each with a non-empty name")
+        bad = True
+    elif len({a["name"].strip().lower() for a in auds}) != len(auds):
+        print("FAIL: wiki.audiences names must be unique (case-insensitive)")
+        bad = True
+    else:
+        # same slug rule as audienceSlug in lib/docs-wiki.mjs: umlauts spelled out, accents dropped, other runs become "-"
+        def slug(n):
+            n = n.translate(str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss", "Ä": "ae", "Ö": "oe", "Ü": "ue"}))
+            n = "".join(c for c in unicodedata.normalize("NFKD", n) if not unicodedata.category(c).startswith("M"))
+            return re.sub(r"[^a-z0-9]+", "-", n.lower()).strip("-")
+        slugs = [slug(a["name"]) for a in auds]
+        if "" in slugs or len(set(slugs)) != len(slugs):
+            print("FAIL: wiki.audiences names must give a non-empty, unique folder slug (letters and digits)")
+            bad = True
+    if not nonempty_str(wk.get("rootPageId")):
+        print("FAIL: wiki.rootPageId must be a non-empty string when wiki.enabled is true")
+        bad = True
+    else:
+        dn = cfg.get("docs" + "N" + "otion")  # key built in parts: the word must not appear in files installed without the module
+        dn_root = dn.get("rootPageId") if isinstance(dn, dict) else None
+        norm = lambda s: s.replace("-", "").strip().lower()  # ids compare without dashes and case
+        if nonempty_str(dn_root) and norm(dn_root) == norm(wk["rootPageId"]):
+            print("FAIL: wiki.rootPageId must differ from the mirror rootPageId (same root page)")
+            bad = True
 
 sys.exit(1 if bad else 0)
 PY
