@@ -751,7 +751,7 @@ Go/no-go: Struktur in Notion entspricht dem Repo.
 **Goal:** Ein Projekt kann ein öffentliches Wiki in Notion für festgelegte Zielgruppen pflegen, und jeder Milestone prüft, ob es aktualisiert werden muss.
 **Coding:** ~4 Tage (Agent)
 **Testing:** ~3 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT vom Menschen abgenommen, 2026-11-22; PR #19 in dev)
 
 ---
 

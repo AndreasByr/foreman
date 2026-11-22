@@ -1,4 +1,4 @@
-Status: batch-pr · since 2026-11-22T08:25Z · Validierung needs-attention (1 mittlerer Fund, vom Maintainer als bekannte Grenze angenommen), PR nach dev
+Status: done · since 2026-11-22T09:00Z · UAT vom Menschen abgenommen, PR #19 in dev (8bd599f), bekannte Grenze (1 mittlerer Scan-Fund) angenommen
 Target: dev
 Batch-branch: batch/m010
 Lock: free
