@@ -11,7 +11,7 @@ Sechs Validierungsrunden mit je drei getrennten Reviewern (A Anforderungen, B In
 | 5 | ba56b4d | pass | needs-remediation | needs-attention | R5 |
 | 6 | a6544af | pass | needs-attention | pass | offen |
 
-**Gesamturteil: needs-attention.** Ein mittlerer Fund aus Reviewer B (Runde 6) ist offen.
+**Gesamturteil: needs-attention.** Ein mittlerer Fund aus Reviewer B (Runde 6) ist offen; der Maintainer hat ihn am 22.11. als bekannte Grenze angenommen (Batch-PR mit dieser Grenze).
 
 ## Offene Funde
 

@@ -1,4 +1,4 @@
-Status: validation · since 2026-11-22T01:10Z · R5 fertig, Validierung Runde 6
+Status: batch-pr · since 2026-11-22T08:25Z · Validierung needs-attention (1 mittlerer Fund, vom Maintainer als bekannte Grenze angenommen), PR nach dev
 Target: dev
 Batch-branch: batch/m010
 Lock: free
@@ -59,3 +59,4 @@ None recorded.
 - 2026-11-22T03:10Z · Validierung 3 (A/B/C needs-attention: 2 mittlere in B, 1 in C Doku). R3 Tests zuerst (6 rot bestätigt), danach `bash scripts/test-all.sh` Exit 0 · M010 R3
 - 2026-11-22T04:10Z · Validierung 4 (C pass, A needs-attention, B needs-remediation: 1 hoch Verbotsbegriff in Link-Zielen). R4 (4. Nacharbeit, Entscheidungskarte gestellt, parallel auf Empfehlung gearbeitet): Tests zuerst rot, danach `bash scripts/test-all.sh` Exit 0 · M010 R4
 - 2026-11-22T06:10Z · Validierung 5 (A pass, C needs-attention Doku und Name, B needs-remediation: Text in Link-Klammern). R5 Tests zuerst rot, danach `bash scripts/test-all.sh` Exit 0 · M010 R5
+- 2026-11-22T08:20Z · Maintainer wählt auf der Karte „PR mit bekannter Grenze“: mittlerer Fund (verschachtelte Klammern im Linktext) bleibt offen, steht in VALIDATION.md und UAT-Liste; Gate grün (`test-all` Exit 0 auf a6544af, danach nur Doku) · M010
