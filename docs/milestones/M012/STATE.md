@@ -1,4 +1,4 @@
-Status: planning · since 2026-11-22T09:20Z · Brief und Slice-Plan geschrieben
+Status: validation · since 2026-11-22T10:40Z · alle Slices fertig, Prüfung läuft
 Target: dev
 Batch-branch: batch/m012
 Lock: free
@@ -14,10 +14,10 @@ Start commit: 5e090af (dev nach M010)
 
 | # | Slice | Status (open / in progress / done / blocked) | Commit | Files | Open points |
 |---|---|---|---|---|---|
-| S1 | Doppelte Regeln | open | | scripts/test-rules.py, Repo-Skills + Rendered-Kopien, docs/PRINCIPLES.md | |
-| S2 | Lesemenge | open | | scripts/measure-reads.mjs, scripts/test-measure-reads.mjs, scripts/test-all.sh | |
-| S3 | README | open | | README.md, docs/learnings.md | |
-| S4 | Rollout-Aufträge | open | | docs/rollout/ | |
+| S1 | Doppelte Regeln | done | 2834e92 (rot), 39125e1, b798715 | scripts/test-rules.py, Repo-Skills + Rendered-Kopien, docs/PRINCIPLES.md | |
+| S2 | Lesemenge | done | 87b0a9a (rot), b798715 | scripts/measure-reads.mjs, scripts/test-measure-reads.mjs, scripts/test-all.sh | |
+| S3 | README | done | af3bde6 (rot), bf1c630, 375f439 | README.md, docs/learnings.md | |
+| S4 | Rollout-Aufträge | done | bf1c630 (rot), 375f439 | docs/rollout/ | |
 
 ## Check plan per slice
 
@@ -52,3 +52,8 @@ Categories: missing-requirement, open-decision, missing-infra, merge-conflict, u
 ## Log
 
 - 2026-11-22T09:20Z · Brief M012-CONTEXT.md, Inventur der Doppelungen (Research-Worker), STATE geschrieben · batch/m012
+- 2026-11-22T09:50Z · S1 done: Lint rot gegen echte Skills (python3 scripts/test-rules.py, Exit 1, 2834e92) -> grün (Exit 0, 39125e1); test-all Exit 0 · 39125e1
+- 2026-11-22T10:20Z · S2 done: test-measure-reads rot (Stub, Exit 1, 87b0a9a) -> grün 12 Fälle; measure-reads Exit 0 (Milestone -429 B, Fix-Paket -927 B, Batch -165 B zum Stand 9c51ceb); test-all Exit 0 · b798715
+- 2026-11-22T10:30Z · S3 done: test-readme rot (Stub, Exit 1, af3bde6) -> grün; README, learnings, changelog · bf1c630
+- 2026-11-22T10:40Z · S4 done: test-rollout rot (Stub, Exit 1, bf1c630) -> grün; docs/rollout/ A, B, C; test-all Exit 0 · 375f439
+- 2026-11-22T10:40Z · Wrapper: Worker liefen mit lokaler Config (echte Modell-IDs). Fehlversuch 1 (Worker ohne Bash, S1-Lint) -> Hinweis im Task, zweiter Lauf ok; keine Eskalation, kein Eigencode
