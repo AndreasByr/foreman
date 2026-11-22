@@ -1,7 +1,7 @@
 # Messwerte
 
 Zeitraum: 2026-11-01T00:00:00.000Z bis 2026-11-22T23:59:59.999Z
-Erzeugt: 2026-11-22T09:25:22.965Z
+Erzeugt: 2026-11-22T09:28:36.395Z
 Diese Datei wird von scripts/measure.mjs erzeugt. Nicht von Hand ändern.
 
 ## Läufe

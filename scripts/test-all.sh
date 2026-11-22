@@ -37,5 +37,6 @@ bash scripts/test-wiki-todo.sh
 python3 scripts/test-rules.py
 node scripts/test-measure-reads.mjs
 bash scripts/test-readme.sh
+bash scripts/test-rollout.sh
 # read amount of a work run must not exceed the 0.2.1 baseline; skipped where the baseline commit is not in the clone (shallow)
 if git cat-file -e 9c51ceb^{commit} 2>/dev/null; then node scripts/measure-reads.mjs >/dev/null; else echo "measure-reads: skipped (baseline commit 9c51ceb not in this clone)"; fi
