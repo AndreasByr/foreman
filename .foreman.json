@@ -20,7 +20,7 @@
     "stagingUrl": "",
     "devUrl": "",
     "testTenant": "",
-    "offLimits": "Projekt A, B und C direkt (Abnahme nur gegen ein Wegwerf-Testprojekt)",
+    "offLimits": "die Referenzprojekte direkt (Abnahme nur gegen ein Wegwerf-Testprojekt)",
     "language": "de",
     "timeZone": "Europe/Berlin",
     "releaseDay": "Friday",

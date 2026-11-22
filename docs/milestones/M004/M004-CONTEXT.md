@@ -48,7 +48,7 @@ Nicht gefordert.
 - itsaplan-Vorlage und englische Namen (M005).
 - Dispatcher-Eintrag selbst und Routine anlegen (bleibt im Skill-Schritt 7, nur Hinweise).
 - Echter Chat-Lauf; Routing im Chat prüft Maintainer im UAT.
-- Änderungen an Projekt A, B, C.
+- Änderungen an die Referenzprojekte.
 
 ## Success criteria
 1. `foreman-project` enthält keine Regel „nicht installiert → Setup“ mehr, beschreibt Erkennung über `workspace.json` und die eine Rückfrage; `bash scripts/test-plugin.sh` grün.

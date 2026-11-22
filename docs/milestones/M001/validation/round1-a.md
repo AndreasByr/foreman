@@ -28,9 +28,9 @@ Fast alles aus dem Brief ist abgedeckt, im Code und in Tests. Eine Teilanforderu
 | Brief F4 / Req `:50` / SC4: Vorlage kann `--no-fetch`, gleiche TASK-Zeilen, kein Fetch; `check-config` meldet fehlende Unterstützung | covered (Heuristik, siehe Finding 2) | `template/scripts/autopilot-check.mjs:92` (schon vorher da); `scripts/check-config.sh:33-36` | `test-autopilot-check.mjs:358`; `scripts/test-check-config.sh` Fälle a–d |
 | Brief F5 / Req `:26`: Startskript-Vorlage mit `ssh`, `claude -p`, exakter Model-ID, `claude_login = "inherit"` | covered | `fire-claude.example.sh` (Diff 219-275: Alias-Sperre, `unset ANTHROPIC_API_KEY`, `claude -p --model`); `README.md:20-34`; `template/tools/delegate/config.toml:20` | `dispatcher/tests/test-fire-claude.sh` a–f |
 | Req `:26`: `foreman-setup` führt die Variante | **missing** | – | – (Finding 1) |
-| SC5: Dry-Run zeigt „would start … via command“, 0 Secrets im Log | covered (automatisch; der Lauf auf server-1 ist UAT) | `dispatch.mjs:236` | `test-dispatch.mjs:416` |
+| SC5: Dry-Run zeigt „would start … via command“, 0 Secrets im Log | covered (automatisch; der Lauf auf Host 1 ist UAT) | `dispatch.mjs:236` | `test-dispatch.mjs:416` |
 | SC6: MODULES und README nennen die 4 Begriffe; Begründungen in `learnings.md`; Skills enthalten nur die Regel | covered | `docs/MODULES.md:18-25`; `README.md:10`, `:18`, `:20`, `:73`; `docs/learnings.md:7-10` | `scripts/test-dispatcher-docs.sh` (inkl. `forbid outward-facing` im Skill) |
-| Fixed: Verhalten des server-1-Patches übernehmen, nicht den Patch selbst | nicht prüfbar | – | – |
+| Fixed: Verhalten des Host 1-Patches übernehmen, nicht den Patch selbst | nicht prüfbar | – | – |
 | Fixed: zuerst ein roter Test | belegt nur durch die Berichte | `agent-reports/…-S1…S6.md:8` (jeweils „Rot vorher“, Exit 1); S4 vermerkt, dass `--no-fetch` schon vorher ging | – |
 | Fixed: Dispatcher bleibt modellfrei | covered | `dispatch.mjs` ruft kein Modell auf; `claude -p` läuft nur im kopierten Startskript | – |
 | Out of scope: keine Überwachung von `fire_command`, keine Merge-Fenster-Fragen (M004), keine Update-Meldung (M007), keine Änderungen an Project A/B/C | eingehalten | Der Diff enthält dafür nichts; `README.md:33` sagt ausdrücklich „does not watch the run“ | – |
@@ -46,7 +46,7 @@ Fast alles aus dem Brief ist abgedeckt, im Code und in Tests. Eine Teilanforderu
 - `foreman-setup` wurde in M001 nicht angefasst.
 
 **Unclear / not found**
-- Ob das Verhalten des lokalen Patches auf server-1 genau übernommen wurde: Der Patch liegt nicht im Repo.
+- Ob das Verhalten des lokalen Patches auf Host 1 genau übernommen wurde: Der Patch liegt nicht im Repo.
 - Ob die roten Läufe wirklich stattgefunden haben: Dafür gibt es nur die Berichte. Ich habe keine Tests ausgeführt, weil Bash hier nur eingeschränkt verfügbar war, also ist auch nicht bestätigt, dass `test-all.sh` grün ist.
 - Ob der `foreman-setup`-Teil aus `requirements.md:26` bewusst in einen späteren Milestone verschoben wurde: Die Roadmap sagt dazu nichts.
-- Ob ein Projekt ohne `deploy_key_env` mit ssh-agent klont und deshalb von Finding 3 betroffen ist: Die Konfigurationen auf server-1 habe ich nicht gesehen.
+- Ob ein Projekt ohne `deploy_key_env` mit ssh-agent klont und deshalb von Finding 3 betroffen ist: Die Konfigurationen auf Host 1 habe ich nicht gesehen.

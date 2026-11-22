@@ -64,6 +64,6 @@ Round-1-low, kurz:
 
 **Unclear / not found**
 - Ich habe keine Tests ausgeführt. Die grünen Läufe kenne ich nur aus `STATE.md:70-77`.
-- Ob die echten Projekte auf server-1 `GITHUB_TOKEN` in `pass_env` haben, weiß ich nicht. Davon hängt ab, ob Finding 2 im Betrieb zuschlägt. Die Server-Konfiguration liegt nicht im Repo.
+- Ob die echten Projekte auf Host 1 `GITHUB_TOKEN` in `pass_env` haben, weiß ich nicht. Davon hängt ab, ob Finding 2 im Betrieb zuschlägt. Die Server-Konfiguration liegt nicht im Repo.
 - Laut `requirements.md:26` soll `pass_env` beim lokalen Lauf über `ssh` projekteigene Variablen durchreichen. Umgesetzt und dokumentiert ist, dass das über ssh nicht geht; die Werte stehen stattdessen im Startskript (`learnings.md`, Diff:794; `README.md:32`). Ob das als erfüllt gilt, ist eine Produktfrage.
 - Ob Node `fetch` mit `redirect: "error"` eine Fehlermeldung ohne URL liefert, habe ich nur durch Lesen geprüft. Der Test simuliert die Exception selbst (`test-dispatch.mjs`, Diff:628-638).

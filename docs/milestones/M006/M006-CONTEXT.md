@@ -48,7 +48,7 @@ Bericht: `docs/role-reviews/M006-briefing.md`. Als Erfolgskriterien übernommen:
 ## Out of scope
 - Update-Meldung im Dispatcher (M007).
 - Automatisches Zusammenführen gemischter Dateien.
-- Änderungen an Projekt A, B und C; deren Abweichungen fließen nur in die Klassen ein (Analysen F2/F3 der Fix-Pakete, soweit im Repo vorhanden).
+- Änderungen an die Referenzprojekte; deren Abweichungen fließen nur in die Klassen ein (Analysen F2/F3 der Fix-Pakete, soweit im Repo vorhanden).
 - Downgrade auf eine ältere Version.
 - Ein Release (Tag, Version `0.2.2`): bleibt bei Maintainer.
 
@@ -69,4 +69,4 @@ bash scripts/check-config.sh
 Human only (UAT): Update an einem Wegwerf-Testprojekt (Flow A und B der Roadmap), Lesbarkeit der Checkliste, Anwendung des Projektanweisungs-Blocks im Claude-Projekt.
 
 ## Risks
-`install.sh` und `scripts/test-install.sh` werden auch von M002, M003, M008 und M011 angefasst: nur ergänzen. Foreman-eigene Dateien mit lokalen Patches (zum Beispiel auf server-1) werden überschrieben; dagegen helfen Dry-Run und die Prüfung auf ungesicherte Änderungen. Neue Template-Dateien aus parallelen Milestones brauchen eine Klasse, sonst fällt Test 1 rot: wer eine Datei in `template/` ergänzt, ergänzt auch `update-classes.json`.
+`install.sh` und `scripts/test-install.sh` werden auch von M002, M003, M008 und M011 angefasst: nur ergänzen. Foreman-eigene Dateien mit lokalen Patches (zum Beispiel auf Host 1) werden überschrieben; dagegen helfen Dry-Run und die Prüfung auf ungesicherte Änderungen. Neue Template-Dateien aus parallelen Milestones brauchen eine Klasse, sonst fällt Test 1 rot: wer eine Datei in `template/` ergänzt, ergänzt auch `update-classes.json`.

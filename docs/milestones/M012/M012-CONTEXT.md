@@ -13,7 +13,7 @@ Doppelte Regeln stehen an einer Stelle, ein Work-Run liest nicht mehr als vor 0.
 1. **Eine Stelle je Regel.** Regeln, die in Repo-Skills, Chat-Skills und `docs/` mehrfach stehen, bekommen einen Eigentümer. Die anderen Stellen behalten höchstens einen Verweis. Bekannte Widersprüche werden mit bereinigt (Review-Runden in `docs/PRINCIPLES.md`, Merge-Methode, Schrittverweis in `batch-run.md`).
 2. **Lesemenge messbar.** Ein Skript zählt, was ein Work-Run an festen Dateien liest (CLAUDE.md, Skills, Referenzen je Einheitstyp), für einen Git-Stand, und vergleicht mit dem Referenzstand. Ein Test schlägt fehl, wenn der aktuelle Stand mehr liest.
 3. **README mit Zahlen.** Zahlen aus `scripts/measure.mjs` (M011) und aus der Lesemengen-Messung, Verweis auf `docs/learnings.md`; Modul- und Anbieter-Kombinationen ohne regelmäßigen Test sind gekennzeichnet.
-4. **Rollout-Aufträge.** Für Projekt A, B und C je ein Auftrag mit Checkliste für `foreman-update`, mit Platzhaltern statt echter Namen.
+4. **Rollout-Aufträge.** Für die Referenzprojekte je ein Auftrag mit Checkliste für `foreman-update`, mit Platzhaltern statt echter Namen.
 
 ## Dependencies and order
 S1 vor S2 (S2 misst nach der Bereinigung), S2 vor S3 (S3 nennt die Zahlen). S4 unabhängig, läuft zuletzt (kennt die Version und die Upgrade-Hinweise).
@@ -38,7 +38,7 @@ Kein eigener Bericht; der Umfang ist Dokumente und Skripte, keine Oberfläche, k
 - Besitzer: Review-Gate, Rework-Runden, "Nichts weiterreichen", Beweisregel, Rot-dann-Grün: `foreman-delegation`. Board-Check: `foreman-milestone`. Versionsnummer und Changelog-Regeln: `docs/versioning.md`. Eingriff (Erklärkommentar): `foreman-dispatch-run/references/intervention.md`. Push-Ziele und Prod-Verbot: `CLAUDE.md` plus `foreman-delegation` Git rules.
 - Vorher-Wert der Lesemenge ist der Stand `9c51ceb`; gemessen in Bytes (Tokens ≈ Bytes/4 nur als Hinweis). Szenarien: Work-Run Milestone, Work-Run Fix-Paket, Batch-Run; Wiki-Skill zählt nur mit Wiki-Modul und steht getrennt.
 - Das Mess-Skript ändert nichts, liest nur per `git show`/Dateisystem, kein Netz, keine Abhängigkeit.
-- Die Zahlen aus Projekt A, B, C gibt es erst nach deren Update; die README nennt sie nicht als gemessen, sondern kennzeichnet die Lücke.
+- Die Zahlen aus die Referenzprojekte gibt es erst nach deren Update; die README nennt sie nicht als gemessen, sondern kennzeichnet die Lücke.
 - VERSION bleibt 0.2.1. Kein Tag, kein Release, kein Änderungsdatei-Eintrag außer "Unreleased"-Punkten.
 
 ## Data and interfaces
@@ -46,7 +46,7 @@ Kein eigener Bericht; der Umfang ist Dokumente und Skripte, keine Oberfläche, k
 - Neue Lint-Regeln in `scripts/test-rules.py`: je Besitzerregel genau ein Vorkommen im Besitzer, kein Wiederholungstext in den übrigen Repo-Skills.
 
 ## Out of scope
-- Änderungen an Projekt A, B, C selbst (nur Aufträge).
+- Änderungen an die Referenzprojekte selbst (nur Aufträge).
 - Release, Tag, Version, `main`.
 - Neue Funktionen.
 - Messung von Tokens oder Kosten.

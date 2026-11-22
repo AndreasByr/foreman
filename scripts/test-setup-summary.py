@@ -100,8 +100,8 @@ def check_example(tmp):
         f"first line: {lines[0] if lines else '(none)'}",
     )
     for expected in [
-        "- server-1 (server; purposes: dispatcher-host, app-hosting, tracker-host, gateway-host): docker, coolify, itsaplan, litellm, dispatcher; domain: yes; HTTPS: yes",
-        "- server-2 (home-server; purposes: local-runs): docker; domain: no; HTTPS: no",
+        "- host-1 (server; purposes: dispatcher-host, app-hosting, tracker-host, gateway-host): docker, coolify, itsaplan, litellm, dispatcher; domain: yes; HTTPS: yes",
+        "- host-2 (home-server; purposes: local-runs): docker; domain: no; HTTPS: no",
         "- Claude: max; routines with API trigger: yes",
         "- Ollama Cloud: pro",
         "- ChatGPT: plus",
@@ -148,7 +148,7 @@ def check_unknown_answers(tmp):
     check("unknown answers: exit 0", code == 0, f"exit {code}: {err.strip()[:300]}")
     check(
         "unknown answers: machine https prints unbekannt",
-        has_line(out, "- server-2 (home-server; purposes: local-runs): docker; domain: no; HTTPS: unbekannt"),
+        has_line(out, "- host-2 (home-server; purposes: local-runs): docker; domain: no; HTTPS: unbekannt"),
     )
     check(
         "unknown answers: routines prints unbekannt",
@@ -297,7 +297,7 @@ def check_absent_optional_fields(tmp):
     check("absent optional: exit 0", code == 0, f"exit {code}: {err.strip()[:300]}")
     check(
         "absent optional: machine line has no domain or HTTPS part",
-        has_line(out, "- server-2 (home-server; purposes: local-runs): docker"),
+        has_line(out, "- host-2 (home-server; purposes: local-runs): docker"),
     )
     check("absent optional: tracker line has no url part", has_line(out, "Tracker: itsaplan"))
     check("absent optional: gateway line has no url part", has_line(out, "Gateway: running"))
