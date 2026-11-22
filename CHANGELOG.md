@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.3 (2026-11-22)
+
+### Fixed
+
+- **`foreman-update` in chat finds the changelog itself.** The skill used to read `VERSION` and `CHANGELOG.md` only from a checkout the human names, and asked for it. It now fetches `VERSION`, `CHANGELOG.md`, `update-classes.json` and `docs/MODULES.md` from the public raw URLs of `AndreasByr/foreman`. The tag comes from the latest release (no `v` prefix), fallback `main`. It asks only when both lookups fail. The module list comes from the fetched `docs/MODULES.md`, so modules such as `docs-notion` are known in chat.
+
+### Upgrade
+- Files: none replaced by `--update` in this version; `./install.sh <project> --update` only sets the version number. The fix is in the plugin skill `foreman-update`.
+- Steps: update the foreman plugin in claude.ai or with `/plugin update` (2 min). The dispatcher code does not change in this version, so no pull of the foreman checkout on the dispatcher machine is needed.
+- Optional: nothing new. `pass_env`, `webhook_format` and `mainAutoMerge` stay as in 0.2.2.
+
 ## 0.2.2 (2026-11-22)
 
 ### New
