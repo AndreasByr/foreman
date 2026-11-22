@@ -160,5 +160,20 @@ test("option-like or shell-like ref names exit 2 and create no file", () => {
   assert.equal(git("status", "--porcelain"), "");
 });
 
+test("only the fix pack skill grows: exit 1 and only fixpack-run is named", () => {
+  const FIXPACK = "template/.claude/skills/foreman-fixpack/SKILL.md";
+  writeAll({ [WIKI]: 300, [FIXPACK]: 200 });
+  const E = commit("E: fix pack skill larger");
+  const r = run(["--ref", E, "--baseline", D]);
+  assert.equal(r.code, 1);
+  assert.match(r.out, /^result: over baseline: fixpack-run$/m);
+  assert.match(r.out, /^milestone-run: .*, 0 B\)/m);
+  assert.match(r.out, /^batch-run: .*, 0 B\)/m);
+  assert.match(r.out, /^fixpack-run: .*, \+190 B\)/m);
+  const j = JSON.parse(run(["--ref", E, "--baseline", D, "--json"]).out);
+  for (const name of ["milestone-run", "batch-run"]) assert.equal(j.scenarios.find((s) => s.name === name).diff, 0);
+  assert.deepEqual(j.over, ["fixpack-run"]);
+});
+
 rmSync(repo, { recursive: true, force: true });
 if (failed) { console.error(`${failed} of ${n} failed`); process.exit(1); }

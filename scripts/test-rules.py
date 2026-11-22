@@ -118,7 +118,27 @@ SINGLE_SOURCE = [
 ]
 
 PRINCIPLES = os.path.join("docs", "PRINCIPLES.md")
-PRINCIPLES_ROUNDS = re.compile(r"three (?:rework )?rounds", re.IGNORECASE)
+PRINCIPLES_ROUNDS = re.compile(r"(?:three|3)\s+(?:rework\s+|review\s+)?rounds", re.IGNORECASE)
+
+# Drift guard: the M011 test pins the Cause line into milestone and fixpack, intervention.md owns the rule;
+# this guard keeps the three files in step.
+CAUSE_LINE = "**Cause:** <category> · <one sentence>"
+CAUSE_FILES = [
+    "template/.claude/skills/foreman-dispatch-run/references/intervention.md",
+    "template/.claude/skills/foreman-milestone/SKILL.md",
+    "template/.claude/skills/foreman-fixpack/SKILL.md",
+]
+
+
+def check_cause_line(root, errors):
+    for rel in CAUSE_FILES:
+        path = os.path.join(root, rel)
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8", newline="") as f:
+            text = f.read()
+        if not any(CAUSE_LINE in line for line in text.splitlines()):
+            errors.append(f'Cause line: {rel} lacks the line "{CAUSE_LINE}"')
 
 
 def check_single_source(root, errors):
@@ -207,6 +227,7 @@ def check(root):
         check_set(root, set_name, rel_dir, errors)
     check_single_source(root, errors)
     check_principles(root, errors)
+    check_cause_line(root, errors)
     check_rendered(root, errors)
     check_learnings(root, errors)
     return errors
@@ -251,6 +272,7 @@ MILESTONE_TEXT = (
     "# Milestone\n"
     "\n"
     "- **Board check:** without an approved design board the slice goes to needs-input.\n"
+    "- Every needs-input writes the **Cause:** <category> · <one sentence> line.\n"
     "\n"
     "# {{PROJECT_NAME}} milestone\n"
 )
@@ -477,8 +499,39 @@ def case_principles(text, expect_error):
     return run_case(files, lambda errors: errors == [])
 
 
+def cause_files(replace_in=None):
+    """good_files plus the three Cause-line files; replace_in names one file whose <category> becomes <kind>."""
+    files = good_files()
+    for rel in CAUSE_FILES:
+        line = CAUSE_LINE
+        if rel == replace_in:
+            line = line.replace("<category>", "<kind>")
+        text = "# Cause demo\n\n" + line + "\n"
+        if rel == MILESTONE_PATH:
+            text = MILESTONE_TEXT + "\n" + line + "\n"
+            files[".claude/skills/foreman-milestone/SKILL.md"] = text.replace("{{PROJECT_NAME}}", "foreman")
+        files[rel] = text
+    return files
+
+
+def case_cause_ok():
+    return run_case(cause_files(), lambda errors: errors == [])
+
+
+def case_cause_drift():
+    rel = CAUSE_FILES[2]
+    needle = f'Cause line: {rel} lacks the line "{CAUSE_LINE}"'
+    return run_case(cause_files(replace_in=rel), lambda errors: any(needle in e for e in errors))
+
+
 SELFTESTS = [
     ("correct tree gives no errors", case_correct),
+    ("Cause line in all three files passes", case_cause_ok),
+    ("Cause line with <kind> in one file errors", case_cause_drift),
+    ("PRINCIPLES.md with '3 rounds' errors", lambda: case_principles(
+        "# Principles\n\nWe allow 3 rounds of review.\n", True)),
+    ("PRINCIPLES.md with 'three review rounds' errors", lambda: case_principles(
+        "# Principles\n\nWe allow three review rounds.\n", True)),
     ("second labeled line in another file errors", case_ss_second_labeled_line),
     ("labeled line in wrong file errors", case_ss_wrong_file),
     ("missing owner line errors", case_ss_missing_owner_line),

@@ -92,6 +92,9 @@ if (jsonFile) {
     if (sc.baseline !== parsed[label].base) {
       fail(`${label}: 0.2.1 in README is ${parsed[label].base} B, but the baseline of ${name} is ${sc.baseline} B`);
     }
+    if (sc.current !== parsed[label].now) {
+      fail(`${label}: README says ${parsed[label].now} B for 0.2.x but scripts/measure-reads.mjs measures ${sc.current} B; update the table`);
+    }
   }
 }
 
@@ -140,5 +143,21 @@ case "$msg" in
   *"FAIL: "*"Fix pack"*) ;;
   *) fail "self-check: copy failed for another reason: $msg" ;;
 esac
+
+# Second negative self-check (only when the measure-reads JSON is available): Batch 0.2.x and its change both
+# raised by 1 B keep the change/consistency rules intact, so only the comparison with the measured value can reject it.
+if git cat-file -e "${BASELINE_COMMIT}^{commit}" 2>/dev/null && [ -s "$TMP/measure.json" ]; then
+  sed -e 's/^| Batch | 32,320 B | 32,155 B | -165 B |/| Batch | 32,320 B | 32,156 B | -164 B |/' "$README" > "$TMP/mutated2.md"
+  if cmp -s "$README" "$TMP/mutated2.md"; then
+    fail "self-check: could not alter the Batch 0.2.x value in the copy"
+  fi
+  if msg="$(check_readme "$TMP/mutated2.md" 2>&1)"; then
+    fail "self-check: copy with a changed Batch 0.2.x value was accepted"
+  fi
+  case "$msg" in
+    *"FAIL: Batch: README says 32156 B for 0.2.x"*) ;;
+    *) fail "self-check: copy failed for another reason: $msg" ;;
+  esac
+fi
 
 echo "readme test: ok"
