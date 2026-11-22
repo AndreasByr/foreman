@@ -123,4 +123,8 @@ grep -q 'block-status.py' "$SKILL/SKILL.md" || fail "$SKILL/SKILL.md does not me
 grep -q 'block-status.py' plugins/foreman/skills/foreman-update/SKILL.md || fail "foreman-update/SKILL.md does not mention block-status.py"
 grep -q 'Project instructions up to date' plugins/foreman/skills/foreman-update/SKILL.md || fail "foreman-update/SKILL.md does not contain 'Project instructions up to date'"
 
+# 10. Version consistency: the block heading and the skill's example marker must name the current version N.
+grep -qxF "# Project instruction block (v$N)" <(head -n1 "$REF") || fail "$REF: first line is not '# Project instruction block (v$N)'"
+grep -qF "\`<!-- foreman-project-block v$N -->\`" "$SKILL/SKILL.md" || fail "$SKILL/SKILL.md: example marker in section 5 is not '\`<!-- foreman-project-block v$N -->\`'"
+
 echo "project block: ok"
