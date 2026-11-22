@@ -4,6 +4,8 @@
 
 ### New
 
+- **One owner per rule, smaller work run.** Review gate, "hand nothing on", evidence rule, board check and version number rule now stand once each in the repo skills; the others point to them, and `scripts/test-rules.py` fails when one is repeated. `docs/PRINCIPLES.md` now says two review rounds, as the skills do. A work run reads no more than in 0.2.1 (`node scripts/measure-reads.mjs`, part of `scripts/test-all.sh`): milestone 42,636 B (was 43,065 B), fix pack 40,548 B (41,475 B), batch 32,155 B (32,320 B). The README shows these numbers and lists the setups that are not tested regularly.
+
 - **Module `docs-notion`**: one-way mirror of the repo docs to Notion, one page per file, the overview as parent page of its parts. The repo wins: edits made in Notion are overwritten on the next run. Run with `node scripts/docs-notion.mjs [--dry-run]`; the batch run calls it after each merge through `scripts/post-merge.d/`. Needs `NOTION_API_KEY` and `docsNotion.rootPageId` in `.foreman.json`. No model writes to Notion; the script respects Notion's rate and size limits. The old name `notion` is refused with a hint to `docs-notion`.
 - **`wiki` block in `.foreman.json`** (module `docs-notion`, default off): `enabled`, `language`, `audiences`, `rootPageId`, `forbidden`. The installer adds it without overwriting an existing block.
 - **Skill `foreman-wiki`**: how to write and maintain the wiki pages in `docs/wiki/` (only from internal docs, one folder per audience, checked text, published by hand at release time).
