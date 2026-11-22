@@ -1,10 +1,13 @@
-# LiteLLM proxy as one door for worker models: Ollama Cloud and a ChatGPT subscription (Codex OAuth).
-# Only subscription costs, no API-key billing. Workers call this proxy with a virtual key; when the proxy is down or a
-# limit is exhausted, tools/delegate/run_task.py falls back to `claude -p` on your Claude subscription (fallback_model).
+# LiteLLM proxy as one door for worker models: Ollama Cloud only.
+# Workers call this proxy with a virtual key; when the proxy is down or a limit is exhausted,
+# tools/delegate/run_task.py falls back to `claude -p` on your Claude subscription (fallback_model).
+#
+# The ChatGPT route is optional and lives in litellm.chatgpt.example.yaml. It needs the human's informed consent
+# (install with `--chatgpt-via-gateway accepted-risk`); without that option the file is not installed.
 #
 # Pin the LiteLLM version. Do not use 1.82.7 or 1.82.8. Check the project's release notes before upgrading.
 # Run: litellm --config litellm.config.yaml --port 4000   (behind HTTPS, for example a reverse proxy)
-# Replace every <...> placeholder and use exact model IDs from the current Ollama and OpenAI/Codex model lists.
+# Replace every <...> placeholder and use exact model IDs from the current Ollama model list.
 
 model_list:
   # task-simple: cheap edits, completion, subagent work
@@ -21,21 +24,26 @@ model_list:
       api_base: https://ollama.com
       api_key: os.environ/OLLAMA_API_KEY
 
-  # task-normal: standard coding, ChatGPT subscription via the chatgpt/ provider (Codex OAuth, no API key).
-  # The first call starts a device login; the token is stored in the proxy's data directory.
+  # task-normal: standard coding
   - model_name: task-normal
     litellm_params:
-      model: chatgpt/<codex-model-id>
+      model: ollama_chat/<ollama-coding-model-id>
+      api_base: https://ollama.com
+      api_key: os.environ/OLLAMA_API_KEY
 
-  # task-complex: harder coding on the same subscription
+  # task-complex: harder coding
   - model_name: task-complex
     litellm_params:
-      model: chatgpt/<codex-large-model-id>
+      model: ollama_chat/<ollama-large-model-id>
+      api_base: https://ollama.com
+      api_key: os.environ/OLLAMA_API_KEY
 
   # task-testing: writing and fixing tests
   - model_name: task-testing
     litellm_params:
-      model: chatgpt/<codex-model-id>
+      model: ollama_chat/<ollama-coding-model-id>
+      api_base: https://ollama.com
+      api_key: os.environ/OLLAMA_API_KEY
 
 litellm_settings:
   drop_params: true

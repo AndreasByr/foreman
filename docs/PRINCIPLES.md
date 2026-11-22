@@ -42,7 +42,7 @@ Acceptance runs in this order and stops at the first red:
 3. A test that was red before the fix and green after it.
 4. Only then: the `validation` role reviews the diff.
 
-A security finding (secrets, permissions, tenant isolation) escalates to `needs-input` after the first failed rework. Other findings get three rounds.
+A security finding (secrets, permissions, tenant isolation) escalates to `needs-input` after the first failed rework. Other findings get two rounds, as in `foreman-delegation`.
 
 ## 6. No model where a script will do
 

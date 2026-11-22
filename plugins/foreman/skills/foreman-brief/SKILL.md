@@ -77,6 +77,7 @@ Rules:
 - Verification commands run as single commands, no pipes. Name the project's real test, typecheck, lint and build commands.
 - Reference requirements and design; do not copy them.
 - Technical demands from the human are fixed decisions with a short reason, not capabilities.
+- The brief carries the `## Wiki` section with the todo "Check whether the wiki needs an update" when `wiki.enabled` is true in `.foreman.json`.
 
 ### 5. Handoff
 
@@ -85,6 +86,7 @@ Show the brief as a file with a short summary: goal, number of capabilities, mos
 Then:
 
 - **Module autopilot:** commit the brief to `docs/milestones/Mnnn/` on `batch/mNNN` (create the branch with `node scripts/batch-branch.mjs mNNN` if missing). Create `STATE.md` from the template with `Status: planning`, `Target: dev`, `Batch-branch: batch/mNNN`, `Lock: free`, `Tracker: -`. The central dispatcher (LLM-free, runs on the human's machine, every 10 minutes) sees the unit and starts a work run. To start at once from chat, fire the work-run routine with the full order as payload, one fire per milestone, never two milestones in one payload. Fire from chat only for first starts, answers and approvals; the human holds the fire URL and token, never ask for them.
+- **Project mode (Claude Code project):** the thread that owns the milestone is the session. Commit the brief to `batch/mNNN`, then run `foreman-milestone` in that thread. Do not hand the order to a second session. Rules: `foreman-project-mode`.
 - **Without autopilot:** give the human one line to paste into a coding agent session: `Run milestone M004`. The brief file must be on the batch branch first.
 - **Tracker (itsaplan or linear):** tickets are created only by the mirror script from `STATE.md`. You never create or change tickets or statuses. With tracker `none`, `STATE.md` is the whole record.
 - **Module autopilot:** before starting, check that the dispatcher timer and the work-run routine are on (ask the human, or read the last dispatcher log line if you can). If not, remind the human before the start and again in the start message. Without them a milestone is queued and nothing runs.
@@ -102,7 +104,7 @@ Only for an intervention (`needs-input`, shown in the tracker as Action Required
 
 ## Special cases
 
-- **Public repo:** briefs, state files and reports must not name real projects, hosts or people. Use placeholders (Project A, server-1, the maintainer) and run `bash scripts/privacy-scan.sh` before pushing.
+- **Public repo:** briefs, state files and reports must not name real projects, hosts or people. Use placeholders (Project A, Host 1, the maintainer) and run `bash scripts/privacy-scan.sh` before pushing.
 
 - Requirements unclear: sharpen them with the human or extend `requirements.md`. Never write a vague brief.
 - Board missing or `design.md` incomplete: create the board here and get approval first. Never leave it to the Agent.

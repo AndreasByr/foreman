@@ -46,7 +46,7 @@ Bericht: `docs/role-reviews/M001-M003-briefing.md`. Als Erfolgskriterien überno
 - `foreman-project` liest das Profil (M004).
 - itsaplan-Projektvorlage (M005).
 - Wo die Kopie für den Chat liegt (offene Frage in den Requirements, Entscheidung bei Maintainer).
-- Änderungen an Projekt A, B und C.
+- Änderungen an die Referenzprojekte.
 
 ## Success criteria
 1. Der Fragenkatalog enthält jede Frage aus den Requirements (Maschinen mit Rolle, Dienste, Domain, KI-Zugänge mit Stufe, Routinen, Benachrichtigung, Tracker, Gateway); Plugin-Validierung grün.
@@ -59,7 +59,7 @@ Bericht: `docs/role-reviews/M001-M003-briefing.md`. Als Erfolgskriterien überno
 Commands that must be green:
 bash scripts/test-all.sh
 bash scripts/test-install.sh
-Human only (UAT): `foreman-setup` im Chat mit dem eigenen Aufbau (server-1, server-2, itsaplan, LiteLLM, Claude Max, Ollama Cloud, ChatGPT): beide Maschinen mit Rolle, Gateway und Plan-Stufen werden gefragt, `workspace.json` stimmt und enthält keinen Key.
+Human only (UAT): `foreman-setup` im Chat mit dem eigenen Aufbau (Host 1, Host 2, itsaplan, LiteLLM, Claude Max, Ollama Cloud, ChatGPT): beide Maschinen mit Rolle, Gateway und Plan-Stufen werden gefragt, `workspace.json` stimmt und enthält keinen Key.
 
 ## Risks
 Zu viele Fragen machen das Setup lang; Mehrfachauswahl und Vorschläge halten es kurz. `install.sh` wird von mehreren Milestones erweitert (Merge-Konflikte). Der Gateway-Name hängt an M002.

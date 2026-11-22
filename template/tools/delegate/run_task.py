@@ -10,9 +10,15 @@ Front matter (all keys optional except role):
     verify: <command>        # mechanical acceptance, exit 0 = done
     files: [src/**, tests/**]   # scope: changed files outside these globs are reported as findings
 
+A role may set `timeout` (seconds); `[defaults] timeout_seconds` is the default.
+
 Exit codes: 0 done, 1 all steps failed (the session takes over), 2 call/config error,
             3 prerequisite missing (claude CLI, API key without fallback),
             4 the verify command itself is not runnable (no worker started).
+
+Limits: optional [limits] / [limits.<provider>] settings cap calls per run and per minute/hour (shared ledger file),
+pause and retry on 429-style failures, and lock a provider for the rest of the run after 3 failures in a row.
+Reaching max_calls_per_run stops the whole run with exit code 1.
 """
 import argparse, fnmatch, hashlib, json, os, re, shlex, shutil, subprocess, sys, tempfile, time, tomllib
 from pathlib import Path
@@ -28,15 +34,20 @@ MANDATORY_DISALLOWED = ["Bash(git *)", "Bash(rm *)", "Bash(curl *)", "Bash(wget 
 READONLY_TOOLS = ["Read", "Glob", "Grep"]
 VALID_WHO = ("worker", "session")
 VALID_PROVIDERS = ("claude", "ollama", "gateway")
+DEFAULT_MAX_CALLS = 12
+LIMIT_KEYS = {"requests_per_minute": int, "requests_per_hour": int, "pause_seconds": float, "max_pause_seconds": float}
+LOCK_AFTER_FAILURES = 3
 # Providers that talk to an Anthropic-compatible endpoint with their own key (settings: [defaults] for ollama, [gateway]).
 ENDPOINT_PROVIDERS = ("ollama", "gateway")
 DEFAULT_CLAUDE_AUTH_ENV = ["CLAUDE_CODE_OAUTH_TOKEN"]  # subscription token (`claude setup-token`); never an API key
+GATEWAY_URL_ENV = "FOREMAN_GATEWAY_URL"  # gateway base URL when [gateway] / [defaults] set none
+GATEWAY_KEY_ENV = "FOREMAN_GATEWAY_KEY"  # gateway key variable when no api_key_env is configured
 # A Claude worker that cannot log in. In a Claude Code cloud session the login belongs to the session; a worker with a
 # clean HOME and no token gets "Not logged in". Then every further Claude attempt fails the same way (exit 5).
 CLAUDE_LOGIN_ERROR = re.compile(r"not logged in|please run /login|authentication error|invalid (?:x-)?api[ _-]?key|"
                                 r"oauth token (?:has )?expired|credit balance is too low", re.I)
 # Keys that never reach a Claude worker, even with the inherited login.
-NEVER_TO_CLAUDE_WORKER = re.compile(r"^(?:ANTHROPIC_API_KEY|OLLAMA_API_KEY|LLM_GATEWAY_KEY|ITSAPLAN_\w+|LINEAR_\w+|"
+NEVER_TO_CLAUDE_WORKER = re.compile(r"^(?:ANTHROPIC_API_KEY|OLLAMA_API_KEY|FOREMAN_GATEWAY_\w+|LLM_GATEWAY_\w+|ITSAPLAN_\w+|LINEAR_\w+|"
                                     r"GITHUB_TOKEN|GH_TOKEN|DISCORD_\w*TOKEN\w*|\w*_FIRE_TOKEN)$")
 
 # Provider outage patterns (auth, limit, server, network); only checked when an ollama or gateway instance failed.
@@ -66,6 +77,9 @@ PREAMBLE = """You are an execution agent. The working directory is the repo. Do 
 Do not change anything outside the task scope, do not use git (no add/commit/push), do not delete anything.
 End with a short summary: which files you created or changed and what you checked.
 If you cannot complete the task, say so plainly in the last paragraph.
+Do not write under .claude/ (skills, hooks and settings belong to the session).
+Do not read key files (.env*, *.pem, id_*, credentials*); you may only check their existence and permissions.
+Model IDs are written only in tools/delegate/config.toml; never add or change model IDs elsewhere.
 
 === TASK ===
 """
@@ -73,6 +87,9 @@ READONLY_PREAMBLE = """You are a research agent. The working directory is the re
 never change or create files. Answer the question below with concrete findings:
 file paths with line numbers (`path:line`), a short reason, no guesses without evidence.
 End with two clearly separated parts: "Established" and "Unclear / not found".
+Do not write under .claude/ (skills, hooks and settings belong to the session).
+Do not read key files (.env*, *.pem, id_*, credentials*); you may only check their existence and permissions.
+Model IDs are written only in tools/delegate/config.toml; never add or change model IDs elsewhere.
 
 === TASK ===
 """
@@ -153,6 +170,7 @@ def load_config(path):
     cfg.setdefault("mcp", {})
     cfg.setdefault("env", {})
     cfg.setdefault("gateway", {})
+    cfg.setdefault("limits", {})
     return cfg
 
 
@@ -180,8 +198,8 @@ def endpoint_cfg(cfg, provider):
     d = cfg["defaults"]
     if provider == "gateway":
         g = cfg.get("gateway", {})
-        return {"base_url": g.get("base_url") or d.get("gateway_base_url", ""),
-                "api_key_env": g.get("api_key_env") or d.get("gateway_api_key_env", ""),
+        return {"base_url": g.get("base_url") or d.get("gateway_base_url") or os.environ.get(GATEWAY_URL_ENV) or "",
+                "api_key_env": g.get("api_key_env") or d.get("gateway_api_key_env") or GATEWAY_KEY_ENV,
                 "fallback_model": g.get("fallback_model", "")}
     return {"base_url": d.get("base_url", ""), "api_key_env": d.get("api_key_env", ""),
             "fallback_model": d.get("fallback_model", "")}
@@ -195,13 +213,36 @@ def fallback_of(cfg, role):
     return cfg["roles"][role].get("fallback_model") or endpoint_cfg(cfg, p)["fallback_model"] or None
 
 
+def is_positive_number(v):
+    """True for a positive int or float (bool excluded)."""
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0
+
+
 def validate_config(cfg, name="config"):
     """Return a list of problems; empty means valid."""
     errs = []
     d = cfg["defaults"]
+    consent = cfg.get("gateway", {}).get("chatgpt_via_gateway")
+    if consent is not None and consent != "accepted-risk":
+        errs.append(f'[gateway] chatgpt_via_gateway must be "accepted-risk" (or unset), got {consent!r}')
+
+    def check_chatgpt(where, m):
+        if isinstance(m, str) and re.search(r"(?:^|/)chatgpt/", m) and consent != "accepted-risk":
+            errs.append(f'{where} uses a chatgpt/ model ({m}); this needs the human\'s informed consent: '
+                        'set [gateway] chatgpt_via_gateway = "accepted-risk" (see README.md)')
+
+    def check_fallback_claude(where, m):
+        if isinstance(m, str) and m and "/" in m and m.split("/", 1)[0] not in ("claude", "chatgpt"):
+            errs.append(f"{where} fallback_model must be a Claude model (claude/<id>), got {m!r}")
+
+    for k in ("defaults", "gateway"):
+        check_chatgpt(f"[{k}] fallback_model", cfg.get(k, {}).get("fallback_model", ""))
+        check_fallback_claude(f"[{k}]", cfg.get(k, {}).get("fallback_model", ""))
     for k in ("timeout_seconds",):
         if k not in d:
             errs.append(f"[defaults] {k} missing")
+    if "timeout_seconds" in d and not is_positive_number(d["timeout_seconds"]):
+        errs.append(f"[defaults] timeout_seconds must be a positive number, got {d['timeout_seconds']!r}")
     if not cfg["roles"]:
         errs.append("no [roles.*] defined")
     if d.get("claude_login", "inherit") not in ("inherit", "isolated"):
@@ -215,10 +256,15 @@ def validate_config(cfg, name="config"):
             continue
         if who == "session":
             continue
+        if "timeout" in r and not is_positive_number(r["timeout"]):
+            errs.append(f"roles.{role}.timeout must be a positive number, got {r['timeout']!r}")
         m = r.get("model", "")
         if not m:
             errs.append(f"roles.{role}.model missing")
             continue
+        check_chatgpt(f"roles.{role}.model", m)
+        check_chatgpt(f"roles.{role}.fallback_model", r.get("fallback_model", ""))
+        check_fallback_claude(f"roles.{role}", r.get("fallback_model", ""))
         if re.search(r"<[^>]*>", m):
             errs.append(f"roles.{role}.model is still a placeholder ({m}); fill in the exact model ID")
         p = provider_of(cfg, role)
@@ -244,6 +290,38 @@ def validate_config(cfg, name="config"):
     for k in cfg["env"].get("set", {}):
         if UNSAFE_ENV.match(k):
             errs.append(f"env.set.{k}: variable name is not allowed")
+    errs += validate_limits(cfg.get("limits", {}))
+    return errs
+
+
+def _is_num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def validate_limits(lim):
+    if not isinstance(lim, dict):
+        return ["[limits] must be a table"]
+    errs = []
+    for k, v in lim.items():
+        if isinstance(v, dict):
+            if k not in VALID_PROVIDERS:
+                errs.append(f"[limits.{k}]: unknown provider (one of {VALID_PROVIDERS})")
+                continue
+            for kk, vv in v.items():
+                if kk not in LIMIT_KEYS:
+                    errs.append(f"[limits.{k}] unknown key '{kk}' (allowed: {', '.join(LIMIT_KEYS)})")
+                elif not _is_num(vv) or vv <= 0 or (LIMIT_KEYS[kk] is int and not isinstance(vv, int)):
+                    errs.append(f"[limits.{k}] {kk} must be a positive {'integer' if LIMIT_KEYS[kk] is int else 'number'}")
+            if all(_is_num(v.get(x)) for x in ("pause_seconds", "max_pause_seconds")) and v["pause_seconds"] > v["max_pause_seconds"]:
+                errs.append(f"[limits.{k}] pause_seconds must not be larger than max_pause_seconds")
+        elif k == "max_calls_per_run":
+            if not _is_num(v) or not isinstance(v, int) or v <= 0:
+                errs.append("[limits] max_calls_per_run must be a positive integer")
+        elif k == "ledger_file":
+            if not isinstance(v, str) or not v:
+                errs.append("[limits] ledger_file must be a non-empty string")
+        else:
+            errs.append(f"[limits] unknown key '{k}' (allowed: max_calls_per_run, ledger_file, provider tables)")
     return errs
 
 
@@ -424,6 +502,114 @@ def verify_environment(cfg):
     return env
 
 
+# ---------- limits ----------
+
+class CallLimitReached(Exception):
+    pass
+
+
+class RunLimits:
+    """Call cap per run, per-provider request windows (ledger shared between runs) and in-memory provider locks."""
+
+    def __init__(self, cfg, ledger_path, now=time.time, sleep=time.sleep):
+        lim = cfg.get("limits", {})
+        self.lim = lim if isinstance(lim, dict) else {}
+        self.max_calls = self.lim.get("max_calls_per_run", DEFAULT_MAX_CALLS)
+        self.path, self.now, self.sleep = Path(ledger_path), now, sleep
+        self.calls, self.locks, self.pauses = 0, {}, []
+        self.fails, self.warned = {}, False
+        self.ledger = self._load()
+
+    def _prov(self, provider):
+        t = self.lim.get(provider)
+        return t if isinstance(t, dict) else {}
+
+    def _prune(self, ledger):
+        cutoff = self.now() - 3600
+        out = {}
+        for prov, stamps in ledger.items():
+            kept = [t for t in stamps if _is_num(t) and t >= cutoff] if isinstance(stamps, list) else []
+            if kept:
+                out[prov] = kept
+        return out
+
+    def _load(self):
+        try:
+            data = json.loads(self.path.read_text())
+        except (OSError, ValueError):
+            return {}
+        return self._prune(data) if isinstance(data, dict) else {}
+
+    def _save(self):
+        tmp = self.path.with_name(self.path.name + ".tmp")
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_text(json.dumps(self.ledger))
+            os.replace(tmp, self.path)
+        except OSError as e:
+            if not self.warned:
+                self.warned = True
+                print(f"WARNING: cannot write limits ledger {self.path}: {e}", file=sys.stderr)
+
+    def note_call(self, provider):
+        if self.calls >= self.max_calls:
+            raise CallLimitReached(f"call limit reached ({self.calls} calls)")
+        self.calls += 1
+        self.ledger = self._prune(self.ledger)
+        self.ledger.setdefault(provider, []).append(self.now())
+        self._save()
+
+    def is_locked(self, provider):
+        return provider in self.locks
+
+    def lock(self, provider, reason):
+        if provider not in self.locks:
+            self.locks[provider] = reason
+            print(f"LOCK: {provider}: {reason}", flush=True)
+
+    def wait_for_slot(self, provider):
+        """Sleep until the provider's minute/hour window has room. False = locked (wait would exceed max pause)."""
+        if self.is_locked(provider):
+            return False
+        p = self._prov(provider)
+        max_pause = float(p.get("max_pause_seconds", 60))
+        now, wait = self.now(), 0.0
+        for key, window, label in (("requests_per_minute", 60, "per-minute"), ("requests_per_hour", 3600, "per-hour")):
+            limit = p.get(key)
+            if not limit:
+                continue
+            recent = sorted(t for t in self.ledger.get(provider, []) if t > now - window)
+            w = recent[len(recent) - limit] + window - now if len(recent) >= limit else 0.0
+            if w > max_pause:
+                self.lock(provider, f"{label} limit of {limit} requests reached "
+                                    f"(next free slot in {w:.0f}s, max pause {max_pause:g}s)")
+                return False
+            wait = max(wait, w)
+        if wait > 0:
+            self.pauses.append((provider, wait))
+            self.sleep(wait)
+        return True
+
+    def failure(self, provider, cause):
+        """Count a provider failure. Returns the pause before a retry, or None when the provider is now locked."""
+        n = self.fails[provider] = self.fails.get(provider, 0) + 1
+        if n >= LOCK_AFTER_FAILURES:
+            self.lock(provider, f"{n} failures in a row, last cause: {cause}")
+            return None
+        p = self._prov(provider)
+        pause = min(float(p.get("pause_seconds", 5)) * 2 ** (n - 1), float(p.get("max_pause_seconds", 60)))
+        self.pauses.append((provider, pause))
+        return pause
+
+    def drop_last_pause(self):
+        """Forget the last recorded pause (it was not slept)."""
+        if self.pauses:
+            self.pauses.pop()
+
+    def success(self, provider):
+        self.fails[provider] = 0
+
+
 # ---------- one attempt ----------
 
 def run_attempt(role, cfg, body, meta, workdir, fallback=None, skip_rel=()):
@@ -484,10 +670,10 @@ def run_attempt(role, cfg, body, meta, workdir, fallback=None, skip_rel=()):
     t0 = time.time()
     try:
         p = subprocess.run(cmd, cwd=workdir, env=env, capture_output=True, text=True, stdin=subprocess.DEVNULL,
-                           timeout=d["timeout_seconds"])
+                           timeout=r.get("timeout", d["timeout_seconds"]))
         out, err, rc = p.stdout, clean_stderr(p.stderr), p.returncode
     except subprocess.TimeoutExpired:
-        out, err, rc = "", f"timeout after {d['timeout_seconds']}s", 124
+        out, err, rc = "", f"timeout after {r.get('timeout', d['timeout_seconds']):g}s", 124
     finally:
         shutil.rmtree(state, ignore_errors=True)
     result, is_error, denials = out, rc != 0, []
@@ -504,7 +690,7 @@ def run_attempt(role, cfg, body, meta, workdir, fallback=None, skip_rel=()):
     if login:
         cause = "Claude worker not logged in (no session login and no CLAUDE_CODE_OAUTH_TOKEN), see stderr"
     elif rc == 124:
-        cause = f"timeout after {d['timeout_seconds']}s"
+        cause = f"timeout after {r.get('timeout', d['timeout_seconds']):g}s"
     elif infra:
         cause = "provider API unusable (auth/limit/server/network), see stderr"
     elif is_error:
@@ -597,6 +783,8 @@ def main(argv=None):
     if not shutil.which("claude"):
         die("`claude` CLI not in PATH. Install it or add it to PATH.", 3)
     d = cfg["defaults"]
+    ledger = Path(cfg["limits"].get("ledger_file") or "tasks/.limits.json")
+    limits = RunLimits(cfg, config_path.resolve().parent / ledger)  # absolute ledger_file wins in the join
     down = set()  # endpoint providers that are unusable in this run
     for prov in ENDPOINT_PROVIDERS:
         roles = [r for r in chain if provider_of(cfg, r) == prov]
@@ -605,6 +793,7 @@ def main(argv=None):
             if all(fallback_of(cfg, r) for r in roles):
                 print(f"WARNING: {key} is not set -> fallback models are used.", file=sys.stderr)
                 down.add(prov)
+                limits.lock(prov, f"{key} not set")
             else:
                 die(f"{key} is not set and a role has no fallback. Set the variable or add a fallback_model.", 3)
     if (any(provider_of(cfg, r) == "claude" for r in chain) and d.get("claude_login", "inherit") != "inherit"
@@ -615,7 +804,7 @@ def main(argv=None):
     out = Path(a.out) if a.out else task_path.with_suffix(".result.md")
     report = out.with_name(re.sub(r"\.result$", "", out.stem) + ".report.md")
     skip_rel = []
-    for p in (task_path, out, report, HERE / "tasks"):
+    for p in (task_path, out, report, HERE / "tasks", limits.path, limits.path.with_name(limits.path.name + ".tmp")):
         try:
             rel = Path(p).resolve().relative_to(workdir).as_posix()
             skip_rel.append(rel + "/" if Path(p).is_dir() else rel)
@@ -627,6 +816,8 @@ def main(argv=None):
 
     def attempt(r, body_r, fallback=None):
         print(f"-> attempt with {r}{f' ({fallback})' if fallback else ''} ...", flush=True)
+        called = (split_model(fallback)[0] or "claude") if fallback else provider_of(cfg, r)
+        limits.note_call(called)  # may raise CallLimitReached
         res = run_attempt(r, cfg, body_r, meta, workdir, fallback)
         attempts.append(res)
         print(f"   {'OK' if res['ok'] else 'FAILED'} ({res['seconds']}s, rc={res['rc']})"
@@ -635,32 +826,84 @@ def main(argv=None):
             failed_models.add(res["model"])
         return res
 
-    claude_login_failed = False
-    for r in chain:
-        if claude_login_failed and provider_of(cfg, r) == "claude":
-            print(f"-> {r}: Claude workers cannot log in, skipped.")
-            continue
-        body_r = body if not prev else (body + "\n\n=== NOTE ===\nAn earlier attempt failed. Check the current repo state "
-                                        "and finish the task. Last message of the earlier attempt:\n" + prev)
-        fb = fallback_of(cfg, r)
-        if fb and provider_of(cfg, r) in down:
-            if fb in failed_models or claude_login_failed:
-                print(f"-> {r}: fallback {fb} {'cannot log in' if claude_login_failed else 'already failed'}, skipped.")
-                continue
-            res = attempt(r, body_r, fb)
-        else:
-            res = attempt(r, body_r)
-            if not res["ok"] and res["infra"] and fb and not claude_login_failed:
-                down.add(provider_of(cfg, r))
-                print(f"   provider API unusable -> fallback {fb}", flush=True)
-                res = attempt(r, body_r, fb)
-        if res.get("login"):
-            claude_login_failed = True
+    def claude_attempt(r, body_r, fallback=None, more=False):
+        """One Claude attempt under the limits; None = skipped because Claude is locked."""
+        if limits.is_locked("claude") or not limits.wait_for_slot("claude"):
+            print(f"-> {r}: Claude is locked for this run ({limits.locks['claude']}), skipped.")
+            return None
+        res = attempt(r, body_r, fallback)
         if res["ok"]:
-            break
-        prev = (res["verify"] or res["result"] or res["stderr"])[-1500:]
+            limits.success("claude")
+        elif not res["login"] and not res["verify"] and INFRA_ERROR.search(f"{res['result']}\n{res['stderr']}"):
+            pause = limits.failure("claude", res["cause"])
+            if pause is not None:
+                if more:
+                    print(f"   claude unusable, next attempt in {pause:g}s", flush=True)
+                    limits.sleep(pause)
+                    failed_models.discard(res["model"])  # paused to retry: a later fallback may use it again
+                else:
+                    limits.drop_last_pause()
+        elif not res["login"]:
+            limits.success("claude")  # the provider answered (e.g. verify red)
+        return res
 
-    ok = bool(attempts) and attempts[-1]["ok"]
+    call_limit = None
+    claude_login_failed = False
+    try:
+        for idx, r in enumerate(chain):
+            prov = provider_of(cfg, r)
+            more = any(provider_of(cfg, x) == "claude" or fallback_of(cfg, x) for x in chain[idx + 1:])
+            if claude_login_failed and prov == "claude":
+                print(f"-> {r}: Claude workers cannot log in, skipped.")
+                continue
+            body_r = body if not prev else (body + "\n\n=== NOTE ===\nAn earlier attempt failed. Check the current repo state "
+                                            "and finish the task. Last message of the earlier attempt:\n" + prev)
+            res, need_fallback = None, False
+            if prov == "claude":
+                res = claude_attempt(r, body_r, more=more)
+                if res is None:
+                    continue
+            else:
+                need_fallback = True
+                if prov not in down and not limits.is_locked(prov):
+                    while limits.wait_for_slot(prov):
+                        res = attempt(r, body_r)
+                        if res["ok"]:
+                            limits.success(prov)
+                            need_fallback = False
+                            break
+                        if not res["infra"]:  # e.g. verify red: not the provider's fault, no retry
+                            limits.success(prov)
+                            need_fallback = False
+                            break
+                        if res["rc"] == 124:  # timeout: no retry, go to the fallback
+                            limits.lock(prov, f"{res['cause']}; not retried, fallback instead")
+                            break
+                        pause = limits.failure(prov, res["cause"])
+                        if pause is None:
+                            break
+                        print(f"   {prov} unusable, retry in {pause:g}s", flush=True)
+                        limits.sleep(pause)
+            if need_fallback:
+                fb = fallback_of(cfg, r)
+                if not fb:
+                    print(f"-> {r}: {prov} is {'down' if prov in down else 'locked'} and has no fallback model, skipped.")
+                elif fb in failed_models or claude_login_failed:
+                    print(f"-> {r}: fallback {fb} {'cannot log in' if claude_login_failed else 'already failed'}, skipped.")
+                else:
+                    print(f"   provider {prov} unusable -> fallback {fb}", flush=True)
+                    res = claude_attempt(r, body_r, fb, more=more) or res
+            if res is None:
+                continue
+            if res.get("login"):
+                claude_login_failed = True
+            if res["ok"]:
+                break
+            prev = (res["verify"] or res["result"] or res["stderr"])[-1500:]
+    except CallLimitReached:
+        call_limit = f"call limit reached ({limits.calls} calls)"
+
+    ok = bool(attempts) and attempts[-1]["ok"] and not call_limit
     changes = diff_snapshots(before, snapshot(workdir, skip_rel))
     readonly_run = bool(cfg["roles"][role].get("readonly"))
     findings = []
@@ -669,9 +912,14 @@ def main(argv=None):
     else:
         findings += [f"changed outside scope: {p} ({k})" for p, k in scope_findings(changes, globs)]
 
-    lines = [f"# Result: {task_path.name}", "", f"Status: **{'DONE' if ok else 'FAILED - the session takes over'}**", ""]
+    status = "DONE" if ok else (f"FAILED - {call_limit}" if call_limit else "FAILED - the session takes over")
+    lines = [f"# Result: {task_path.name}", "", f"Status: **{status}**", ""]
     if findings:
         lines += ["## Findings", ""] + [f"- {f}" for f in findings] + [""]
+    limit_lines = ["## Limits and locks", "", f"Calls: {limits.calls} of {limits.max_calls}",
+                   *[f"- {pv}: locked for this run: {why}" for pv, why in limits.locks.items()],
+                   *[f"- {pv}: paused {sec:g}s before retry" for pv, sec in limits.pauses], ""]
+    lines += limit_lines
     if globs:
         lines += [f"Scope: {', '.join(globs)}", ""]
     for i, x in enumerate(attempts, 1):
@@ -687,13 +935,16 @@ def main(argv=None):
         if x["stderr"] and not x["ok"]:
             lines += ["stderr (end):", "", "```", x["stderr"], "```", ""]
     out.write_text("\n".join(lines))
-    rep = [f"# Full worker report: {task_path.name}", ""]
+    rep = [f"# Full worker report: {task_path.name}", ""] + limit_lines
     for i, x in enumerate(attempts, 1):
         rep += [f"## Attempt {i}: {x['role']} ({x['model']})", "", x["result"] or "(empty)", ""]
     report.write_text("\n".join(rep))
     print(f"result: {out}\nreport: {report}")
     for f in findings:
         print(f"FINDING: {f}", file=sys.stderr)
+    if call_limit:
+        print(f"ERROR: {call_limit}; no more attempts (max_calls_per_run={limits.max_calls}).", file=sys.stderr)
+        return 1
     if not ok and claude_login_failed:
         print("Claude workers are not logged in -> hand this task file to a subagent of the session "
               "(model per role), see foreman-delegation, exit code 5.", file=sys.stderr)

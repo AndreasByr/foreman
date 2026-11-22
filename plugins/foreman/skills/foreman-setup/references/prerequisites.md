@@ -10,7 +10,7 @@ Why: it does the work. Claude Code is recommended because routines and the API t
 2. Install the CLI or app by the provider's current instructions. Check with `claude --version` (or the agent's own command).
 3. Sign in once in a terminal.
 
-Alternative: OpenCode or another agent through `AGENTS.md`. Without routines there is no Claude-style unattended start; the dispatcher then runs a command on your machine (`fire_command`).
+Alternative: OpenCode or another agent through `AGENTS.md`. Without routines there is no Claude-style unattended start; the dispatcher then runs a command on your machine (`fire_command`). Claude Code without a cloud routine can also run through `fire_command` with the start script `dispatcher/fire-claude.example.sh` over ssh on your own machine (details in `dispatcher/README.md`).
 
 ## GitHub account and a repo (about 10 min)
 
@@ -82,7 +82,7 @@ Why: this is what the dispatcher fires. Create it in the routines UI or from a C
 3. Generate the token in the UI (shown once). Put URL and token into `dispatcher.env` under the names from `config.json`.
 4. Smoke test: fire it with the text "smoke test"; success is the reply "smoke test ok".
 
-Other agents: no routine. Set `fire_command` in the dispatcher config instead.
+Other agents: no routine. Set `fire_command` in the dispatcher config instead. Claude Code without a cloud routine can also run through `fire_command` with the start script `dispatcher/fire-claude.example.sh` over ssh on your own machine (details in `dispatcher/README.md`).
 
 ## Ollama Cloud key (about 5 min)
 
@@ -90,12 +90,16 @@ Why: cheap workers for the `delegate` module. Create an account and an API key; 
 
 ## Gateway with a ChatGPT subscription (about 45 min, optional)
 
-Why: pay only subscription costs, no API billing. LiteLLM proxy with Ollama and a ChatGPT subscription (Codex sign-in, provider prefix `chatgpt/`) behind one endpoint. Fallback to `claude -p` when limits run out. Example: `gateway/litellm.config.example.yaml` in foreman.
+Why: pay only subscription costs, no API billing. LiteLLM proxy with Ollama and a ChatGPT subscription (Codex sign-in, provider prefix `chatgpt/`) behind one endpoint. Fallback to `claude -p` when limits run out. Example: `gateway/litellm.chatgpt.example.yaml` in foreman (the ChatGPT targets; the installer copies it only with `--chatgpt-via-gateway accepted-risk`). The base example without ChatGPT is `gateway/litellm.config.example.yaml`.
+
+This route needs the human's informed consent (risk notice in `gateway/README.md`): the install command gets `--chatgpt-via-gateway accepted-risk` only after the human said yes, and without it no ChatGPT target is written.
 
 1. Run the proxy in Docker on a machine reachable from the work run.
 2. Avoid LiteLLM versions 1.82.7 and 1.82.8.
 3. Create virtual keys for the `task-*` roles only. Do not log prompts.
-4. Set `LLM_GATEWAY_URL` and `LLM_GATEWAY_KEY` in the cloud environment.
+4. Set `FOREMAN_GATEWAY_KEY` in the cloud environment. The gateway URL is `[gateway] base_url` in `tools/delegate/config.toml` (the installer writes it); if `base_url` is empty, the wrapper reads `FOREMAN_GATEWAY_URL`.
+
+Risk notice: this is not an official Codex client, and automatic use may violate the terms of use and get the subscription blocked. Alternatives: the official Codex CLI as worker, an API key with its own budget, or Ollama and Claude only; the human decides (see `gateway-block.md`).
 
 ## No deploy knowledge
 

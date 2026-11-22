@@ -7,7 +7,7 @@
 Der Dispatcher gibt Prüfskripten nur die nötige Umgebung, meldet wahlweise an Discord oder Slack, behandelt `main` nach einer festen, einstellbaren Regel und unterstützt lokale Claude-Code-Läufe offiziell.
 
 ## Starting point
-foreman 0.2.1. Dispatcher in `dispatcher/` (`dispatch.mjs`, `dispatch.sh`, Tests in `dispatcher/tests`), Prüfskript `scripts/autopilot-check.*`. Auf server-1 läuft `dispatch.mjs` aus diesem Repo; dort gibt es einen lokalen Patch zur Umgebungsbegrenzung, der noch nicht im Repo steht.
+foreman 0.2.1. Dispatcher in `dispatcher/` (`dispatch.mjs`, `dispatch.sh`, Tests in `dispatcher/tests`), Prüfskript `scripts/autopilot-check.*`. Auf Host 1 läuft `dispatch.mjs` aus diesem Repo; dort gibt es einen lokalen Patch zur Umgebungsbegrenzung, der noch nicht im Repo steht.
 
 ## Capabilities
 1. Ein Prüfskript sieht nur `PATH`, `HOME`, `LANG` und die Variablen aus `pass_env`.
@@ -35,7 +35,7 @@ Bericht: `docs/role-reviews/M001-M003-briefing.md`. Als Erfolgskriterien überno
 `docs/requirements.md`, `docs/roadmap-0.2.x.md` (Abschnitt M001), `docs/PRINCIPLES.md`, `docs/CONVENTIONS.md`, `CLAUDE.md`. Konfliktreihenfolge: requirements > roadmap > Brief.
 
 ## Fixed decisions
-- Das Verhalten des lokalen Patches auf server-1 wird übernommen, nicht der Patch wörtlich (er weicht vielleicht vom Repo-Stand ab).
+- Das Verhalten des lokalen Patches auf Host 1 wird übernommen, nicht der Patch wörtlich (er weicht vielleicht vom Repo-Stand ab).
 - `mainAutoMerge` ist standardmäßig `false`: Ein Merge nach `main` ist eine nach außen wirkende Handlung; Standard ist, auf „Batch PR main“ des Menschen zu warten.
 - Jeder Fix bekommt zuerst einen fehlschlagenden Test.
 - Der Dispatcher bleibt modellfrei (keine Tokens).
@@ -47,7 +47,7 @@ Bericht: `docs/role-reviews/M001-M003-briefing.md`. Als Erfolgskriterien überno
 - Überwachung von `fire_command`-Läufen (kommt über Messung in M011).
 - Merge-Fenster-Fragen pro Projekt (M004).
 - Update-Meldung im Dispatcher (M007).
-- Änderungen an Projekt A, B und C.
+- Änderungen an die Referenzprojekte.
 
 ## Success criteria
 1. Test: Mit Dummy-Fire-Token eines zweiten Projekts im Dispatcher-Prozess ist dieser im Prüfskript nicht sichtbar und taucht in keiner Ausgabe auf.
@@ -61,7 +61,7 @@ Bericht: `docs/role-reviews/M001-M003-briefing.md`. Als Erfolgskriterien überno
 Commands that must be green:
 bash scripts/test-all.sh
 bash scripts/check-config.sh
-Human only (UAT): Testmeldung kommt im eigenen Discord-Kanal an; Dry-Run auf server-1 mit Testprojekt.
+Human only (UAT): Testmeldung kommt im eigenen Discord-Kanal an; Dry-Run auf Host 1 mit Testprojekt.
 
 ## Risks
-Der lokale Patch auf server-1 weicht vom Repo ab. `autopilot-check.mjs` wird auch in M004 angefasst. Fehlt `mainAutoMerge` in bestehenden Projekten, ändert sich ihr Verhalten (vorher startete `main` im Fenster); das gehört in den Upgrade-Hinweis für M006.
+Der lokale Patch auf Host 1 weicht vom Repo ab. `autopilot-check.mjs` wird auch in M004 angefasst. Fehlt `mainAutoMerge` in bestehenden Projekten, ändert sich ihr Verhalten (vorher startete `main` im Fenster); das gehört in den Upgrade-Hinweis für M006.

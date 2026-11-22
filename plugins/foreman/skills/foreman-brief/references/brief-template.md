@@ -55,6 +55,9 @@ File: `docs/milestones/Mnnn/Mnnn-CONTEXT.md`. Write the sections in this order. 
 Commands that must be green: <the project's test, typecheck, lint, build commands, one per line, no pipes>
 Human only (UAT): <only what needs a second real account, real hardware or a product decision; everything the Agent can test is proven in the cloud pretest. If accessibility is required: one pass with keyboard only and one with a screen reader>
 
+## Wiki
+<Only if `wiki.enabled` is true in `.foreman.json`; otherwise leave the section out. Todo: "Check whether the wiki needs an update". The result goes into STATE.md as the `Wiki:` header line (pages affected or "no change"), required in every status except `done` when the gate runs with `--unit`; without `--unit` only a warning appears for closing statuses.>
+
 ## Risks
 <Known pitfalls, fragile spots.>
 ```

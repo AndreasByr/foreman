@@ -5,6 +5,14 @@ import { parseState, linearPlan, interventionProblems, mirrorItsaplan, pendingCh
 import { plan, findIssue, description, MIRROR_MARK, TARGETS } from "./lib/itsaplan-mirror.mjs";
 import { checklist } from "./lib/state.mjs";
 import { openQuestion, explanationText, hasExplanation, answers } from "./lib/intervention.mjs";
+import * as mirror from "./state-mirror.mjs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 let n = 0;
 const queue = [];
@@ -256,6 +264,203 @@ t("itsaplan mirror: check mode reports a missing explanation comment, run mode w
   resetPending();
   await mirrorItsaplan([u], { projectKey: "P" }, true, withComment);
   assert.equal(pendingChanges(), 0);
+});
+
+// ----- wiki todo -----
+
+const wikiOn = { wiki: { enabled: true } };
+const wu = (status, stateText = "", kind = "milestone", id = "M001") => ({ id, kind, status, stateText });
+
+t("wiki: parseState returns the Wiki header value, empty when missing", () => {
+  assert.equal(parseState("Status: done\nWiki: no change").wiki, "no change");
+  assert.equal(parseState("Status: done\nWiki:   docs/wiki/a.md  ").wiki, "docs/wiki/a.md");
+  assert.equal(parseState("Status: done").wiki, "");
+});
+
+t("wiki: parseState reads only the header (lines before the first # line)", () => {
+  assert.equal(parseState("Status: done\n\n# M001 x\n\n## Log\n\nWiki: noch pruefen\n").wiki, "");
+  assert.equal(parseState("Status: done\n# M001 x\nWiki: no change\n").wiki, "");
+  assert.equal(parseState("Status: done\nWiki: no change\n\n# M001 x\n\n## Log\n\nWiki: other\n").wiki, "no change");
+});
+
+t("wiki: batch-pr milestone without Wiki line is one problem", () => {
+  assert.equal(typeof mirror.wikiProblems, "function", "wikiProblems is not exported");
+  const p = mirror.wikiProblems([wu("batch-pr", "Status: batch-pr")], wikiOn);
+  assert.deepEqual(p, ["M001: Wiki line missing in STATE.md (wiki is on)"]);
+});
+
+t("wiki: a Wiki line only in the Log below the title is a problem", () => {
+  const text = "Status: batch-pr\n\n# M001: x\n\n## Log\n\nWiki: no change\n";
+  assert.equal(mirror.wikiProblems([wu("batch-pr", text)], wikiOn).length, 1);
+});
+
+t("wiki: done milestone without Wiki line is no problem (old milestones)", () => {
+  assert.equal(mirror.wikiProblems([wu("done")], wikiOn).length, 0);
+  assert.equal(mirror.wikiProblems([wu("done", "Status: done\n\n# M001: x\n")], wikiOn).length, 0);
+});
+
+t("wiki: a filled Wiki line is accepted", () => {
+  assert.equal(mirror.wikiProblems([wu("batch-pr", "Wiki: no change")], wikiOn).length, 0);
+  assert.equal(mirror.wikiProblems([wu("uat-ready", "Wiki: docs/wiki/spieler-und-tester/start.md")], wikiOn).length, 0);
+});
+
+t("wiki: empty, dash or template placeholder is a problem", () => {
+  assert.equal(mirror.wikiProblems([wu("batch-pr", "Wiki: -")], wikiOn).length, 1);
+  assert.equal(mirror.wikiProblems([wu("batch-pr", "Wiki: <pages affected>")], wikiOn).length, 1);
+  assert.equal(mirror.wikiProblems([wu("batch-pr", "Wiki:")], wikiOn).length, 1);
+});
+
+t("wiki: only milestones in the wiki statuses are checked", () => {
+  assert.equal(mirror.wikiProblems([wu("slice")], wikiOn).length, 0);
+  assert.equal(mirror.wikiProblems([wu("planning")], wikiOn).length, 0);
+  assert.equal(mirror.wikiProblems([wu("done", "", "fixpack", "F-x")], wikiOn).length, 0);
+  for (const s of ["batch-pr", "awaiting-merge", "pretest-waiting", "pretest-running", "uat-ready", "release-ready"]) {
+    assert.equal(mirror.wikiProblems([wu(s)], wikiOn).length, 1, s);
+  }
+});
+
+t("wiki: with onlyId every milestone status except done needs the Wiki line", () => {
+  for (const s of ["validation", "slice", "planning", "rework", "batch-pr", "uat-ready"]) {
+    assert.deepEqual(mirror.wikiProblems([wu(s)], wikiOn, "M001"), ["M001: Wiki line missing in STATE.md (wiki is on)"], s);
+    assert.equal(mirror.wikiProblems([wu(s, "Wiki: no change")], wikiOn, "M001").length, 0, s);
+  }
+  assert.equal(mirror.wikiProblems([wu("done")], wikiOn, "M001").length, 0, "done is exempt");
+  assert.equal(mirror.wikiProblems([wu("slice")], wikiOn).length, 0, "without onlyId only the closing statuses are checked");
+});
+
+t("wiki: onlyId restricts the check to one unit", () => {
+  const units = [wu("batch-pr", "Wiki: no change", "milestone", "M001"), wu("batch-pr", "Status: batch-pr", "milestone", "M002")];
+  assert.deepEqual(mirror.wikiProblems(units, wikiOn, "M001"), []);
+  assert.deepEqual(mirror.wikiProblems(units, wikiOn, "M002"), ["M002: Wiki line missing in STATE.md (wiki is on)"]);
+  assert.equal(mirror.wikiProblems(units, wikiOn).length, 1, "without onlyId every matching unit is checked");
+});
+
+t("wiki: off (enabled false or no wiki key) means no problems", () => {
+  const units = [wu("batch-pr"), wu("done")];
+  assert.deepEqual(mirror.wikiProblems(units, { wiki: { enabled: false } }), []);
+  assert.deepEqual(mirror.wikiProblems(units, {}), []);
+});
+
+t("wiki: CLI without --unit only warns on a missing Wiki line; --unit M001 makes it a problem", () => {
+  const dir = mkdtempSync(join(tmpdir(), "wiki-todo-"));
+  try {
+    spawnSync("git", ["init", "-q"], { cwd: dir });
+    const env = { ...process.env };
+    delete env.ITSAPLAN_URL;
+    delete env.ITSAPLAN_API_KEY;
+    delete env.LINEAR_API_KEY;
+    const cfg = (wiki) => writeFileSync(join(dir, ".foreman.json"), JSON.stringify({ modules: [], wiki }));
+    const statePath = join(dir, "docs/milestones/M001/STATE.md");
+    mkdirSync(join(dir, "docs/milestones/M001"), { recursive: true });
+    const head = "Status: batch-pr · since 2026-01-01T00:00Z\nTarget: dev\n";
+    const run = (args) => spawnSync(process.execPath, [join(HERE, "state-mirror.mjs"), ...args], { cwd: dir, encoding: "utf8", env });
+    const lines = (r) => r.stdout.split("\n");
+    const WARN = "WARN|M001: Wiki line missing in STATE.md (wiki is on)";
+    const hasWarn = (r) => lines(r).includes(WARN);
+    const hasProblem = (r) => lines(r).some((l) => l.startsWith("PROBLEM|M001:") && l.includes("Wiki"));
+
+    cfg({ enabled: true, language: "de", audiences: [{ name: "Tester" }], rootPageId: "x" });
+    writeFileSync(statePath, `${head}\n# M001: x\n`);
+    // no --unit: missing line is a WARN, exit code unchanged
+    let r = run(["--local"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(hasWarn(r), r.stdout);
+    assert.ok(!hasProblem(r), r.stdout);
+    r = run(["--check", "--local"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(hasWarn(r), r.stdout);
+    // --unit M001: the same missing line is a PROBLEM and exits 1
+    r = run(["--local", "--unit", "M001"]);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok(hasProblem(r), r.stdout);
+    r = run(["--check", "--local", "--unit", "M001"]);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok(hasProblem(r), r.stdout);
+    r = run(["--local", "--dry-run", "--unit", "M001"]);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok(hasProblem(r), r.stdout);
+
+    writeFileSync(statePath, `${head}Wiki: no change\n\n# M001: x\n`);
+    r = run(["--local", "--unit", "M001"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(!hasWarn(r) && !hasProblem(r), r.stdout);
+    r = run(["--local"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(!hasWarn(r), r.stdout);
+
+    // a Wiki line only in the Log below the title does not count as the header line
+    writeFileSync(statePath, `${head}\n# M001: x\n\n## Log\n\nWiki: no change\n`);
+    r = run(["--local"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(hasWarn(r), r.stdout);
+    r = run(["--local", "--unit", "M001"]);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok(hasProblem(r), r.stdout);
+
+    // other units are not examined for wiki: an old batch-pr milestone without a Wiki line does not block --unit M001
+    writeFileSync(statePath, `${head}Wiki: no change\n\n# M001: x\n`);
+    mkdirSync(join(dir, "docs/milestones/M002"), { recursive: true });
+    writeFileSync(join(dir, "docs/milestones/M002/STATE.md"), `${head}\n# M002: old\n`);
+    r = run(["--local", "--unit", "M001"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(!hasProblem(r), r.stdout);
+    r = run(["--local", "--unit", "M002"]);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok(lines(r).some((l) => l.startsWith("PROBLEM|M002:") && l.includes("Wiki")), r.stdout);
+    rmSync(join(dir, "docs/milestones/M002"), { recursive: true, force: true });
+
+    // unknown unit id: exit 2 with a message naming it
+    r = run(["--local", "--unit", "M999"]);
+    assert.equal(r.status, 2, r.stdout + r.stderr);
+    assert.ok((r.stdout + r.stderr).includes("M999"), r.stdout + r.stderr);
+
+    // an old done milestone without a Wiki line is no problem, not even with --unit
+    writeFileSync(statePath, "Status: done · since 2026-01-01T00:00Z\nTarget: dev\n\n# M001: x\n");
+    r = run(["--local", "--unit", "M001"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(!hasWarn(r), r.stdout);
+
+    // with --unit the Wiki line is required in every status except done; without --unit only the closing statuses warn
+    cfg({ enabled: true, language: "de", audiences: [{ name: "Tester" }], rootPageId: "x" });
+    for (const s of ["validation", "slice", "planning", "rework"]) {
+      const at = `Status: ${s} · since 2026-01-01T00:00Z\nTarget: dev\n`;
+      writeFileSync(statePath, `${at}\n# M001: x\n`);
+      r = run(["--local"]);
+      assert.equal(r.status, 0, `${s}: ${r.stdout + r.stderr}`);
+      assert.ok(!hasWarn(r), `${s}: ${r.stdout}`);
+      r = run(["--local", "--unit", "M001"]);
+      assert.equal(r.status, 1, `${s}: ${r.stdout + r.stderr}`);
+      assert.ok(hasProblem(r), `${s}: ${r.stdout}`);
+      writeFileSync(statePath, `${at}Wiki: no change\n\n# M001: x\n`);
+      r = run(["--local", "--unit", "M001"]);
+      assert.equal(r.status, 0, `${s}: ${r.stdout + r.stderr}`);
+      assert.ok(!hasWarn(r) && !hasProblem(r), `${s}: ${r.stdout}`);
+    }
+
+    // equals form works like --unit M001; --unit without a value is exit 2
+    writeFileSync(statePath, `${head}\n# M001: x\n`);
+    r = run(["--local", "--unit=M001"]);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok(hasProblem(r), r.stdout);
+    writeFileSync(statePath, `${head}Wiki: no change\n\n# M001: x\n`);
+    r = run(["--local", "--unit=M001"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(!hasWarn(r) && !hasProblem(r), r.stdout);
+    r = run(["--local", "--unit"]);
+    assert.equal(r.status, 2, r.stdout + r.stderr);
+
+    // wiki off: exit 0 and no WARN, also with --unit
+    cfg({ enabled: false });
+    writeFileSync(statePath, `${head}\n# M001: x\n`);
+    r = run(["--local"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(!hasWarn(r), r.stdout);
+    r = run(["--local", "--unit", "M001"]);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(!hasWarn(r) && !hasProblem(r), r.stdout);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 for (const [name, fn] of queue) {

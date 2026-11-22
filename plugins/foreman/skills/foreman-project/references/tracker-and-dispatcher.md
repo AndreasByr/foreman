@@ -4,10 +4,9 @@ Read when you reach steps 6 and 7.
 
 ## Tracker: itsaplan
 
-- One project per product. Status columns: `Backlog`, `Todo`, `In Progress`, `Action Required` (alias "Intervention needed"), `Wait for Merge`, `Testing`, `In Review`, `Done`.
-- Phase labels `AP: <phase>` for each phase of the status list.
-- A bot account of its own with its own API key. Comments by the bot never count as the human's answer.
-- A view "UAT ready" filtered by the label `AP: UAT ready`.
+- One project per product, created from `itsaplan-project-template.json` (8 columns, 10 labels, view "UAT ready").
+- Bot account: its own API key, added as a member of the project. This is the one manual step. Comments by the bot never count as the human's answer.
+- A template does not change projects that already exist.
 - Variables: `ITSAPLAN_URL`, `ITSAPLAN_WEB_URL`, `ITSAPLAN_API_KEY`.
 - `node scripts/state-mirror.mjs` writes tickets and statuses from `STATE.md` (`--dry-run` first, `--check` after approvals). You never create or move tickets by hand. If the mirror reports a ticket id, it goes into `Tracker:` of the unit.
 

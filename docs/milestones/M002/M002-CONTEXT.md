@@ -47,7 +47,7 @@ Bericht: `docs/role-reviews/M001-M003-briefing.md`. Als Erfolgskriterien überno
 - Gateway-Einrichtung und Preset-Erzeugung (M003).
 - Offizieller Codex-CLI als Worker, API-Key-Weg (offene Frage in den Requirements).
 - Messung der Fallbacks (M011).
-- Änderungen an Projekt A, B und C.
+- Änderungen an die Referenzprojekte.
 
 ## Success criteria
 1. Test: Gateway-Key unter altem und neuem Namen fehlt in der Umgebung eines Claude-Workers.

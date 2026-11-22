@@ -9,11 +9,11 @@
 **Tracker:** none (`STATE.md`, Antworten in `docs/answers/<unit>.md`, UAT in `docs/uat/<unit>.md`)
 **Barrierefreiheit:** nicht gefordert (foreman hat keine eigene UI)
 
-Ziel: foreman 0.2.x so vereinfachen und belegen, dass Projekt A, B und C Milestones ohne Eingriff bis zum PR durchlaufen, mit gemessenen Zahlen im Repo und im Portfolio. Neu dazu kommen nur das Modul `docs-notion` und der Skill `foreman-update`.
+Ziel: foreman 0.2.x so vereinfachen und belegen, dass die Referenzprojekte Milestones ohne Eingriff bis zum PR durchlaufen, mit gemessenen Zahlen im Repo und im Portfolio. Neu dazu kommen nur das Modul `docs-notion` und der Skill `foreman-update`.
 
 Konfliktreihenfolge: `docs/requirements.md` > diese Roadmap > Milestone-Brief > Fix-Paket.
 
-Schon erledigt und nicht Teil der Roadmap: Umstellung des Dispatchers auf server-1 von `dispatcher.py` auf `dispatch.mjs` (Server-Umzug, 20.11.2026). Projektarbeit in Projekt A und Projekt B läuft als Fix-Pakete dort (englische Labels, `--no-fetch` in Projekt B), nicht hier.
+Schon erledigt und nicht Teil der Roadmap: Umstellung des Dispatchers auf Host 1 von Alt-Dispatcher (Python) auf `dispatch.mjs` (Server-Umzug, 20.11.2026). Projektarbeit in Referenzprojekt 1 und Referenzprojekt 2 läuft als Fix-Pakete dort (englische Labels, `--no-fetch` in Referenzprojekt 2), nicht hier.
 
 ---
 
@@ -52,7 +52,7 @@ Engpass ist der UAT: Maintainer nimmt jeden Milestone allein ab. Zum Start liege
 - Exakte Modell-IDs für Sitzung und direkte Anbieter, `task-*`-Aliase für Gateway-Rollen.
 - Agents lesen nie private Schlüsseldateien aus.
 - Alle bestehenden Tests bleiben grün (`scripts/test-all.sh`); jeder Fix bekommt zuerst einen Test, der fehlschlägt.
-- Abnahme gegen ein Testprojekt (Wegwerf-Repo mit `install.sh`), nie gegen Projekt A, B und C direkt. Erst nach dem Release kommen die Projekte über `foreman-update` auf den neuen Stand.
+- Abnahme gegen ein Testprojekt (Wegwerf-Repo mit `install.sh`), nie gegen die Referenzprojekte direkt. Erst nach dem Release kommen die Projekte über `foreman-update` auf den neuen Stand.
 
 ---
 
@@ -63,7 +63,7 @@ Engpass ist der UAT: Maintainer nimmt jeden Milestone allein ab. Zum Start liege
 **Goal:** Der Dispatcher gibt Prüfskripten nur die nötige Umgebung, meldet an Discord oder Slack, behandelt `main` nach einer festen Regel und unterstützt lokale Claude-Code-Läufe offiziell.
 **Coding:** ~4 Tage (Agent)
 **Testing:** ~2 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT vom Maintainer abgenommen, 2026-11-21; PR #4 in dev)
 
 ---
 
@@ -81,7 +81,7 @@ Engpass ist der UAT: Maintainer nimmt jeden Milestone allein ab. Zum Start liege
 
 | # | Slice | Agent order (short) | Done when |
 |---|---|---|---|
-| S1 | Umgebung begrenzen | `dispatch.mjs` gibt dem Prüfskript nur `PATH`, `HOME`, `LANG` und `pass_env` mit (Patch von server-1 übernehmen) | Test: Fire-Token eines anderen Projekts ist im Prüfskript nicht sichtbar |
+| S1 | Umgebung begrenzen | `dispatch.mjs` gibt dem Prüfskript nur `PATH`, `HOME`, `LANG` und `pass_env` mit (Patch von Host 1 übernehmen) | Test: Fire-Token eines anderen Projekts ist im Prüfskript nicht sichtbar |
 | S2 | Webhook-Format | `webhook_format` (`discord`, `slack`, `auto`) in `config.json`, Doku und `dispatcher.env.example` nennen beide | Tests prüfen den Body für Discord und Slack |
 | S3 | Regel für `main` | Eine Regel für `batch/main` in `autopilot-check.mjs` und `foreman-fix`, gesteuert über `.foreman.json` (`autopilot.mainAutoMerge`, Standard `false`) | Test: Ohne Freigabe kein Batch für `main` im Fenster; mit `true` schon |
 | S4 | `--no-fetch` überall | Vorlage `scripts/autopilot-check.*` akzeptiert `--no-fetch`; `check-config.sh` meldet, wenn ein Projekt es nicht kann | Test mit und ohne Option, gleiche `TASK`-Zeilen |
@@ -98,34 +98,34 @@ Der Dispatcher verrät keine fremden Secrets, meldet in den Kanal der Wahl und m
 
 | Person / role | Focus | Available from |
 |---|---|---|
-| Maintainer | Korrektheit, Betrieb auf server-1 | nach Coding |
+| Maintainer | Korrektheit, Betrieb auf Host 1 | nach Coding |
 
 #### Acceptance criteria
 
-- [ ] **Umgebung** [agent]: Test beweist, dass das Prüfskript nur `PATH`, `HOME`, `LANG` und `pass_env` sieht.
-- [ ] **Webhook** [agent]: Tests für Discord- und Slack-Body grün.
-- [ ] **Webhook echt** [human]: Eine Testmeldung kommt im eigenen Discord-Kanal an.
-- [ ] **main-Regel** [agent]: Test zeigt: ohne `mainAutoMerge` kein automatischer Batch nach `main`.
-- [ ] **`--no-fetch`** [agent]: Vorlage akzeptiert die Option, Test grün.
-- [ ] **Lokaler Lauf** [agent]: Trockenlauf mit `fire_command` am Testprojekt ohne Secret im Log.
-- [ ] **Alle Tests** [agent]: `scripts/test-all.sh` grün.
+- [x] **Umgebung** [agent]: Test beweist, dass das Prüfskript nur `PATH`, `HOME`, `LANG` und `pass_env` sieht.
+- [x] **Webhook** [agent]: Tests für Discord- und Slack-Body grün.
+- [x] **Webhook echt** [human]: Eine Testmeldung kommt im eigenen Discord-Kanal an.
+- [x] **main-Regel** [agent]: Test zeigt: ohne `mainAutoMerge` kein automatischer Batch nach `main`.
+- [x] **`--no-fetch`** [agent]: Vorlage akzeptiert die Option, Test grün.
+- [x] **Lokaler Lauf** [agent]: Trockenlauf mit `fire_command` am Testprojekt ohne Secret im Log.
+- [x] **Alle Tests** [agent]: `scripts/test-all.sh` grün.
 
 Go/no-go: Umgebung begrenzt (Test grün). Ohne das startet M007 nicht.
 
 #### Test flow checklist
 
 **Flow A: Testmeldung**
-- [ ] Schritt 1: Auf server-1 `dispatch.sh --dry-run` mit einem absichtlich kaputten Testprojekt-Eintrag ausführen.
-- [ ] Schritt 2: Erwartet: genau eine Fehlermeldung im Discord-Kanal, Text nennt das Projekt, kein Token im Text.
+- [x] Schritt 1: Auf Host 1 `dispatch.sh --dry-run` mit einem absichtlich kaputten Testprojekt-Eintrag ausführen.
+- [x] Schritt 2: Erwartet: genau eine Fehlermeldung im Discord-Kanal, Text nennt das Projekt, kein Token im Text.
 
 **Flow B: main ohne Freigabe**
-- [ ] Schritt 1: Im Testprojekt ein Fix-Paket mit `Target: main` auf `awaiting-merge` setzen, Uhrzeit im Merge-Fenster.
-- [ ] Schritt 2: `scripts/autopilot-check.sh --no-fetch` ausführen.
-- [ ] Schritt 3: Erwartet: kein `TASK|batch|batch:main`.
+- [x] Schritt 1: Im Testprojekt ein Fix-Paket mit `Target: main` auf `awaiting-merge` setzen, Uhrzeit im Merge-Fenster.
+- [x] Schritt 2: `scripts/autopilot-check.sh --no-fetch` ausführen.
+- [x] Schritt 3: Erwartet: kein `TASK|batch|batch:main`.
 
 **Flow C: lokaler Lauf**
-- [ ] Schritt 1: Testprojekt mit `fire_command` in `config.json`, `dispatch.sh --dry-run`.
-- [ ] Schritt 2: Erwartet: „would start … via command“, Log ohne Secret-Treffer.
+- [x] Schritt 1: Testprojekt mit `fire_command` in `config.json`, `dispatch.sh --dry-run`.
+- [x] Schritt 2: Erwartet: „would start … via command“, Log ohne Secret-Treffer.
 
 #### Feedback-loop protocol
 
@@ -135,7 +135,7 @@ Go/no-go: Umgebung begrenzt (Test grün). Ohne das startet M007 nicht.
 4. Freigabe erst, wenn alle Kriterien erfüllt sind.
 
 #### Known risks in this milestone
-- Der lokale Patch auf server-1 weicht vielleicht vom Repo-Stand ab; der Agent übernimmt das Verhalten, nicht den Patch wörtlich.
+- Der lokale Patch auf Host 1 weicht vielleicht vom Repo-Stand ab; der Agent übernimmt das Verhalten, nicht den Patch wörtlich.
 - `autopilot-check.mjs` wird auch in M004 (Merge-Fenster) angefasst.
 
 ---
@@ -225,7 +225,7 @@ Go/no-go: Limits greifen (Tests grün). Ohne das bleibt der Gateway-Betrieb übe
 **Goal:** `foreman-setup` erfasst Maschinen, Dienste und KI-Zugänge vollständig, speichert sie als `workspace.json` und erkennt einen laufenden Gateway.
 **Coding:** ~5 Tage (Agent)
 **Testing:** ~3 Tage (Mensch)
-**Status:** open
+**Status:** done
 
 ---
 
@@ -253,7 +253,7 @@ Go/no-go: Limits greifen (Tests grün). Ohne das bleibt der Gateway-Betrieb übe
 ### Human Testing
 
 #### Test goal
-Ein Setup mit dem eigenen Aufbau (server-1, server-2, itsaplan, LiteLLM, Claude Max, Ollama Cloud, ChatGPT) endet mit einer `workspace.json`, die stimmt, ohne dass der Agent etwas annimmt.
+Ein Setup mit dem eigenen Aufbau (Host 1, Host 2, itsaplan, LiteLLM, Claude Max, Ollama Cloud, ChatGPT) endet mit einer `workspace.json`, die stimmt, ohne dass der Agent etwas annimmt.
 
 #### Testers and roles
 
@@ -275,7 +275,7 @@ Go/no-go: `workspace.json` wird geschrieben und enthält den eigenen Aufbau korr
 
 **Flow A: eigener Aufbau**
 - [ ] Schritt 1: Im Chat `foreman-setup` starten, eigene Infrastruktur angeben.
-- [ ] Schritt 2: Erwartet: Fragen zu server-1 und server-2, Gateway-URL, Plan-Stufen; Zusammenfassung vor der Empfehlung.
+- [ ] Schritt 2: Erwartet: Fragen zu Host 1 und Host 2, Gateway-URL, Plan-Stufen; Zusammenfassung vor der Empfehlung.
 - [ ] Schritt 3: Erwartet: `workspace.json` mit beiden Maschinen, Gateway, Abos, ohne Key.
 
 **Flow B: unbekannte Antwort**
@@ -302,7 +302,7 @@ Go/no-go: `workspace.json` wird geschrieben und enthält den eigenen Aufbau korr
 **Goal:** „Neues Projekt“ führt in `foreman-project`, das nur die Projektschritte macht und Merge-Fenster, Ausführung und `main`-Regel pro Projekt erfragt.
 **Coding:** ~4 Tage (Agent)
 **Testing:** ~3 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT vom Maintainer abgenommen, 2026-11-21; PR #12 in dev)
 
 ---
 
@@ -379,13 +379,13 @@ Go/no-go: „Neues Projekt“ startet kein Setup mehr.
 **Goal:** Neue itsaplan-Projekte entstehen aus einer Vorlage im Repo mit englischen Spalten und Labels, und `check-config.sh` meldet jeden übersetzten Namen.
 **Coding:** ~3 Tage (Agent)
 **Testing:** ~3 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT abgenommen, 2026-11-21; PR #17 in dev)
 
 ---
 
 ### Dependencies
 
-- **Blocked by:** M004 (approved); extern: Projekt A-Labels umbenannt (Fix-Paket `2026-11-20-tracker-labels-en` in Projekt A)
+- **Blocked by:** M004 (approved); extern: Referenzprojekt-1-Labels umbenannt (Fix-Paket `2026-11-20-tracker-labels-en` in Referenzprojekt 1)
 - **Blocks:** M012
 - **Parallel to:** M007, M010
 - **External risks:** itsaplan-API (Export-Format `itsaplan.project-template` Version 1); Export enthält keine Personen
@@ -397,7 +397,7 @@ Go/no-go: „Neues Projekt“ startet kein Setup mehr.
 
 | # | Slice | Agent order (short) | Done when |
 |---|---|---|---|
-| S1 | Vorlage im Repo | Vorlage aus dem umbenannten Projekt A-Projekt exportieren, als Datei ins Repo; Issue-Vorlagen für Eingriff, UAT, Update-Meldung ergänzen | Datei validiert gegen das Exportformat; alle Namen Englisch |
+| S1 | Vorlage im Repo | Vorlage aus dem umbenannten Referenzprojekt 1 exportieren, als Datei ins Repo; Issue-Vorlagen für Eingriff, UAT, Update-Meldung ergänzen | Datei validiert gegen das Exportformat; alle Namen Englisch |
 | S2 | Import im Setup | `foreman-setup` importiert die Vorlage einmal pro Workspace | Testlauf gegen itsaplan: Vorlage erscheint in `list_project_templates` |
 | S3 | Projekt aus Vorlage | `foreman-project` legt das Projekt aus der Vorlage an, nennt den einzigen Handschritt (Bot als Mitglied) | Testprojekt hat alle Spalten, Labels, Ansicht „UAT ready“ |
 | S4 | Namensprüfung | `check-config.sh` prüft Spalten und Labels gegen die englischen Namen | Test: deutscher Name ergibt Fehler |
@@ -443,8 +443,8 @@ Go/no-go: Mirror-Trockenlauf gegen ein Projekt aus der Vorlage endet mit Exit 0.
 4. Freigabe erst, wenn alle Kriterien erfüllt sind.
 
 #### Known risks in this milestone
-- Ohne umbenannte Projekt A-Labels entsteht die Vorlage mit deutschen Namen; S1 wartet darauf.
-- Projekt B hat ein älteres Phasen-Modell; die Vorlage folgt dem Modell von foreman 0.2.
+- Ohne umbenannte Referenzprojekt-1-Labels entsteht die Vorlage mit deutschen Namen; S1 wartet darauf.
+- Referenzprojekt 2 hat ein älteres Phasen-Modell; die Vorlage folgt dem Modell von foreman 0.2.
 
 ---
 
@@ -455,7 +455,7 @@ Go/no-go: Mirror-Trockenlauf gegen ein Projekt aus der Vorlage endet mit Exit 0.
 **Goal:** Ein installiertes Projekt lässt sich auf die aktuelle foreman-Version bringen, ohne projektspezifische Anpassungen zu verlieren.
 **Coding:** ~5 Tage (Agent)
 **Testing:** ~3 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT vom Maintainer abgenommen, 2026-11-21; PR #11 in dev)
 
 ---
 
@@ -477,6 +477,7 @@ Go/no-go: Mirror-Trockenlauf gegen ein Projekt aus der Vorlage endet mit Exit 0.
 | S2 | Upgrade-Abschnitte | `CHANGELOG.md` bekommt je Version einen Abschnitt „Upgrade“ (Dateien, Schritte, optional); ab 0.2.1 nachgetragen | Lint-Test: jede Version hat den Abschnitt |
 | S3 | `install.sh --update` | Update-Modus mit `--dry-run`, beachtet die Klassen, erhöht `version` in `.foreman.json` erst nach Erfolg | Test: Testprojekt mit angepasster `CLAUDE.md` und `config.toml` bleibt dort unverändert, foreman-eigene Dateien aktuell |
 | S4 | Skill | Chat-Skill `foreman-update`: Versionsvergleich, Liste der Änderungen, Checkliste für Schritte außerhalb des Repos, neue Module nur nach Ja | Plugin-Validierung grün; Durchlauf am Testprojekt erzeugt Auftrag und Checkliste |
+| S5 | Projektanweisung | `foreman-update` ruft am Ende `foreman-project-mode` im Auffrischen-Modus auf (Versionsvergleich der Markierung `foreman-project-block`); in einem Claude-Projekt steht die Checkliste-Zeile „Projektanweisung aktuell“ | Test: Testprojekt mit Block v0 meldet „veraltet“, mit aktuellem Block „aktuell“ |
 
 ---
 
@@ -498,6 +499,7 @@ Ein Projekt auf 0.2.1 kommt per `foreman-update` auf den neuen Stand, und alles 
 - [ ] **Anpassungen bleiben** [agent]: Test mit angepasster `CLAUDE.md` und `config.toml` grün.
 - [ ] **Version erst nach Erfolg** [agent]: abgebrochenes Update lässt `version` unverändert.
 - [ ] **Checkliste** [human]: Die Schritte außerhalb des Repos sind nummeriert und mit Minuten versehen.
+- [ ] **Projektanweisung** [agent]: veralteter Block wird erkannt, aktueller als „aktuell“ gemeldet.
 
 Go/no-go: Projekteigene Dateien bleiben beim Update unverändert.
 
@@ -521,7 +523,7 @@ Go/no-go: Projekteigene Dateien bleiben beim Update unverändert.
 
 #### Known risks in this milestone
 - Gemischte Dateien (zum Beispiel `CLAUDE.md`) lassen sich nicht automatisch zusammenführen; der Skill zeigt sie nur.
-- Projekt A und Projekt B weichen stärker von 0.2.1 ab (Analysen F2/F3 der Fix-Pakete); ihre Ergebnisse fließen in die Dateiklassen ein.
+- Referenzprojekt 1 und Referenzprojekt 2 weichen stärker von 0.2.1 ab (Analysen F2/F3 der Fix-Pakete); ihre Ergebnisse fließen in die Dateiklassen ein.
 
 ---
 
@@ -536,7 +538,7 @@ Go/no-go: Projekteigene Dateien bleiben beim Update unverändert.
 
 ---
 
-### Dependencies
+**Status:** done (UAT vom Menschen abgenommen, 2026-11-21; PR #16 in dev)
 
 - **Blocked by:** M006 (approved), M001 (approved)
 - **Blocks:** M012
@@ -606,7 +608,7 @@ Go/no-go: keine doppelte Meldung bei zwei Läufen hintereinander.
 **Goal:** Eine Regeldatei legt fest, welche Dokumente wo liegen und wann große Dokumente in Übersicht und Teildateien geteilt werden.
 **Coding:** ~2 Tage (Agent)
 **Testing:** ~2 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT vom Maintainer abgenommen, 2026-11-21; PR #8 in dev)
 
 ---
 
@@ -625,7 +627,7 @@ Go/no-go: keine doppelte Meldung bei zwei Läufen hintereinander.
 | # | Slice | Agent order (short) | Done when |
 |---|---|---|---|
 | S1 | Regeldatei | Welche Dokumente, wo, wer schreibt, wann; ergänzt `docs/CONVENTIONS.md` | Datei in `template/docs/`, keine doppelte Regel in `CONVENTIONS.md` |
-| S2 | Aufteilen | Muster aus Projekt B (Übersicht + Ordner, Tabelle „Datei, Inhalt, Lesen bei“, Konfliktreihenfolge), Schwelle für das Aufteilen, Stand-Zeile nur mit aktueller Version und letzter Änderung | `foreman-roast` und `foreman-roadmap` verweisen darauf |
+| S2 | Aufteilen | Muster aus Referenzprojekt 2 (Übersicht + Ordner, Tabelle „Datei, Inhalt, Lesen bei“, Konfliktreihenfolge), Schwelle für das Aufteilen, Stand-Zeile nur mit aktueller Version und letzter Änderung | `foreman-roast` und `foreman-roadmap` verweisen darauf |
 | S3 | Prüfung | Test meldet eine Stand-Zeile mit mehr als einer Version | Test grün an Beispielen |
 
 ---
@@ -643,17 +645,17 @@ Ein Agent weiß ohne Rückfrage, wo ein Dokument hingehört und wann er es teilt
 
 #### Acceptance criteria
 
-- [ ] **Regeldatei** [agent]: vorhanden, keine Doppelung.
-- [ ] **Aufteilen** [human]: Regel passt auf die Projekt B-Requirements (Übersicht + zehn Teile).
-- [ ] **Stand-Zeile** [agent]: Test grün.
+- [x] **Regeldatei** [agent]: vorhanden, keine Doppelung.
+- [x] **Aufteilen** [human]: Regel passt auf die Referenzprojekt 2-Requirements (Übersicht + zehn Teile).
+- [x] **Stand-Zeile** [agent]: Test grün.
 
 Go/no-go: Regeldatei vorhanden und von Roast und Roadmap referenziert.
 
 #### Test flow checklist
 
-**Flow A: Regel gegen Projekt B**
-- [ ] Schritt 1: Regel neben `docs/requirements.md` von Projekt B legen.
-- [ ] Schritt 2: Erwartet: Projekt Bs Aufbau erfüllt die Regel, nur die Stand-Zeile verstößt.
+**Flow A: Regel gegen Referenzprojekt 2**
+- [x] Schritt 1: Regel neben `docs/requirements.md` von Referenzprojekt 2 legen.
+- [x] Schritt 2: Erwartet: Projekt Bs Aufbau erfüllt die Regel, nur die Stand-Zeile verstößt.
 
 #### Feedback-loop protocol
 
@@ -674,7 +676,7 @@ Go/no-go: Regeldatei vorhanden und von Roast und Roadmap referenziert.
 **Goal:** Ein Skript spiegelt die Repo-Docs in eine Richtung nach Notion, eine Seite pro Datei.
 **Coding:** ~4 Tage (Agent)
 **Testing:** ~3 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT vom Menschen abgenommen, 2026-11-21; PR #18 in dev)
 
 ---
 
@@ -722,7 +724,7 @@ Go/no-go: Struktur in Notion entspricht dem Repo.
 #### Test flow checklist
 
 **Flow A: Spiegel**
-- [ ] Schritt 1: Testprojekt mit `docs-notion`, Docs nach dem Projekt B-Muster, Merge auf `dev`.
+- [ ] Schritt 1: Testprojekt mit `docs-notion`, Docs nach dem Referenzprojekt 2-Muster, Merge auf `dev`.
 - [ ] Schritt 2: Erwartet: Seiten in Notion, Übersicht oben, eine Unterseite pro Teildatei.
 
 **Flow B: Änderung in Notion**
@@ -749,7 +751,7 @@ Go/no-go: Struktur in Notion entspricht dem Repo.
 **Goal:** Ein Projekt kann ein öffentliches Wiki in Notion für festgelegte Zielgruppen pflegen, und jeder Milestone prüft, ob es aktualisiert werden muss.
 **Coding:** ~4 Tage (Agent)
 **Testing:** ~3 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT vom Menschen abgenommen, 2026-11-22; PR #19 in dev)
 
 ---
 
@@ -851,7 +853,7 @@ Go/no-go: Privacy-Scan blockiert interne Inhalte zuverlässig.
 ### Human Testing
 
 #### Test goal
-Die Zahlen für Projekt A, B und C lassen sich ohne Handarbeit erzeugen.
+Die Zahlen für die Referenzprojekte lassen sich ohne Handarbeit erzeugen.
 
 #### Testers and roles
 
@@ -901,7 +903,7 @@ Go/no-go: Mess-Skript liefert für Beispieldaten die erwarteten Zahlen.
 - **Blocked by:** M001, M002, M005, M006, M007, M010, M011 (approved)
 - **Blocks:** none
 - **Parallel to:** -
-- **External risks:** Zahlen aus Projekt A, B und C erst nach deren Update über `foreman-update`
+- **External risks:** Zahlen aus die Referenzprojekte erst nach deren Update über `foreman-update`
 - **Shared files:** alle Skills, `README.md`, `docs/learnings.md`
 
 ---
@@ -913,7 +915,7 @@ Go/no-go: Mess-Skript liefert für Beispieldaten die erwarteten Zahlen.
 | S1 | Doppelte Regeln | Regeln, die in Chat-Skills, Repo-Skills und `docs/` mehrfach stehen, an eine Stelle ziehen | Liste der Doppelungen leer; Lint-Test grün |
 | S2 | Lesemenge | Messen, was ein Work-Run liest; nicht mehr als vor 0.2.2 | Vorher- und Nachher-Zahl im Bericht |
 | S3 | README | Gemessene Zahlen, Verweis auf `docs/learnings.md`, Kombinationen ohne regelmäßigen Test gekennzeichnet | README zeigt Zahlen aus M011 |
-| S4 | Rollout | `foreman-update` für Projekt A, B, C als Aufträge vorbereiten | drei Aufträge mit Checklisten |
+| S4 | Rollout | `foreman-update` für die Referenzprojekte als Aufträge vorbereiten | drei Aufträge mit Checklisten |
 
 ---
 
@@ -940,8 +942,8 @@ Go/no-go: ein echtes Projekt per `foreman-update` aktualisiert, ohne verlorene A
 
 #### Test flow checklist
 
-**Flow A: Rollout Projekt C**
-- [ ] Schritt 1: `foreman-update` für Projekt C.
+**Flow A: Rollout Referenzprojekt 3**
+- [ ] Schritt 1: `foreman-update` für Referenzprojekt 3.
 - [ ] Schritt 2: Erwartet: Auftrag und Checkliste; nach Ausführung `version` neu, Anpassungen da, nächster Dispatcher-Lauf ohne Fehler.
 
 #### Feedback-loop protocol
@@ -964,7 +966,7 @@ Go/no-go: ein echtes Projekt per `foreman-update` aktualisiert, ohne verlorene A
 | M002: Delegate-Wrapper sicher und sparsam | B | 4 T | 3 T | — | M012 |
 | M003: Einrichtung fragt statt rät | C | 5 T | 3 T | — | M004 |
 | M004: Neues Projekt in bestehender Umgebung | C | 4 T | 3 T | M003 ✅ | M005 |
-| M005: itsaplan-Vorlage und englische Namen | C | 3 T | 3 T | M004 ✅, Projekt A-Labels | M012 |
+| M005: itsaplan-Vorlage und englische Namen | C | 3 T | 3 T | M004 ✅, Referenzprojekt-1-Labels | M012 |
 | M006: foreman-update | D | 5 T | 3 T | — | M007, M012 |
 | M007: Update-Meldung im Dispatcher | D | 3 T | 2 T | M006 ✅, M001 ✅ | M012 |
 | M008: Docs-Regeln und Aufteilen | E | 2 T | 2 T | — | M009 |
@@ -1008,11 +1010,11 @@ Die Spalte „Version“ ist ein Vorschlag. Erscheint ein Milestone früher als 
 ### Offene Risiken
 
 - UAT-Kapazität: Maintainer testet allein; mehr als drei parallele Milestones stauen die Abnahme.
-- M005 hängt an den umbenannten Projekt A-Labels (Fix-Paket in Projekt A).
+- M005 hängt an den umbenannten Referenzprojekt-1-Labels (Fix-Paket in Referenzprojekt 1).
 - `install.sh` wird in M003, M004, M005, M006 und M009 erweitert; Merge-Konflikte sind wahrscheinlich.
 - Offene Fragen aus den Requirements blockieren einzelne Slices: `workspace.json`-Ablage (M004), Update-Ausführung und Versionsquelle (M006, M007), Spiegel-Zeitpunkt, Wiki-Modell und Veröffentlichung (M009, M010), Ablage der Messwerte (M011).
 - ChatGPT über den Gateway bleibt ein bewusstes Risiko (Sperre des Abos); M002 sorgt für Limits und Hinweis, nicht für eine Garantie.
-- Zahlen für die README entstehen erst, wenn Projekt A, B und C auf dem neuen Stand laufen.
+- Zahlen für die README entstehen erst, wenn die Referenzprojekte auf dem neuen Stand laufen.
 
 ### Agent-Coding-Hinweise
 

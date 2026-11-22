@@ -28,7 +28,7 @@ Larger features without a milestone keep their own branch and PR. A project with
 Target: main | dev
 Milestone: Mnnn | -
 Batch-branch: batch/main | batch/dev | batch/mnnn
-Urgent: no | yes      (yes = own branch and immediate PR to main, critical production bugs only)
+Urgent: no | yes      (yes = critical production bugs only, own branch from origin/main, immediate PR to main)
 ```
 
 Missing header or unclear target: do not guess; report and do not implement. The header is the explicit permission to push to `batch/<target>`.
@@ -44,7 +44,7 @@ Missing header or unclear target: do not guess; report and do not implement. The
 
 ## Batch PR (only on order or in a merge window)
 
-Trigger: the human says "batch PR main", "batch PR dev" or "batch PR M022", a batch run of the autopilot starts, or a window opens (`foreman-dispatch-run` `references/batch-run.md`). The order is the explicit order for PR **and merge**: with green CI and a mergeable PR, merge at once; do not wait for another approval. Stop only on a problem (see abort cases). Never `prod`, never force push, never production tenants.
+Trigger: the human says "batch PR main", "batch PR dev" or "batch PR M022", a batch run of the autopilot starts, or a window opens (`foreman-dispatch-run` `references/batch-run.md`). The order is the explicit order for PR **and merge**: with green CI and a mergeable PR, merge at once; do not wait for another approval. Stop only on a problem (see abort cases).
 
 | Order | Batch branch | PR to | Watch afterwards |
 |---|---|---|---|
@@ -57,17 +57,13 @@ Deploy watching and fix rounds follow `foreman-deploy`.
 1. **Pre-check.** `git fetch origin main dev batch/<target>`. If `git rev-list --count origin/<base>..origin/batch/<target>` is `0`: nothing to do; report "nothing to bring". Target `dev` or milestone: the start check from `foreman-delegation` must pass (`origin/dev..origin/main` is `0`), else bring `main` into `dev` first.
 2. **Update the batch branch:** `node scripts/batch-branch.mjs <target>`, resolve conflicts, `git push origin batch/<target>`.
 3. **Check locally** in the worktree: typecheck and unit tests. Red because of a fix: new commit on the batch branch. Red already on the base: prove it and report.
+   - With `wiki.enabled` true in `.foreman.json` and a milestone batch: `node scripts/state-mirror.mjs --local --dry-run --unit <Mnnn>` must exit 0; it needs the `Wiki:` line in that milestone's STATE.md. Older milestones do not matter.
 4. **Remember the base:** `BEFORE=$(git rev-parse origin/<base>)` before the merge (needed for cleanup).
 5. **Open the PR** (head `batch/<target>`, base `<base>`). Use the repo's PR template headings. Title `Batch PR <target>: <n> fixes` (milestone: `M022: <title>`). Body: one point per commit (`git log --no-merges --format='- %s' origin/<base>..origin/batch/<target>`), note changed migrations.
 6. **Wait for CI.** Red: fix on the batch branch, push, wait again; at most 3 fix rounds, then stop and report. Never weaken, skip or delete tests.
 7. **Merge with a merge commit** right after green CI (`merge_method: merge`). Never squash, never rebase: the commits would not be in the target, and cleanup and fast-forwarding the batch branch would fail without a force push.
-8. **Watch the deploy** per table above. A skipped dev deploy because "no app change" is correct. Target `main`: afterwards the sync workflow checks `main` to `dev`; an open "main to dev (conflict)" PR comes before new work.
-9. **Clean up work branches** (only after a successful merge, even while the deploy runs):
-   1. `git fetch origin --prune`.
-   2. List remote branches `agent/*` (and other temporary work branches such as `fix/*`, `feature/*`) whose commits are contained in `origin/<target>` and that were pushed to the batch branch: `git branch -r --merged origin/<target>`; for each candidate `git merge-base --is-ancestor origin/<branch> origin/<target>` must hold.
-   3. Skip branches with an open PR and branches of runs still working (fresh, empty branches).
-   4. Delete the rest: `git push origin --delete <branch>` and `git branch -d <branch>`. An order "batch PR ..." covers this deletion.
-   5. Never delete `main`, `dev`, `prod`, `batch/*` or branches of other work. If something is not in the target: do not delete, report.
+8. **Watch the deploy** per table above. A skipped dev deploy because "no app change" is correct. Target `main`: afterwards the sync workflow checks `main` to `dev`; an open "main to dev (conflict)" PR comes before new work. After the merge, from the repo root, after `git fetch` and with the merged target checked out and up to date, run every executable `scripts/post-merge.d/*.sh` once (if the folder exists); a failing hook is reported and never blocks.
+9. **Clean up work branches** (only after a successful merge, even while the deploy runs): `git fetch origin --prune`. Candidates are remote `agent/*` and other temporary branches (`fix/*`, `feature/*`) pushed to the batch branch, listed by `git branch -r --merged origin/<target>`; each must pass `git merge-base --is-ancestor origin/<branch> origin/<target>`. Skip branches with an open PR and fresh branches of runs still working. Delete the rest with `git push origin --delete <branch>` and `git branch -d <branch>` (the order "batch PR ..." covers this deletion). Never delete `main`, `dev`, `prod`, `batch/*` or other work; if something is not in the target, report instead of deleting.
 10. **Pull the batch branch forward:** `node scripts/batch-branch.mjs <target>` (fast-forward). `batch/main` and `batch/dev` stay. `batch/mnnn` stays until the human says "UAT Mnnn approved"; then delete it after `git merge-base --is-ancestor origin/batch/mnnn origin/dev` holds.
 11. **Report** at `docs/agent-reports/<YYYY-MM-DD>-batch-<target>.md`: PR number, merge commit, list of fixes, CI and deploy evidence (run, result, SHA), deleted and kept branches with reason, open points. Then set the units in this batch to `pretest-waiting` (`uat-ready` with a UAT list when module `pretest` is off; pure docs units: `done`, or `release-ready` for target `main`) in their `STATE.md`.
 
@@ -81,7 +77,3 @@ Close each unit right after its merge: status, round in `STATE.md`, lock free, b
 - The ruleset forbids a merge commit: stop, do not fall back to squash, ask the human to change the setting.
 - Cleanup refuses ("not fully merged"): delete nothing.
 - CI still running when the session ends: leave the PR open, write "batch PR #n open, CI running" in the report, release the lock; the next run continues (green: merge, verify, set status; red: fix, at most 3 rounds; already merged: only verify and set status).
-
-## Urgent
-
-Only a critical production bug (`Urgent: yes`) gets its own branch from `origin/main` and an immediate PR to `main`. Everything else is collected.
