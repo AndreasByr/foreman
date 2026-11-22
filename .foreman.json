@@ -26,5 +26,20 @@
     "releaseDay": "Friday",
     "workRun": ""
   },
-  "mirror": {}
+  "mirror": {},
+  "models": {
+    "coordinator": "standard",
+    "effort": "medium",
+    "threads": {
+      "question": "standard",
+      "fixpack": "standard",
+      "milestone": "standard",
+      "brief": "strong",
+      "roadmap": "strong",
+      "architecture": "strong",
+      "bugRetry": "strong",
+      "release": "standard",
+      "docs": "standard"
+    }
+  }
 }

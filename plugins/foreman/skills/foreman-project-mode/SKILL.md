@@ -35,6 +35,8 @@ Read `references/instruction-block.md`. Fill the placeholders from `.foreman.jso
 - `Language:` from `context.language`
 - the module line: tracker `none` or the tracker name, `autopilot` yes or no
 
+- the `Models` line from `.foreman.json` `models`: `threads` maps each category to a class (`strong`, `standard`, `cheap`), `coordinator` and `effort` are single values. Categories: `question` (answer only), `fixpack`, `milestone` (run of a brief), `brief` (milestone brief or slice), `roadmap`, `architecture`, `bugRetry` (bug after a failed first fix), `release`, `docs`. Missing keys use the defaults in the block: `standard` everywhere, `strong` for `brief`, `roadmap`, `architecture`, `bugRetry`. Classes, never version numbers: the coordinator maps a class to the host's current model when it opens the thread (its model-switch tool). No such tool or mapping: it says so once and the thread runs on the project default.
+
 Leave out lines for modules that are off. Keep the block under 2 KB. Never put secrets, tokens, tenant names or URLs into it.
 
 ## 4. Apply it

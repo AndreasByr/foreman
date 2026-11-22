@@ -130,6 +130,16 @@ bad_value i-batch-str '{"autopilot":{"batchHours":["3"]}}' autopilot.batchHours
 bad_value i-batch-float '{"autopilot":{"batchHours":[3.5]}}' autopilot.batchHours
 bad_value i-batch-string '{"autopilot":{"batchHours":"3,7"}}' autopilot.batchHours
 bad_value i-batch-empty '{"autopilot":{"batchHours":[]}}' autopilot.batchHours
+bad_value i-models-class '{"models":{"threads":{"fixpack":"huge"}}}' models.threads.fixpack
+bad_value i-models-cat '{"models":{"threads":{"unknowncat":"standard"}}}' models.threads.unknowncat
+bad_value i-models-coord '{"models":{"coordinator":"max"}}' models.coordinator
+bad_value i-models-effort '{"models":{"effort":"extreme"}}' models.effort
+bad_value i-models-type '{"models":"standard"}' models
+p=$(new_project i-models-ok)
+printf '%s\n' '{"models":{"coordinator":"standard","effort":"medium","threads":{"fixpack":"standard","roadmap":"strong","docs":"cheap"}}}' > "$p/.foreman.json"
+run_check "$p"
+[ "$RC" -eq 0 ] || fail "i-models-ok: exit $RC, expected 0: $OUT"
+echo "ok i-models-ok"
 bad_value i-wait-0 '{"autopilot":{"waitHours":0}}' autopilot.waitHours
 bad_value i-wait-neg '{"autopilot":{"waitHours":-1}}' autopilot.waitHours
 bad_value i-wait-str '{"autopilot":{"waitHours":"4"}}' autopilot.waitHours
