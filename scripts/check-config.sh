@@ -70,6 +70,33 @@ if isinstance(ctx, dict) and "timeZone" in ctx:
         print("FAIL: context.timeZone must be a non-empty IANA time zone name such as Europe/Berlin")
         bad = True
 
+MODEL_CLASSES = ("strong", "standard", "cheap")
+MODEL_CATEGORIES = ("question", "fixpack", "milestone", "brief", "roadmap", "architecture", "bugRetry", "release", "docs")
+if "models" in cfg:
+    mo = cfg["models"]
+    if not isinstance(mo, dict):
+        print("FAIL: models must be an object")
+        bad = True
+    else:
+        if "coordinator" in mo and mo["coordinator"] not in MODEL_CLASSES:
+            print("FAIL: models.coordinator must be one of strong, standard, cheap")
+            bad = True
+        if "effort" in mo and mo["effort"] not in ("low", "medium", "high"):
+            print("FAIL: models.effort must be one of low, medium, high")
+            bad = True
+        th = mo.get("threads", {})
+        if not isinstance(th, dict):
+            print("FAIL: models.threads must be an object")
+            bad = True
+        else:
+            for k, v in th.items():
+                if k not in MODEL_CATEGORIES:
+                    print("FAIL: models.threads." + str(k) + " is not a known category (" + ", ".join(MODEL_CATEGORIES) + ")")
+                    bad = True
+                elif v not in MODEL_CLASSES:
+                    print("FAIL: models.threads." + k + " must be one of strong, standard, cheap")
+                    bad = True
+
 ap = cfg.get("autopilot")
 if isinstance(ap, dict):
     if "batchHours" in ap:
