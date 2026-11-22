@@ -139,6 +139,8 @@ else:
         problems.append("no line with 'CHANGELOG.md' and the raw GitHub URL")
     if not any("VERSION" in l and RAW in l for l in lines):
         problems.append("no line with 'VERSION' and the raw GitHub URL")
+    if not any("docs/MODULES.md" in l and RAW in l for l in lines):
+        problems.append("no line with 'docs/MODULES.md' and the raw GitHub URL")
 if "no `v` prefix" not in body:
     problems.append("body lacks 'no `v` prefix'")
 if "Never ask the human for the changelog" not in body:

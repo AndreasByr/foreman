@@ -18,6 +18,7 @@ In chat there is no checkout. Fetch these files yourself with the web fetch tool
 - `https://raw.githubusercontent.com/AndreasByr/foreman/<tag>/VERSION`
 - `https://raw.githubusercontent.com/AndreasByr/foreman/<tag>/CHANGELOG.md`
 - `https://raw.githubusercontent.com/AndreasByr/foreman/<tag>/update-classes.json`
+- `https://raw.githubusercontent.com/AndreasByr/foreman/<tag>/docs/MODULES.md` (list of modules)
 
 Tag: release tags have no `v` prefix (0.2.2, not v0.2.2). Find the newest tag at `https://api.github.com/repos/AndreasByr/foreman/releases/latest` (field `tag_name`). Fallback if that fails: use `main` as <tag>.
 
@@ -63,7 +64,7 @@ Run it first on a test project, never first on a live project. Never run the upd
 
 ## 5. New modules
 
-List the modules that exist in the target version and are not in `.foreman.json` `modules`. One line each: what it does. Add a module only after the human says yes. Adding a module is a separate `install.sh --modules ...` call, not part of `--update`.
+The modules of the target version come from the fetched `docs/MODULES.md`. List those that are not in `.foreman.json` `modules`. One line each: what it does. Add a module only after the human says yes. Adding a module is a separate `install.sh --modules ...` call, not part of `--update`.
 
 ## 6. Checklist for steps outside the repo
 
