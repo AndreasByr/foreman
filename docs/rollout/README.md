@@ -1,30 +1,22 @@
-# Rollout orders for `foreman-update`
+# Rolling out a foreman update to existing projects
 
-## Purpose
+For anyone who runs foreman in one or more projects and wants to bring them to a newer version (for example 0.2.x). The update itself is `./install.sh <project path> --update`; the chat skill `foreman-update` compares versions, lists the changes and writes the order. This folder holds the generic order and checklist.
 
-Ready-made orders to update three installed projects with `foreman-update`. Written for the 0.2.x close. The projects are called project A, project B and project C. Real names stay out of this repo.
-
-This repo only prepares the orders. Nothing runs against a project from here.
+Nothing here runs against a project by itself. Copy `update-order.md` once per project, fill in the placeholders, and work through it.
 
 ## Order of rollout
 
-Order: project C, project A, project B.
+With more than one project:
 
-1. Project C goes first. It is the go/no-go project: its result decides whether A and B follow.
-2. Then project A.
-3. Then project B.
-4. One project is fully done (all boxes in its file checked) before the next one starts.
+1. Start with the project that is cheapest to break (a test project, a copy, or a small project). Its result is the go/no-go for the rest.
+2. Go only when every box under "After the update" is checked and no own edit was lost. No-go: stop, report what failed, do not retry on a live project.
+3. Then the next project, fully done before the one after it.
 
-## How to use
+## How to use it
 
-1. [ ] Open the chat for the project.
-2. [ ] Say "update foreman".
-3. [ ] Paste the project file (`project-C.md`, `project-A.md` or `project-B.md`).
-4. [ ] Fill in `Installed version:` and `Target:` before you paste.
-5. [ ] Work through "Checklist outside the repo" and "After the update" yourself.
+1. In the chat say "update foreman" (skill `foreman-update`) and name the project and the foreman version or checkout.
+2. Copy `docs/rollout/update-order.md` per project, fill in the header, paste the order into Claude Code.
+3. Work the checklist outside the repo, then the "After the update" checks.
+4. Optional: run `node scripts/measure.mjs` in the project to get its own numbers (`docs/metrics.md`).
 
-## What the human decides
-
-- Which version or commit is the `Target:`.
-- Go or no-go after project C.
-- The version number is not touched here. The foreman release is a separate order.
+The foreman version and the release are separate decisions of the maintainer; an update order never sets a version, tag or release.
