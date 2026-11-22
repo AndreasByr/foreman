@@ -676,7 +676,7 @@ Go/no-go: Regeldatei vorhanden und von Roast und Roadmap referenziert.
 **Goal:** Ein Skript spiegelt die Repo-Docs in eine Richtung nach Notion, eine Seite pro Datei.
 **Coding:** ~4 Tage (Agent)
 **Testing:** ~3 Tage (Mensch)
-**Status:** open
+**Status:** done (UAT vom Menschen abgenommen, 2026-11-21; PR #18 in dev)
 
 ---
 
