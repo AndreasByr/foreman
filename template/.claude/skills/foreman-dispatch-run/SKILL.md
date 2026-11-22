@@ -45,12 +45,4 @@ Never touch (except UAT approval and the reconcile step): units in `pretest-*` (
 
 ## Idle note
 
-When a UAT result is taken over and no unit is left in a coding status, `fixpack`, `awaiting-merge` or a pretest status, notify: "Autopilot idle: no work open." The dispatcher costs nothing while idle, so nothing needs switching off.
-
-## References
-
-- `references/payload.md`: payload kinds, taking over pretest results, input received, new fix pack orders.
-- `references/intervention.md`: question, status, explanation comment, answer.
-- `references/batch-run.md`: batch run per target, closing each unit, release reminder.
-- `references/uat-approval.md`: UAT approval in all places, reconcile.
-- `references/reflect.md`: lessons after each approval.
+When a UAT result is taken over and no unit is left in a coding status, `fixpack`, `awaiting-merge` or a pretest status, notify: "Autopilot idle: no work open."

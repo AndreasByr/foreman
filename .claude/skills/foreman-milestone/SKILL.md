@@ -32,7 +32,7 @@ Order "Run milestone M004". Read without changing: `docs/milestones/M004/CONTEXT
    - Red that was already there: prove it with a run on the pre-slice commit, record it under "Inherited red" in `STATE.md`, report it.
    - Flaky tests: `docs/flaky-tests.md`, own report item.
    - **Test it yourself:** Hand nothing on, see `foreman-delegation`. Here an impossible test makes the slice `blocked` with the concrete question (unit `needs-input`).
-   - **UI against rendered output:** screenshot or component render, compared with the design board. A strong deviation (other structure, missing or extra elements) means the slice is not done: `blocked` with the deviation as the question.
+   - **UI against rendered output:** `foreman-delegation`, acceptance item 4 (screenshot or component render against the board).
 4. **One commit per slice** on the milestone batch branch `batch/m004` (worktree: `node scripts/batch-branch.mjs M004`; see `foreman-batch`). Commit message names the slice, for example `M004 S2: ...`.
 5. **Update `STATE.md`:** status, commit, changed files, open points, next step.
 6. **Report** at `docs/agent-reports/<YYYY-MM-DD>-M004-S2.md` with the gate evidence and a short "Learned" section. Commit and push.
@@ -83,7 +83,7 @@ Then set `Status: batch-pr` (autopilot) or tell the human the milestone is ready
 4. UAT by the human (the only approval).
 5. Reflect step (`foreman-dispatch-run` `references/reflect.md`).
 
-The coding session runs no deploy and no browser verification against dev/staging. Local browser runs for acceptance are mandatory.
+Local browser runs for acceptance are mandatory.
 
 ## Excluded
 
