@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks the rollout orders in docs/rollout/.
+# Checks the generic rollout docs in docs/rollout/.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -10,8 +10,16 @@ fail() {
 
 dir=docs/rollout
 readme=$dir/README.md
+order=$dir/update-order.md
 
 [ -f "$readme" ] || fail "$readme is missing"
+[ -f "$order" ] || fail "$order is missing"
+
+# The per-project files were replaced by the generic update order.
+for old in A B C; do
+  [ ! -e "$dir/project-$old.md" ] \
+    || fail "$dir/project-$old.md must not exist (per-project files are gone)"
+done
 
 # section <file> <heading>: prints the lines under a "## " heading
 section() {
@@ -22,40 +30,36 @@ section() {
   ' "$1"
 }
 
-for x in A B C; do
-  f=$dir/project-$x.md
-  [ -f "$f" ] || fail "$f is missing"
-
-  for h in "## Order for Claude Code" "## Checklist outside the repo" \
-    "## After the update" "## Go / no-go"; do
-    grep -qxF "$h" "$f" || fail "$f: heading '$h' is missing"
-  done
-
-  first=$(grep -m1 '^# ' "$f" || true)
-  [ "$first" = "# Rollout: project $x" ] \
-    || fail "$f: first heading must be '# Rollout: project $x'"
-
-  order=$(section "$f" "## Order for Claude Code")
-  for c in './install.sh <project path> --update --dry-run' \
-    './install.sh <project path> --update' \
-    'bash scripts/check-config.sh'; do
-    printf '%s\n' "$order" | grep -qF -- "$c" \
-      || fail "$f: order block lacks '$c'"
-  done
-
-  check=$(section "$f" "## Checklist outside the repo")
-  for c in 'foreman-project-mode' 'check-config.sh' 'node scripts/measure.mjs'; do
-    printf '%s\n' "$check" | grep -qF -- "$c" \
-      || fail "$f: checklist lacks '$c'"
-  done
-
-  grep -Eq '^- \[ \].*Upgrade part' "$f" || fail "$f lacks the Upgrade checkbox"
-  grep -q '^Installed version:' "$f" || fail "$f: line 'Installed version:' is missing"
-  grep -q '^Target:' "$f" || fail "$f: line 'Target:' is missing"
+for h in "## Order for Claude Code" "## Checklist outside the repo" \
+  "## After the update" "## Go / no-go"; do
+  grep -qxF "$h" "$order" || fail "$order: heading '$h' is missing"
 done
 
-# Privacy: no foreign hosts, no absolute home paths, no e-mail patterns
-for f in "$readme" "$dir"/project-A.md "$dir"/project-B.md "$dir"/project-C.md; do
+block=$(section "$order" "## Order for Claude Code")
+for c in './install.sh <project path> --update --dry-run' \
+  './install.sh <project path> --update' \
+  'bash scripts/check-config.sh'; do
+  grep -qF -- "$c" <<< "$block" || fail "$order: order block lacks '$c'"
+done
+
+check=$(section "$order" "## Checklist outside the repo")
+for c in 'foreman-project-mode' 'check-config.sh' 'node scripts/measure.mjs'; do
+  grep -qF -- "$c" <<< "$check" || fail "$order: checklist lacks '$c'"
+done
+
+grep -Eq '^- \[ \].*Upgrade part' "$order" || fail "$order lacks the Upgrade checkbox"
+grep -q '^Installed version:' "$order" || fail "$order: line 'Installed version:' is missing"
+grep -q '^Target:' "$order" || fail "$order: line 'Target:' is missing"
+
+grep -q 'foreman-update' "$readme" || fail "$readme: must mention foreman-update"
+grep -q 'update-order.md' "$readme" || fail "$readme: must mention update-order.md"
+
+# Privacy: no project letters, no foreign hosts, no absolute home paths, no e-mail patterns
+for f in "$readme" "$order"; do
+  if grep -Eiq 'project [ABC]\b' "$f"; then
+    fail "$f: names a project A, B or C"
+  fi
+
   while IFS= read -r url; do
     host=${url#*://}
     host=${host%%[/:?#]*}
@@ -72,11 +76,5 @@ for f in "$readme" "$dir"/project-A.md "$dir"/project-B.md "$dir"/project-C.md; 
     fail "$f: e-mail pattern"
   fi
 done
-
-# README: order C, A, B and C is the go/no-go project
-grep -Eq 'project C.*project A.*project B' "$readme" \
-  || fail "$readme: must list the order project C, project A, project B"
-grep -Eiq 'project C.*go/no-go|go/no-go.*project C' "$readme" \
-  || fail "$readme: must say project C is the go/no-go project"
 
 echo "rollout test: ok"
