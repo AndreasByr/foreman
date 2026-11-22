@@ -1,4 +1,4 @@
-# Project instruction block (v2)
+# Project instruction block (v3)
 
 Copy everything between the two marker lines into the project instructions. Fill the `<...>` values from `.foreman.json` (`models` too; missing keys keep the defaults shown); drop lines whose module is off.
 
