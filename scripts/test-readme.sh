@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Test for the README section "## What is measured" (M012 S3).
+# Test for the section "## What is measured" in docs/learnings.md (M012 S3; moved out of the README).
 # Runs from any directory. Success: prints "readme test: ok". Failure: "FAIL: <reason>" on stderr, exit 1.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-README="README.md"
+README="docs/learnings.md"
 BASELINE_COMMIT="9c51ceb"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -35,11 +35,6 @@ for (let i = start + 1; i < lines.length; i++) {
 }
 const sec = lines.slice(start + 1, end);
 const secText = sec.join("\n");
-
-// Check 1: link to docs/learnings.md inside the section.
-if (!/\]\((\.\/)?docs\/learnings\.md(#[^)]*)?\)/.test(secText)) {
-  fail(`section "${HEADING}" has no link to docs/learnings.md`);
-}
 
 // Check 2: table rows. Columns: label, 0.2.1 value, 0.2.x value, change.
 const LABELS = { "Milestone": "milestone-run", "Fix pack": "fixpack-run", "Batch": "batch-run" };
@@ -98,8 +93,8 @@ if (jsonFile) {
   }
 }
 
-// Check 4: "**Not tested regularly**" followed by at least 3 bullet lines.
-const MARK = "**Not tested regularly**";
+// Check 4: "**Fake APIs only in CI**" followed by at least 3 bullet lines.
+const MARK = "**Fake APIs only in CI**";
 const mi = sec.findIndex((l) => l.startsWith(MARK));
 if (mi < 0) fail(`section "${HEADING}" has no line starting with "${MARK}"`);
 let bullets = 0;

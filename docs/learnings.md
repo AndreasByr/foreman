@@ -75,3 +75,28 @@ Why the rules in foreman exist. Skills hold the rule; the story lives here. Proj
 - **Planning documents leaked real project, host and person names into a public repo.** Requirements, roadmap, milestone briefs and reports named real projects and servers. `scripts/privacy-scan.sh` now also checks a hashed denylist (`scripts/privacy-denylist.sha256`; add words with `python3 scripts/privacy-scan.py --hash <word>`), and the roadmap and brief skills require placeholders in public repos. Git history keeps the old text until it is rewritten.
 - **A denylist scan never finds everything.** The wiki scan (M010) was bypassed in six different ways over six review rounds (plurals, markup, Unicode, link targets, link titles, nested brackets). Decide early what the scan promises (accidental leaks, not attacks) and keep the human check at UAT as the second barrier.
 - **Workers that read the repo `CLAUDE.md` may refuse to code** ("only after exit 1"). Put "you are the delegated worker: edit the files directly" into every task file.
+
+## What is measured
+
+Numbers, not claims. Reasons behind each rule are in the sections above.
+
+**Read amount of a work run** (fixed files only: `CLAUDE.md`, skills and references, in bytes; `node scripts/measure-reads.mjs`, checked on every `scripts/test-all.sh`). The rule is "never more than 0.2.1".
+
+| Work run | 0.2.1 | 0.2.x (M012) | Change |
+|---|---|---|---|
+| Milestone | 43,065 B | 42,714 B | -351 B |
+| Fix pack | 41,475 B | 40,766 B | -709 B |
+| Batch | 32,320 B | 32,276 B | -44 B |
+
+The wiki skill adds 3,617 B, but only with the wiki switched on. Four rules (review gate, hand nothing on, evidence rule, version number) now have one owner each; the other skills point to it, and `scripts/test-rules.py` fails when one is repeated. The board check is kept in two places on purpose (slice in `foreman-milestone`, fix pack point in `foreman-fixpack`: a fix pack run does not load the milestone skill); the intervention cause line has its owner in `foreman-dispatch-run/references/intervention.md` and a one-line mention in milestone and fix pack. The same lint checks the key phrases of these copies (design-reference path, no boards by the Agent, the Cause token).
+
+**Runs and interventions** come from `node scripts/measure.mjs` into `docs/metrics.md`, per project and regenerated each time. For this repository (M001 to M011, 22 Nov 2026): 11 milestones done, 6 interventions, 1 of them with a valid cause line (the cause line exists since M011). Worker fallbacks and models per role: no data. The result files stay on the machine that ran the worker, so the script reports a gap instead of a zero. Run times of older milestones have gaps too, because their `STATE.md` logs are not in the current format. Your own projects get their numbers the same way: run `node scripts/measure.mjs` in each project after its update (`foreman-update`, order and checklist in [docs/rollout/](rollout/)).
+
+**Covered by CI** (offline, `scripts/test-all.sh`): installer and update for every module and both trackers, the delegation wrapper with stub providers, the dispatcher with a fake trigger endpoint, the pretest runner with a fake browser, the Notion mirror with a fake API.
+
+**Fake APIs only in CI** (the real services are used in daily work, but not by the test suite):
+- Ollama Cloud and the LiteLLM gateway with a ChatGPT plan against the real services; the tests use fake endpoints.
+- itsaplan and Linear against a real server (the tests use fake APIs).
+- A work run started through the real Claude Code trigger, and the pretest in a real browser.
+- A work run with an agent other than Claude Code (`opencode`, `other`): the installer, `AGENTS.md` and the git guard are tested, a full run is not.
+- Linear together with the autopilot and the pretest as one running setup.
