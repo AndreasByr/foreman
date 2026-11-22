@@ -1,6 +1,4 @@
-# Rollout: project C
-
-First project: its result decides go/no-go for A and B.
+# Update order: <project name>
 
 Installed version: <from the project's .foreman.json>
 Target: <foreman version or commit to update to>
@@ -38,11 +36,8 @@ Modules: <from .foreman.json>
 - [ ] Own edits in `CLAUDE.md`, `AGENTS.md`, `tools/delegate/config.toml` are still there
 - [ ] `bash scripts/check-config.sh` is ok
 - [ ] The next dispatcher run ends without error
-- [ ] `node scripts/measure.mjs` writes `docs/metrics.md` and the numbers go to the maintainer for the README
 
 ## Go / no-go
 
-Project C decides.
-
-- [ ] Go only when all "After the update" boxes are checked and no own edit was lost. Then A and B follow.
-- [ ] Otherwise no-go: stop and report. A and B wait.
+- [ ] Go for the next project only when all "After the update" boxes are checked and no own edit was lost.
+- [ ] Otherwise no-go: stop and report. Do not retry the update on a live project.
