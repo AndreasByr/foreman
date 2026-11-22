@@ -49,6 +49,7 @@ for x in A B C; do
       || fail "$f: checklist lacks '$c'"
   done
 
+  grep -qF 'Upgrade part' "$f" || fail "$f lacks the Upgrade checkbox"
   grep -q '^Installed version:' "$f" || fail "$f: line 'Installed version:' is missing"
   grep -q '^Target:' "$f" || fail "$f: line 'Target:' is missing"
 done

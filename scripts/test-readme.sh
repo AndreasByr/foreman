@@ -123,6 +123,8 @@ check_readme() {
   if git cat-file -e "${BASELINE_COMMIT}^{commit}" 2>/dev/null; then
     node scripts/measure-reads.mjs --json > "$TMP/measure.json" 2>/dev/null || true
     json="$TMP/measure.json"
+  elif [ -n "${CI:-}" ]; then
+    fail "baseline commit ${BASELINE_COMMIT} missing in CI; use fetch-depth: 0"
   else
     echo "readme test: baseline numbers not checked (${BASELINE_COMMIT} missing)"
   fi
@@ -144,9 +146,11 @@ case "$msg" in
   *) fail "self-check: copy failed for another reason: $msg" ;;
 esac
 
-# Second negative self-check (only when the measure-reads JSON is available): Batch 0.2.x and its change both
-# raised by 1 B keep the change/consistency rules intact, so only the comparison with the measured value can reject it.
+# Second negative self-check (only when the measure-reads JSON is available): Batch 0.2.x lowered by 1 B and its
+# change adjusted (change = now - base, more negative) keep checks 1-2 valid even when Batch equals the baseline,
+# so only the comparison with the measured value can reject it. Skipped when the Batch 0.2.x value is 0.
 if git cat-file -e "${BASELINE_COMMIT}^{commit}" 2>/dev/null && [ -s "$TMP/measure.json" ]; then
+  rc=0
   node -e '
     const fs = require("fs");
     const lines = fs.readFileSync(process.argv[1], "utf8").split("\n");
@@ -154,21 +158,28 @@ if git cat-file -e "${BASELINE_COMMIT}^{commit}" 2>/dev/null && [ -s "$TMP/measu
     const c = lines[i].split("|").map((s) => s.trim());
     const n = (s) => Number(s.replace(/[^0-9]/g, ""));
     const fmt = (v) => v.toLocaleString("en-US") + " B";
-    const now = n(c[3]) + 1;
+    if (n(c[3]) === 0) process.exit(3);
+    const now = n(c[3]) - 1;
     const ch = now - n(c[2]);
     lines[i] = "| Batch | " + c[2] + " | " + fmt(now) + " | " + (ch > 0 ? "+" : ch < 0 ? "-" : "") + fmt(Math.abs(ch)) + " |";
     fs.writeFileSync(process.argv[2], lines.join("\n"));
-  ' "$README" "$TMP/mutated2.md"
-  if cmp -s "$README" "$TMP/mutated2.md"; then
-    fail "self-check: could not alter the Batch 0.2.x value in the copy"
+  ' "$README" "$TMP/mutated2.md" || rc=$?
+  if [ "$rc" -eq 3 ]; then
+    echo "readme test: second self-check skipped (Batch 0.2.x is 0 B)"
+  elif [ "$rc" -ne 0 ]; then
+    fail "self-check: could not build the Batch copy"
+  else
+    if cmp -s "$README" "$TMP/mutated2.md"; then
+      fail "self-check: could not alter the Batch 0.2.x value in the copy"
+    fi
+    if msg="$(check_readme "$TMP/mutated2.md" 2>&1)"; then
+      fail "self-check: copy with a changed Batch 0.2.x value was accepted"
+    fi
+    case "$msg" in
+      *"FAIL: Batch: README says "*" B for 0.2.x"*) ;;
+      *) fail "self-check: copy failed for another reason: $msg" ;;
+    esac
   fi
-  if msg="$(check_readme "$TMP/mutated2.md" 2>&1)"; then
-    fail "self-check: copy with a changed Batch 0.2.x value was accepted"
-  fi
-  case "$msg" in
-    *"FAIL: Batch: README says "*" B for 0.2.x"*) ;;
-    *) fail "self-check: copy failed for another reason: $msg" ;;
-  esac
 fi
 
 echo "readme test: ok"

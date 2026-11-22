@@ -57,7 +57,7 @@ Overall: all `pass` = `pass`; any `needs-remediation` = `needs-remediation`; els
 
 Final run: the full check suite once on the final commit. Older evidence counts only if this run is green. Red or not runnable: overall at most `needs-attention` (red: `needs-remediation`), cause in `VALIDATION.md`.
 
-**The review blocks completion** (Review gate: `foreman-delegation`). Add rework slices to `STATE.md` (`R1-`, `R2-`), implement, review again; no batch PR and no `pretest-waiting` while it is open. Every `needs-input` writes the `**Cause:** <category> · <one sentence>` line in its Open question section; a missing cause is reported as a gap by `scripts/measure.mjs`.
+**The review blocks completion** (Review gate: `foreman-delegation`). Add rework slices to `STATE.md` (`R1-`, `R2-`), implement, review again; no batch PR and no `pretest-waiting` while it is open. Every `needs-input` writes the `**Cause:** <category> · <one sentence>` line (categories: STATE.md template; rule: `foreman-dispatch-run/references/intervention.md`).
 
 Limits: UAT and approval stay with the human. A reviewer or session never marks product decisions (taste beyond the approved board, wording, clarity of text) or checks needing a real second account as passed.
 

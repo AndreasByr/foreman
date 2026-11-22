@@ -134,11 +134,40 @@ def check_cause_line(root, errors):
     for rel in CAUSE_FILES:
         path = os.path.join(root, rel)
         if not os.path.isfile(path):
+            errors.append(f"Cause line: {rel} is missing")
             continue
         with open(path, encoding="utf-8", newline="") as f:
             text = f.read()
         if not any(CAUSE_LINE in line for line in text.splitlines()):
             errors.append(f'Cause line: {rel} lacks the line "{CAUSE_LINE}"')
+
+
+# Board check copy: the rule is kept in two places on purpose (slice in foreman-milestone, point in
+# foreman-fixpack, because a fix pack run does not load the milestone skill). Both lines carry both texts.
+BOARD_MARK = "Board check"
+BOARD_TEXTS = ["docs/design-reference/", "The Agent creates no boards"]
+BOARD_FILES = [
+    "template/.claude/skills/foreman-milestone/SKILL.md",
+    "template/.claude/skills/foreman-fixpack/SKILL.md",
+]
+
+
+def check_board_copy(root, errors):
+    for rel in BOARD_FILES:
+        path = os.path.join(root, rel)
+        if not os.path.isfile(path):
+            errors.append(f"Board check: {rel} is missing")
+            continue
+        with open(path, encoding="utf-8", newline="") as f:
+            lines = [line for line in f.read().splitlines() if BOARD_MARK in line]
+        if not lines:
+            errors.append(f"Board check: {rel} has no Board check line")
+            continue
+        if any(all(t in line for t in BOARD_TEXTS) for line in lines):
+            continue
+        for t in BOARD_TEXTS:
+            if t not in lines[0]:
+                errors.append(f"Board check: {rel} line lacks '{t}'")
 
 
 def check_single_source(root, errors):
@@ -228,6 +257,7 @@ def check(root):
     check_single_source(root, errors)
     check_principles(root, errors)
     check_cause_line(root, errors)
+    check_board_copy(root, errors)
     check_rendered(root, errors)
     check_learnings(root, errors)
     return errors
@@ -271,11 +301,20 @@ DELEGATION_TEXT = (
 MILESTONE_TEXT = (
     "# Milestone\n"
     "\n"
-    "- **Board check:** without an approved design board the slice goes to needs-input.\n"
+    "- **Board check:** without an approved design board in docs/design-reference/ the slice goes to needs-input. The Agent creates no boards.\n"
     "- Every needs-input writes the **Cause:** <category> · <one sentence> line.\n"
     "\n"
     "# {{PROJECT_NAME}} milestone\n"
 )
+FIXPACK_TEXT = (
+    "# Fix pack\n"
+    "\n"
+    "- Board check (planning): board file under docs/design-reference/ ... The Agent creates no boards.\n"
+    "- Every needs-input writes the **Cause:** <category> · <one sentence> line.\n"
+    "\n"
+    "# {{PROJECT_NAME}} fix pack\n"
+)
+INTERVENTION_TEXT = "# Intervention\n\n- Every needs-input writes the **Cause:** <category> · <one sentence> line.\n"
 
 
 def good_files():
@@ -283,7 +322,10 @@ def good_files():
         "template/.claude/skills/demo/SKILL.md": TEMPLATE_TEXT,
         "template/.claude/skills/foreman-delegation/SKILL.md": DELEGATION_TEXT,
         "template/.claude/skills/foreman-milestone/SKILL.md": MILESTONE_TEXT,
+        "template/.claude/skills/foreman-fixpack/SKILL.md": FIXPACK_TEXT,
+        "template/.claude/skills/foreman-dispatch-run/references/intervention.md": INTERVENTION_TEXT,
         "plugins/foreman/skills/demo/SKILL.md": RULE_LINES,
+        ".claude/skills/foreman-fixpack/SKILL.md": FIXPACK_TEXT.replace("{{PROJECT_NAME}}", "foreman"),
         ".claude/skills/demo/SKILL.md": RENDERED_TEXT,
         ".claude/skills/foreman-delegation/SKILL.md": DELEGATION_TEXT.replace("{{PROJECT_NAME}}", "foreman"),
         ".claude/skills/foreman-milestone/SKILL.md": MILESTONE_TEXT.replace("{{PROJECT_NAME}}", "foreman"),
@@ -448,6 +490,7 @@ def case_clean_tree_passes():
 EXTRA = "template/.claude/skills/demo/extra.md"
 DELEGATION_PATH = "template/.claude/skills/foreman-delegation/SKILL.md"
 MILESTONE_PATH = "template/.claude/skills/foreman-milestone/SKILL.md"
+FIXPACK_PATH = "template/.claude/skills/foreman-fixpack/SKILL.md"
 
 
 def case_ss_expect(files, needle):
@@ -500,18 +543,44 @@ def case_principles(text, expect_error):
 
 
 def cause_files(replace_in=None):
-    """good_files plus the three Cause-line files; replace_in names one file whose <category> becomes <kind>."""
+    """good_files (all three Cause-line files exist); replace_in names one file whose <category> becomes <kind>."""
     files = good_files()
-    for rel in CAUSE_FILES:
-        line = CAUSE_LINE
-        if rel == replace_in:
-            line = line.replace("<category>", "<kind>")
-        text = "# Cause demo\n\n" + line + "\n"
-        if rel == MILESTONE_PATH:
-            text = MILESTONE_TEXT + "\n" + line + "\n"
-            files[".claude/skills/foreman-milestone/SKILL.md"] = text.replace("{{PROJECT_NAME}}", "foreman")
-        files[rel] = text
+    if replace_in is not None:
+        text = files[replace_in].replace(CAUSE_LINE, CAUSE_LINE.replace("<category>", "<kind>"))
+        files[replace_in] = text
+        rendered = replace_in.replace("template/", "", 1)
+        if rendered in files:
+            files[rendered] = text.replace("{{PROJECT_NAME}}", "foreman")
     return files
+
+
+def case_cause_file_missing():
+    files = good_files()
+    del files[CAUSE_FILES[0]]
+    needle = f"Cause line: {CAUSE_FILES[0]} is missing"
+    return run_case(files, lambda errors: any(needle in e for e in errors))
+
+
+def case_board_ok():
+    return run_case(good_files(), lambda errors: errors == [])
+
+
+def case_board_fixpack_lacks_text():
+    files = good_files()
+    text = FIXPACK_TEXT.replace(" The Agent creates no boards.", "")
+    files[FIXPACK_PATH] = text
+    files[".claude/skills/foreman-fixpack/SKILL.md"] = text.replace("{{PROJECT_NAME}}", "foreman")
+    needle = f"Board check: {FIXPACK_PATH} line lacks 'The Agent creates no boards'"
+    return run_case(files, lambda errors: any(needle in e for e in errors))
+
+
+def case_board_milestone_lacks_text():
+    files = good_files()
+    text = MILESTONE_TEXT.replace("in docs/design-reference/ ", "")
+    files[MILESTONE_PATH] = text
+    files[".claude/skills/foreman-milestone/SKILL.md"] = text.replace("{{PROJECT_NAME}}", "foreman")
+    needle = f"Board check: {MILESTONE_PATH} line lacks 'docs/design-reference/'"
+    return run_case(files, lambda errors: any(needle in e for e in errors))
 
 
 def case_cause_ok():
@@ -528,6 +597,10 @@ SELFTESTS = [
     ("correct tree gives no errors", case_correct),
     ("Cause line in all three files passes", case_cause_ok),
     ("Cause line with <kind> in one file errors", case_cause_drift),
+    ("missing Cause file errors", case_cause_file_missing),
+    ("Board check copies in both files pass", case_board_ok),
+    ("fixpack Board check line without 'The Agent creates no boards' errors", case_board_fixpack_lacks_text),
+    ("milestone Board check line without 'docs/design-reference/' errors", case_board_milestone_lacks_text),
     ("PRINCIPLES.md with '3 rounds' errors", lambda: case_principles(
         "# Principles\n\nWe allow 3 rounds of review.\n", True)),
     ("PRINCIPLES.md with 'three review rounds' errors", lambda: case_principles(

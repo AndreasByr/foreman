@@ -68,11 +68,11 @@ Numbers, not claims. Details and the reasons behind each rule: [docs/learnings.m
 
 | Work run | 0.2.1 | 0.2.x (M012) | Change |
 |---|---|---|---|
-| Milestone | 43,065 B | 42,717 B | -348 B |
-| Fix pack | 41,475 B | 40,769 B | -706 B |
+| Milestone | 43,065 B | 42,714 B | -351 B |
+| Fix pack | 41,475 B | 40,766 B | -709 B |
 | Batch | 32,320 B | 32,276 B | -44 B |
 
-The wiki skill adds 3,617 B, but only with the wiki switched on. Five rules (review gate, hand nothing on, evidence rule, board check, version number) now have one owner each; the other skills point to it, and `scripts/test-rules.py` fails when one is repeated. The cause line of an intervention is kept in three files on purpose (an older test requires it); the same lint keeps the three in step.
+The wiki skill adds 3,617 B, but only with the wiki switched on. Four rules (review gate, hand nothing on, evidence rule, version number) now have one owner each; the other skills point to it, and `scripts/test-rules.py` fails when one is repeated. The board check is kept in two places on purpose (slice in `foreman-milestone`, fix pack point in `foreman-fixpack`: a fix pack run does not load the milestone skill); the intervention cause line has its owner in `foreman-dispatch-run/references/intervention.md` and a one-line mention in milestone and fix pack. The same lint keeps these copies in step.
 
 **Runs and interventions** come from `node scripts/measure.mjs` into `docs/metrics.md`, per project and regenerated each time. For this repository (M001 to M011, 22 Nov 2026): 11 milestones done, 6 interventions, 1 of them with a valid cause line (the cause line exists since M011). Worker fallbacks and models per role: no data. The result files stay on the machine that ran the worker, so the script reports a gap instead of a zero. Run times of older milestones have gaps too, because their `STATE.md` logs are not in the current format. The numbers of the other projects arrive after their update with `foreman-update`.
 
