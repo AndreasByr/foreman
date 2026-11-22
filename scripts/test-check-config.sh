@@ -494,6 +494,8 @@ bad_value l-audience-dup '{"wiki":{"enabled":true,"language":"de","audiences":[{
 
 # l-rootpage-empty: enabled true needs a rootPageId
 bad_value l-rootpage-empty '{"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}],"rootPageId":""}}' wiki.rootPageId
+# l-rootpage-missing: enabled true with no rootPageId key at all: FAIL naming wiki.rootPageId
+bad_value l-rootpage-missing '{"wiki":{"enabled":true,"language":"de","audiences":[{"name":"Spieler und Tester"}]}}' wiki.rootPageId
 
 # l-forbidden-*: entries must be non-empty strings, also when disabled
 bad_value l-forbidden-number '{"wiki":{"enabled":false,"forbidden":[42]}}' wiki.forbidden

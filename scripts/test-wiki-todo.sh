@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 
 fail() { echo "wiki todo tests: FAIL: $1" >&2; exit 1; }
 has() { grep -qF -- "$2" "$1" || fail "$1 lacks: $2"; }
+lacks() { ! grep -qF -- "$2" "$1" || fail "$1 contains: $2"; }
 
 # milestone template: identical in docs/ and template/
 diff -r docs/milestones/_TEMPLATE template/docs/milestones/_TEMPLATE >/dev/null || fail "_TEMPLATE differs between docs/ and template/"
@@ -36,6 +37,20 @@ cmp -s .claude/skills/foreman-milestone/SKILL.md template/.claude/skills/foreman
 
 # brief template carries the Wiki line
 has plugins/foreman/skills/foreman-brief/references/brief-template.md "Wiki:"
+
+# dispatch batch run passes the unit to the wiki check
+has template/.claude/skills/foreman-dispatch-run/references/batch-run.md "--unit"
+
+# old "from `batch-pr` on" wording is gone from the milestone skills (both copies) and the brief files
+for f in .claude/skills/foreman-milestone/SKILL.md template/.claude/skills/foreman-milestone/SKILL.md plugins/foreman/skills/foreman-brief/references/brief-template.md; do
+  lacks "$f" 'from `batch-pr` on'
+done
+
+# foreman-wiki skill: the Wiki line goes into the header; the check line and the audience key are named
+WIKI_SKILL=template/.claude/skills/foreman-wiki/SKILL.md
+has "$WIKI_SKILL" "header"
+has "$WIKI_SKILL" "checked: no-ai-slop, humanizer"
+has "$WIKI_SKILL" "audience:"
 
 # state-mirror and state lib copies
 cmp -s scripts/state-mirror.mjs template/scripts/state-mirror.mjs || fail "state-mirror.mjs differs between scripts/ and template/scripts/"

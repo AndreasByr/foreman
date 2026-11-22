@@ -752,6 +752,44 @@ await check("lib scanText internal-term: 'offen' + word is no hit ('Offenbar fra
   }
 });
 
+await check("lib scanText link or image title: an internal or forbidden term after the target is a hit, in text and in a heading; a harmless title is no hit", async () => {
+  const { scanText } = await loadScan();
+  const cases = [
+    ["internal-term", '![Screenshot](shot.png "Screenshot of the roadmap")'],
+    ["forbidden", "[Download](https://example.com/x Projekt B)"],
+    ["internal-term", "[x](a.png 'Fix-Paket')"],
+  ];
+  for (const [rule, v] of cases) {
+    for (const [label, text] of [
+      ["text", `Erste Zeile\nText mit ${v} hier\nDritte Zeile\n`],
+      ["heading", `Erste Zeile\n# ${v}\nDritte Zeile\n`],
+    ]) {
+      const f = scanText(text, ["Projekt B"]);
+      assert.ok(f.some((x) => x.line === 2 && x.rule === rule), `${label} ${v}: ${JSON.stringify(f)}`);
+    }
+  }
+  const clean = scanText('Erste Zeile\nText mit ![Bild](a.png "Ein Foto vom Spiel") hier\n', ["Projekt B"]);
+  assert.deepEqual(clean, [], JSON.stringify(clean));
+});
+
+await check("lib scanText internal-term: a term split by a line break inside a paragraph is a hit ('Road-\\nmap', 'Fix\\nPaket', 'open\\nquestions')", async () => {
+  const { scanText } = await loadScan();
+  for (const v of ["Road-\nmap", "Fix\nPaket", "open\nquestions"]) {
+    const f = scanText(`Erste Zeile\nEin Absatz mit ${v} hier, weiter im Text.\nDritte Zeile\n`, []);
+    assert.ok(f.some((x) => x.rule === "internal-term"), `${JSON.stringify(v)}: ${JSON.stringify(f)}`);
+  }
+});
+
+await check("lib scanText internal-term: 'den Briefen' and standalone 'BRIEF' are hits; lowercase 'brief' stays clean", async () => {
+  const { scanText } = await loadScan();
+  for (const v of ["In den Briefen steht es.", "Der Auftrag steht im BRIEF."]) {
+    const f = scanText(`Erste Zeile\n${v}\nDritte Zeile\n`, []);
+    assert.ok(f.some((x) => x.line === 2 && x.rule === "internal-term"), `${v}: ${JSON.stringify(f)}`);
+  }
+  const clean = scanText("Erste Zeile\nEin brief liegt bei, siehe das Briefing.\n", []);
+  assert.deepEqual(clean, [], JSON.stringify(clean));
+});
+
 // ---- lib: validatePages
 
 await check("lib validatePages: a clean page in an audience folder gives no problem", async () => {
@@ -1207,6 +1245,32 @@ for (const dry of [false, true]) {
   });
 }
 
+for (const [label, name] of [
+  ["internal term", "[x](a roadmap).md"],
+  ["forbidden term", "[x](Projekt Z).md"],
+]) {
+  for (const dry of [false, true]) {
+    await check(`cli --wiki scan: page file name with a ${label} in link syntax -> exit 4, no writes, path named${dry ? " (--dry-run)" : ""}`, async () => {
+      const path = `docs/wiki/spieler-und-tester/${name}`;
+      const root = pubProject({ [path]: HEAD + "# Netz\n\nInvented text.\n" });
+      const fake = await startWikiFake();
+      try {
+        const args = ["--wiki", "--root", root];
+        if (dry) args.push("--dry-run");
+        const mark = fake.requests.length;
+        const r = await runCliAsync({ cwd: root, args, base: fake.base });
+        assert.equal(r.status, 4, info(r));
+        assert.equal(fake.writes(mark).length, 0, "writes sent");
+        assert.ok(r.stderr.includes(path), `path not named\n${info(r)}`);
+        noToken(r);
+      } finally {
+        await fake.close();
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+  }
+}
+
 // ---- CLI: error output never shows a secret-shaped name
 
 const TOKEN_STEM = ["ghp", ALNUM.slice(0, 30)].join("_"); // token-shaped page name, built at runtime
@@ -1447,6 +1511,23 @@ await check("cli mirror (no --wiki) --dry-run never lists docs/wiki; --wiki neve
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+for (const [label, rel, pattern] of [
+  ["folder docs/Wiki/", "docs/Wiki/mirror-only.md", /wiki\/mirror-only\.md/i],
+  ["file docs/WIKI/x.md", "docs/WIKI/x.md", /wiki\/x\.md/i],
+]) {
+  await check(`cli mirror (no --wiki) --dry-run: ${label} is excluded like docs/wiki (case-insensitive)`, async () => {
+    const root = pubProject({ [rel]: "# Mirror\n\nInvented text.\n" });
+    try {
+      const m = runCli({ cwd: root, args: ["--dry-run", "--root", root], token: "" });
+      assert.equal(m.status, 0, info(m));
+      assert.ok(m.stdout.includes("roadmap"), `mirror did not list the internal docs (sanity)\n${info(m)}`);
+      assert.ok(!pattern.test(m.stdout), `mirror listed ${rel}\n${info(m)}`);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
 
 await check("hook contains no --wiki", async () => {
   const f = join(HERE, "post-merge.d", "docs-notion.sh");

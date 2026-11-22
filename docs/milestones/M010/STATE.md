@@ -1,4 +1,4 @@
-Status: validation · since 2026-11-22T01:10Z · R4 fertig, Validierung Runde 5
+Status: validation · since 2026-11-22T01:10Z · R5 fertig, Validierung Runde 6
 Target: dev
 Batch-branch: batch/m010
 Lock: free
@@ -22,6 +22,7 @@ Start commit: cd07088 (Basis dev 9950ab9, nach Merge von main)
 | R2 | Rework 2: Titel global eindeutig (Zielgruppen-Seiten inbegriffen), Seiten nur in Zielgruppen-Ordnern, Scan mit Beugung und Markup-Bereinigung, Namen mit Secret nie ausgeben, Wurzel-ID normalisiert, Wiki-Gate nur mit `--unit` (sonst WARN), Update-Test, Doku | done | M010 R2 | template/scripts/lib/docs-wiki*.mjs, docs-notion.mjs, check-config.sh (2), state-mirror.mjs (2), foreman-batch/-milestone/-wiki Skills, Tests, MODULES.md, CHANGELOG.md | Abweichung von Kriterium 7: `state-mirror --check --local` scheitert nur mit `--unit <Mnnn>`; ohne `--unit` nur WARN, damit alte Milestones nichts blockieren |
 | R3 | Rework 3: Scan löst Markdown-Escapes und Links auf, Verbotsbegriffe nur als ganze Wörter, `offen`-Muster enger, `.MD`-Seiten, fremde Notion-Seiten werden nie überschrieben, Doku und Batch-Lauf-Hinweis | done | M010 R3 | template/scripts/lib/docs-wiki-scan.mjs, docs-wiki-publish.mjs, docs-notion.mjs (lib), batch-run.md, MODULES.md, CHANGELOG.md, test-docs-wiki.mjs | Abweichung: nur ganze Wörter plus s/n/en/es; Wiki-Hook gibt weiter Argumente durch |
 | R4 | Rework 4 (Karte an den Maintainer, Empfehlung R4): Verbotsbegriffe auch in Link-/Bildzielen, Unicode-Trennstriche und Lookalikes, doppelte Dateinamen, leeres Wiki archiviert, Gate mit `--unit` prüft jeden Status außer done, Update-Test positiv | done | M010 R4 | template/scripts/lib/docs-wiki-*.mjs, docs-notion.mjs, state-mirror.mjs (2), Tests, MODULES.md, CHANGELOG.md | Entscheidungskarte war noch offen; `checked:`-Vermerk bleibt eine Behauptung (dokumentiert) |
+| R5 | Rework 5 (Karte offen, Empfehlung R5): Text in Link-Klammern, Begriffe über Zeilenumbrüche, Brief-Varianten, Groß/Klein bei docs/Wiki, Skill-/Vorlagentexte, Changelog | done | M010 R5 | template/scripts/lib/docs-wiki-scan.mjs, docs-notion.mjs, Skills, brief-template.md, CHANGELOG.md, Tests | |
 
 ## Check plan per slice
 
@@ -57,3 +58,4 @@ None recorded.
 - 2026-11-22T02:10Z · Validierung 2 (A/C needs-attention, B needs-remediation, 1 hoch: Titelkollision Zielgruppe/Seite). R2 Tests zuerst (rot bestätigt), Worker B Exit 1 (nur Skill-Texte offen, von der Sitzung ergänzt); `bash scripts/test-all.sh` Exit 0 · M010 R2
 - 2026-11-22T03:10Z · Validierung 3 (A/B/C needs-attention: 2 mittlere in B, 1 in C Doku). R3 Tests zuerst (6 rot bestätigt), danach `bash scripts/test-all.sh` Exit 0 · M010 R3
 - 2026-11-22T04:10Z · Validierung 4 (C pass, A needs-attention, B needs-remediation: 1 hoch Verbotsbegriff in Link-Zielen). R4 (4. Nacharbeit, Entscheidungskarte gestellt, parallel auf Empfehlung gearbeitet): Tests zuerst rot, danach `bash scripts/test-all.sh` Exit 0 · M010 R4
+- 2026-11-22T06:10Z · Validierung 5 (A pass, C needs-attention Doku und Name, B needs-remediation: Text in Link-Klammern). R5 Tests zuerst rot, danach `bash scripts/test-all.sh` Exit 0 · M010 R5

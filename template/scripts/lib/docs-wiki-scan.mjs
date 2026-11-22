@@ -10,7 +10,7 @@ const INTERNAL = new RegExp(
     "|docs/(agent-reports|fixpacks|answers|role-reviews|milestones|uat)(?![\\p{L}-])",
   "iu",
 );
-const BRIEF = /(?<![\p{L}])Brief(e|s)?(?![\p{L}-])/u; // capitalized, case-sensitive: "brief", "Briefing" and "Brief-Format" stay allowed
+const BRIEF = /(?<![\p{L}])(?:Brief(?:e|en|s)?|BRIEF)(?![\p{L}-])/u; // capitalized or all caps, case-sensitive: "brief", "Briefing" and "Brief-Format" stay allowed
 const HOST = [
   /\b\d{1,3}(\.\d{1,3}){3}\b/,
   /\blocalhost\b/i,
@@ -40,14 +40,21 @@ const SECRET = [
 const ZERO = /[​-‏‪-‮⁠-⁤᠎﻿]/g;
 const fold = (s, gap = "") => String(s).replace(/­/g, "").replace(ZERO, gap).normalize("NFKC").replace(/­/g, "").replace(/[‐-―−]/g, "-");
 const ESCAPED = /\\([\\`*_{}[\]()#+\-.!|~<>])/g;
-const LINK = /!?\[([^\]]*)\]\(\s*(?:<([^>]*)>|([^)\s]*))[^)]*\)/g;
+const LINK = /!?\[([^\]]*)\]\(\s*(?:<([^>]*)>|([^)\s]*))([^)]*)\)/g;
 const plain = (s) => fold(s);
 const unescape = (s) => plain(s).replace(ESCAPED, "$1");
-// Cleaned copy: links become their text, brackets and markup marks go. urls holds the link targets for a separate scan.
+// Cleaned copy: links become their text plus the words after the target (title, quoted or not); brackets and markup marks go.
+// urls holds the link targets (and target plus extra words) for a separate scan.
 function cleaned(s) {
   const urls = [];
   const text = unescape(s)
-    .replace(LINK, (_, t, a, b) => (urls.push(a ?? b ?? ""), t))
+    .replace(LINK, (_, t, a, b, rest) => {
+      const target = a ?? b ?? "";
+      const extra = rest.trim();
+      urls.push(target);
+      if (extra) urls.push(`${target} ${extra}`);
+      return extra ? `${t} ${extra}` : t;
+    })
     .replace(/[[\]*_`~]/g, "");
   return { text, urls };
 }
@@ -70,6 +77,10 @@ const variants = (s) =>
   });
 const termRe = (t) => new RegExp(`(?<![\\p{L}\\p{N}])${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:s|n|en|es)?(?![\\p{L}\\p{N}])`, "u");
 
+// Whole text on one line: "-\n" joins a hyphenated word, other line breaks become single spaces.
+const collapse = (s) => String(s).replace(/-[ \t]*\r?\n[ \t]*/g, "").replace(/\s*\r?\n\s*/g, " ");
+const internal = (c) => [c.text, ...c.urls].some((p) => INTERNAL.test(p)) || BRIEF.test(c.text);
+
 const hostSecret = (texts) => ({
   host: texts.some((t) => HOST.some((r) => r.test(t))),
   secret: texts.some((t) => SECRET.some((r) => r.test(t))),
@@ -84,11 +95,15 @@ export function scanText(text, forbidden = []) {
   const found = [];
   const terms = forbidden.map((t) => norm(cleaned(t).text)).filter(Boolean).map(termRe);
   let lineHit = false;
+  let internalHit = false;
   String(text).split(/\r?\n/).forEach((line, i) => {
     const hit = (rule) => found.push({ line: i + 1, rule });
     const c = cleaned(line);
     const parts = [c.text, ...c.urls];
-    if (parts.some((p) => INTERNAL.test(p)) || BRIEF.test(c.text)) hit("internal-term");
+    if (internal(c)) {
+      hit("internal-term");
+      internalHit = true;
+    }
     const hs = hostSecret([plain(line), unescape(line), ...parts]);
     if (hs.host) hit("host");
     if (hs.secret) hit("secret");
@@ -97,7 +112,9 @@ export function scanText(text, forbidden = []) {
       lineHit = true;
     }
   });
-  if (!lineHit && variants(text).some((v) => terms.some((r) => r.test(v)))) found.push({ line: 0, rule: "forbidden" });
+  const whole = collapse(text);
+  if (!internalHit && [fold(whole, ""), fold(whole, " ")].some((f) => internal(cleaned(f)))) found.push({ line: 0, rule: "internal-term" });
+  if (!lineHit && [...variants(text), ...variants(whole)].some((v) => terms.some((r) => r.test(v)))) found.push({ line: 0, rule: "forbidden" });
   return found;
 }
 

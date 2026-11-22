@@ -63,4 +63,4 @@ checked: no-ai-slop, humanizer
 ## Milestone todo
 
 - Every milestone asks: does the wiki need an update?
-- Write one line into its `STATE.md`: `Wiki: <pages affected>` or `Wiki: no change`. Only when the wiki is on.
+- Write one line into the `STATE.md` header, before the first `#` line (not into the log): `Wiki: <pages affected>` or `Wiki: no change`. Only when the wiki is on.

@@ -122,7 +122,7 @@ async function main() {
   } catch (e) {
     if (/same root page/.test(e?.message ?? "")) throw e; // no or broken wiki block: nothing to compare
   }
-  cfg.exclude = [...cfg.exclude, "docs/wiki/**"]; // wiki pages go out only with --wiki
+  cfg.exclude = [...cfg.exclude, ...[..."wiki"].reduce((a, c) => a.flatMap((x) => [x + c, x + c.toUpperCase()]), [""]).map((w) => `docs/${w}/**`)]; // wiki pages go out only with --wiki, any case spelling
   if (!opts.dryRun) {
     const missing = [];
     if (!token) missing.push("NOTION_API_KEY");
