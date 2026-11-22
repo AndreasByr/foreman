@@ -60,6 +60,31 @@ you ──► chat ──► work run (Claude Code) ──► workers ──► 
 
 Principles: [docs/PRINCIPLES.md](docs/PRINCIPLES.md). Lifecycle: [docs/WORKFLOW.md](docs/WORKFLOW.md). Lessons from real use: [docs/learnings.md](docs/learnings.md).
 
+## What is measured
+
+Numbers, not claims. Details and the reasons behind each rule: [docs/learnings.md](docs/learnings.md).
+
+**Read amount of a work run** (fixed files only: `CLAUDE.md`, skills and references, in bytes; `node scripts/measure-reads.mjs`, checked on every `scripts/test-all.sh`). The rule is "never more than 0.2.1".
+
+| Work run | 0.2.1 | 0.2.x (M012) | Change |
+|---|---|---|---|
+| Milestone | 43,065 B | 42,714 B | -351 B |
+| Fix pack | 41,475 B | 40,766 B | -709 B |
+| Batch | 32,320 B | 32,276 B | -44 B |
+
+The wiki skill adds 3,617 B, but only with the wiki switched on. Four rules (review gate, hand nothing on, evidence rule, version number) now have one owner each; the other skills point to it, and `scripts/test-rules.py` fails when one is repeated. The board check is kept in two places on purpose (slice in `foreman-milestone`, fix pack point in `foreman-fixpack`: a fix pack run does not load the milestone skill); the intervention cause line has its owner in `foreman-dispatch-run/references/intervention.md` and a one-line mention in milestone and fix pack. The same lint checks the key phrases of these copies (design-reference path, no boards by the Agent, the Cause token).
+
+**Runs and interventions** come from `node scripts/measure.mjs` into `docs/metrics.md`, per project and regenerated each time. For this repository (M001 to M011, 22 Nov 2026): 11 milestones done, 6 interventions, 1 of them with a valid cause line (the cause line exists since M011). Worker fallbacks and models per role: no data. The result files stay on the machine that ran the worker, so the script reports a gap instead of a zero. Run times of older milestones have gaps too, because their `STATE.md` logs are not in the current format. The numbers of the other projects arrive after their update with `foreman-update`.
+
+**Regularly tested** (offline, `scripts/test-all.sh`): installer and update for every module and both trackers, the delegation wrapper with stub providers, the dispatcher with a fake trigger endpoint, the pretest runner with a fake browser, the Notion mirror with a fake API.
+
+**Not tested regularly** (checked by hand in a reference project, if at all):
+- Ollama Cloud and the LiteLLM gateway with a ChatGPT plan against the real services.
+- itsaplan and Linear against a real server (only fake APIs in the tests).
+- A work run started through the real Claude Code trigger, and the pretest in a real browser.
+- A work run with an agent other than Claude Code (`opencode`, `other`): the installer, `AGENTS.md` and the git guard are tested, a full run is not.
+- Linear together with the autopilot and the pretest as one running setup.
+
 ## Chat skills
 
 | Skill | Use it to |

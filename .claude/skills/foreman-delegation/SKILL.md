@@ -8,12 +8,9 @@ description: How every coding order in foreman is done. Load for any code change
 1. The session plans and accepts. Workers research and code via `python3 tools/delegate/run_task.py tools/delegate/tasks/<ID>-name.md`. No `Agent` subagents for research or coding (only exception: wrapper exit 5, see below); parallel work = several wrapper calls.
 2. Every task file has `role:` in its front matter (`verify:` optional). Models are set only in `tools/delegate/config.toml`. Default start role: `execution_simple`.
 3. Run the `verify` command yourself once before delegating.
-4. Never trust a worker's report. Read the diff and run the checks yourself. Order: scope check, tests/typecheck/lint, red-then-green test, then role `validation`. Stop at the first red.
-5. Exit code 1 from the wrapper = all steps failed; only then code it yourself.
-6. Push only to `dev`, `batch/*` or your `agent/*` branch. Never to `main` or `prod`. No force push. No PR, merge, tag, deploy or branch deletion without an explicit order in this session (batch and release skills define the orders).
-7. Before every push: `git rev-parse --abbrev-ref HEAD` and read the target. `main` or `prod` = abort.
-8. Never touch production tenants or data. Test only against `<test-tenant>`.
-9. A security finding (secrets, permissions, tenant isolation) goes to `needs-input` after the first failed rework.
+4. Never trust a worker's report: read the diff and run the checks yourself, in the order of "Acceptance order". Stop at the first red.
+5. Push targets and orders (PR, merge, tag, deploy, branch deletion): section "Git rules" below.
+6. Before every push: `git rev-parse --abbrev-ref HEAD` and read the target. `main` or `prod` = abort.
 
 Details below. Read them when a case comes up.
 
@@ -37,7 +34,7 @@ Details below. Read them when a case comes up.
 
 **Complex** (start with `execution`, say why in the report): more than about 3 files across modules, schema or migration, auth/permissions, new architecture or dependency, or the task cannot be described precisely. Everything else starts with `execution_simple`; the wrapper escalates by itself.
 
-**Module ollama:** simple roles run on Ollama Cloud. If the Ollama API fails, the wrapper repeats the role with the fallback model from `config.toml` and notes it in the result. That is not an escalation and not a reason to code yourself. A task that fails on content (`verify` red) escalates normally.
+**Module ollama:** simple roles run on Ollama Cloud. On an API failure the wrapper repeats the role with the fallback model from `config.toml` and notes it; that is no escalation and no reason to code yourself. A red `verify` escalates normally.
 
 ## Workflow of a coding order
 
@@ -76,7 +73,7 @@ Describe what, not how. Put the diff into a `validation` task, because workers h
 | 2 | call or config error (for example no `role`) | fix the task file or config |
 | 3 | prerequisite missing (CLI, key without fallback) | stop and report |
 | 4 | `verify` command not runnable, no worker started | fix the `verify` command, run it once yourself |
-| 5 | Claude workers cannot log in ("Not logged in") | hand the same task file to a subagent of this session (Agent tool, model of the role from `config.toml`, foreground). This is the only allowed use of Claude subagents for coding. Note it in the report; if it repeats, set `claude_login = "inherit"` in `config.toml` |
+| 5 | Claude workers cannot log in ("Not logged in") | hand the same task file to a subagent of this session (Agent tool, the role's model from `config.toml`, foreground); the only allowed use of Claude subagents for coding. Note it in the report; if it repeats, set `claude_login = "inherit"` in `config.toml` |
 
 A `## Findings` section in the result (file changed outside `files:`, or a readonly role changed a file) is red even with exit code 0.
 
@@ -85,11 +82,15 @@ A `## Findings` section in the result (file changed outside `files:`, or a reado
 1. **Scope check:** `git diff --stat` touches only files the task or brief names. Remove helper files workers leave.
 2. **Mechanical:** tests, typecheck, lint; run the production build when app code changed. Run them yourself.
 3. **Red-then-green:** every fix has an automatic test that failed before the change and passes after it. Record both runs with commit SHA. No such test = not done.
-4. **UI:** check the rendered output (local screenshot or component render) against the design board, not only the typecheck.
-5. **`validation`:** only now, with the diff and the sources in the task. `needs-attention`, `needs-remediation` or findings of medium or higher block completion. Rework and review again, at most 2 rounds. A security finding escalates after the first failed rework. Still open: unit becomes `needs-input`, never `awaiting-merge`.
+4. **UI:** check the rendered output (local screenshot or component render) against the design board, not only the typecheck. A strong deviation (other structure, missing or extra elements) means not done: `blocked` with the deviation as the question (unit `needs-input`).
+5. **`validation`:** only now, with the diff and the sources in the task. Review gate below.
 6. Flaky tests (red then green without code change): record in `docs/flaky-tests.md`, report as own item, never skip or weaken.
 
-Evidence rule: every "done" names command, exit code and commit SHA. Without all three it counts as open.
+**Review gate:** the `validation` verdict must be `pass` with no finding of medium or higher; `needs-attention` and `needs-remediation` block, no "continue with a note". Rework and review again, at most 2 rounds; a security finding escalates after the first failed rework. Still open: unit `needs-input` with the finding as the question, never `awaiting-merge`, `pretest-waiting` or a batch PR. Low findings may stay open and go into the report.
+
+**Hand nothing on:** what the session can check (tests, API call, test-tenant call, local browser run) it checks itself in this unit; only what needs a real second account or a product decision goes to UAT. Nothing is "temporarily" blocked, hidden or disabled until someone tests; a needed test is built in this unit, else the step is `blocked` with the concrete question (unit `needs-input`).
+
+**Evidence rule:** every "done" names command, exit code and commit SHA (git rev-parse --short HEAD). Without all three it counts as open. A command that fails for technical reasons (for example e2e does not start) is an open point, never "done".
 
 ## Git rules
 
@@ -98,8 +99,8 @@ Evidence rule: every "done" names command, exit code and commit SHA. Without all
 - Migrations on sync: the ones from `main` stay unchanged (never rename, edit or delete). The ones from `dev` are re-ordered to sort after the newest migration from `main`, and `up` stays idempotent.
 - No force push. Delete nothing the human did not approve, except your own finished work branch (see `foreman-batch`).
 - Before a push to a batch branch or `dev`, run the production build when `app/`, `server/`, `shared/` or the build config changed; typecheck and unit tests miss bundling errors.
-- Without an order, say where the work lies and ask whether a PR is wanted. "Finish the work" is not an order.
+- No PR, merge, tag, deploy or branch deletion without an explicit order in this session (the batch and release skills define the orders). Without an order, say where the work lies and ask whether a PR is wanted; "Finish the work" is not an order.
 
 ## Closing report
 
-Short: what was done, which roles took part (including escalations and fallbacks), what you checked with evidence, which branch you pushed to, what stays open. For code changes visible to users, note changelog lines (New, Improved, Fixed) in the report; do not write a changelog file per slice. Write the report to `docs/agent-reports/<YYYY-MM-DD>-<slug>.md`, section "Learned": real, reusable findings or "nothing new".
+Short: what was done, roles involved (escalations and fallbacks included), what you checked with evidence, branch pushed to, what stays open. Changelog lines (New, Improved, Fixed) for user-visible changes go in the report, not in a file per slice. Write it to `docs/agent-reports/<YYYY-MM-DD>-<slug>.md`, section "Learned": real, reusable findings or "nothing new".

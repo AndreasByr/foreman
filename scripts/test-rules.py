@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lint: three rules must each stand exactly once in the repo skills and once in the chat skills.
+"""Lint: single-source rules, the Cause line, the board check copies and the rendered copies.
 Run: python3 scripts/test-rules.py
 """
 import os
@@ -100,6 +100,112 @@ def check_set(root, set_name, rel_dir, errors):
                 errors.append(f"duplicate statement of {rule_name} in {f}:{n}")
 
 
+DELEGATION = "template/.claude/skills/foreman-delegation/SKILL.md"
+MILESTONE = "template/.claude/skills/foreman-milestone/SKILL.md"
+
+# (rule name, label or None, owner file or None, words the labeled line must contain, detector regex)
+SINGLE_SOURCE = [
+    ("Review gate", "**Review gate:**", DELEGATION, ["validation", "needs-input"],
+     re.compile(r"at most (?:2|two)\b[^.\n]{0,20}rounds?", re.IGNORECASE)),
+    ("Hand nothing on", "**Hand nothing on:**", DELEGATION, ["temporarily", "second account"],
+     re.compile(r"temporarily", re.IGNORECASE)),
+    ("Evidence rule", "**Evidence rule:**", DELEGATION, ["command", "exit code", "SHA"],
+     re.compile(r"command,?\s+exit code,?\s+and\s+(?:commit\s+)?sha", re.IGNORECASE)),
+    ("Board check", "**Board check:**", MILESTONE, ["design board", "needs-input"],
+     re.compile(r"board missing for", re.IGNORECASE)),
+    ("Version rule", None, None, [],
+     re.compile(r"human sets the (?:version )?number|never decides a version", re.IGNORECASE)),
+]
+
+PRINCIPLES = os.path.join("docs", "PRINCIPLES.md")
+PRINCIPLES_ROUNDS = re.compile(r"(?:three|3)\s+(?:rework\s+|review\s+)?rounds", re.IGNORECASE)
+
+# Drift guard: intervention.md owns the Cause rule; milestone and fixpack keep the one-line mention.
+# The M011 test only requires the word **Cause:** there; this guard keeps the line identical in the three files.
+CAUSE_LINE = "**Cause:** <category> · <one sentence>"
+CAUSE_FILES = [
+    "template/.claude/skills/foreman-dispatch-run/references/intervention.md",
+    "template/.claude/skills/foreman-milestone/SKILL.md",
+    "template/.claude/skills/foreman-fixpack/SKILL.md",
+]
+
+
+def check_cause_line(root, errors):
+    for rel in CAUSE_FILES:
+        path = os.path.join(root, rel)
+        if not os.path.isfile(path):
+            errors.append(f"Cause line: {rel} is missing")
+            continue
+        with open(path, encoding="utf-8", newline="") as f:
+            text = f.read()
+        if not any(CAUSE_LINE in line for line in text.splitlines()):
+            errors.append(f'Cause line: {rel} lacks the line "{CAUSE_LINE}"')
+
+
+# Board check copy: the rule is kept in two places on purpose (slice in foreman-milestone, point in
+# foreman-fixpack, because a fix pack run does not load the milestone skill). Both lines carry both texts.
+BOARD_MARK = "Board check"
+BOARD_TEXTS = ["docs/design-reference/", "The Agent creates no boards"]
+BOARD_FILES = [
+    "template/.claude/skills/foreman-milestone/SKILL.md",
+    "template/.claude/skills/foreman-fixpack/SKILL.md",
+]
+
+
+def check_board_copy(root, errors):
+    for rel in BOARD_FILES:
+        path = os.path.join(root, rel)
+        if not os.path.isfile(path):
+            errors.append(f"Board check: {rel} is missing")
+            continue
+        with open(path, encoding="utf-8", newline="") as f:
+            lines = [line for line in f.read().splitlines() if BOARD_MARK in line]
+        if not lines:
+            errors.append(f"Board check: {rel} has no Board check line")
+            continue
+        if any(all(t in line for t in BOARD_TEXTS) for line in lines):
+            continue
+        for t in BOARD_TEXTS:
+            if t not in lines[0]:
+                errors.append(f"Board check: {rel} line lacks '{t}'")
+
+
+def check_single_source(root, errors):
+    lines = set_lines(root, REPO_SKILLS)
+    for name, label, owner, required, detector in SINGLE_SOURCE:
+        labeled = []
+        if label is not None:
+            labeled = [(f, n, t) for f, n, t in lines if label in t]
+            if len(labeled) != 1:
+                detail = ""
+                if labeled:
+                    detail = ": " + ", ".join(f"{f}:{n}" for f, n, _ in labeled)
+                errors.append(f"{name}: {len(labeled)} occurrences in repo skills (expected 1){detail}")
+            for f, n, t in labeled:
+                if f != owner:
+                    errors.append(f"{name}: labeled line must be in {owner}, found in {f}:{n}")
+                low = t.lower()
+                missing = [w for w in required if w.lower() not in low]
+                if missing:
+                    errors.append(f"{name}: labeled line {f}:{n} lacks {', '.join(repr(w) for w in missing)}")
+        labeled_keys = {(f, n) for f, n, _ in labeled}
+        for f, n, t in lines:
+            if (f, n) in labeled_keys:
+                continue
+            if detector.search(t):
+                errors.append(f"duplicate statement of {name} in {f}:{n}")
+
+
+def check_principles(root, errors):
+    path = os.path.join(root, PRINCIPLES)
+    if not os.path.isfile(path):
+        return
+    with open(path, encoding="utf-8", newline="") as f:
+        for number, line in enumerate(f.read().splitlines(), 1):
+            if PRINCIPLES_ROUNDS.search(line):
+                errors.append(f"docs/PRINCIPLES.md:{number}: review rounds are two, as in foreman-delegation")
+
+
 def check_rendered(root, errors):
     template_dir = os.path.join(root, REPO_SKILLS)
     rendered_dir = os.path.join(root, RENDERED_ROOT)
@@ -148,6 +254,10 @@ def check(root):
     errors = []
     for set_name, rel_dir in SETS:
         check_set(root, set_name, rel_dir, errors)
+    check_single_source(root, errors)
+    check_principles(root, errors)
+    check_cause_line(root, errors)
+    check_board_copy(root, errors)
     check_rendered(root, errors)
     check_learnings(root, errors)
     return errors
@@ -179,11 +289,46 @@ LEARNINGS_OK = (
 )
 
 
+DELEGATION_TEXT = (
+    "# Delegation\n"
+    "\n"
+    "- **Review gate:** at most 2 rework rounds, then the validation role decides or the task goes to needs-input.\n"
+    "- **Hand nothing on:** a blocked step is only temporarily open; use a second account instead of passing it on.\n"
+    "- **Evidence rule:** every claim names the command, exit code and commit SHA.\n"
+    "\n"
+    "# {{PROJECT_NAME}} delegation\n"
+)
+MILESTONE_TEXT = (
+    "# Milestone\n"
+    "\n"
+    "- **Board check:** without an approved design board in docs/design-reference/ the slice goes to needs-input. The Agent creates no boards.\n"
+    "- Every needs-input writes the **Cause:** <category> · <one sentence> line.\n"
+    "\n"
+    "# {{PROJECT_NAME}} milestone\n"
+)
+FIXPACK_TEXT = (
+    "# Fix pack\n"
+    "\n"
+    "- Board check (planning): board file under docs/design-reference/ ... The Agent creates no boards.\n"
+    "- Every needs-input writes the **Cause:** <category> · <one sentence> line.\n"
+    "\n"
+    "# {{PROJECT_NAME}} fix pack\n"
+)
+INTERVENTION_TEXT = "# Intervention\n\n- Every needs-input writes the **Cause:** <category> · <one sentence> line.\n"
+
+
 def good_files():
     return {
         "template/.claude/skills/demo/SKILL.md": TEMPLATE_TEXT,
+        "template/.claude/skills/foreman-delegation/SKILL.md": DELEGATION_TEXT,
+        "template/.claude/skills/foreman-milestone/SKILL.md": MILESTONE_TEXT,
+        "template/.claude/skills/foreman-fixpack/SKILL.md": FIXPACK_TEXT,
+        "template/.claude/skills/foreman-dispatch-run/references/intervention.md": INTERVENTION_TEXT,
         "plugins/foreman/skills/demo/SKILL.md": RULE_LINES,
+        ".claude/skills/foreman-fixpack/SKILL.md": FIXPACK_TEXT.replace("{{PROJECT_NAME}}", "foreman"),
         ".claude/skills/demo/SKILL.md": RENDERED_TEXT,
+        ".claude/skills/foreman-delegation/SKILL.md": DELEGATION_TEXT.replace("{{PROJECT_NAME}}", "foreman"),
+        ".claude/skills/foreman-milestone/SKILL.md": MILESTONE_TEXT.replace("{{PROJECT_NAME}}", "foreman"),
         "docs/learnings.md": LEARNINGS_OK,
     }
 
@@ -342,8 +487,142 @@ def case_clean_tree_passes():
     return run_case(files, lambda errors: errors == [])
 
 
+EXTRA = "template/.claude/skills/demo/extra.md"
+DELEGATION_PATH = "template/.claude/skills/foreman-delegation/SKILL.md"
+MILESTONE_PATH = "template/.claude/skills/foreman-milestone/SKILL.md"
+FIXPACK_PATH = "template/.claude/skills/foreman-fixpack/SKILL.md"
+
+
+def case_ss_expect(files, needle):
+    return run_case(files, lambda errors: any(needle in e for e in errors))
+
+
+def case_ss_second_labeled_line():
+    files = good_files()
+    files[EXTRA] = "- **Review gate:** at most 2 rounds, validation, needs-input.\n"
+    return run_case(
+        files,
+        lambda errors: any(
+            e.startswith("Review gate: 2 occurrences in repo skills (expected 1)") for e in errors
+        ),
+    )
+
+
+def case_ss_wrong_file():
+    files = good_files()
+    files[DELEGATION_PATH] = DELEGATION_TEXT.replace("- **Evidence rule:**", "- Evidence rule:")
+    files[EXTRA] = "- **Evidence rule:** command, exit code and commit SHA.\n"
+    return case_ss_expect(files, f"Evidence rule: labeled line must be in {DELEGATION_PATH}, found in {EXTRA}:1")
+
+
+def case_ss_missing_owner_line():
+    files = good_files()
+    files[MILESTONE_PATH] = "# Milestone\n"
+    files[".claude/skills/foreman-milestone/SKILL.md"] = "# Milestone\n"
+    return case_ss_expect(files, "Board check: 0 occurrences in repo skills (expected 1)")
+
+
+def case_ss_unlabeled(text, name):
+    files = good_files()
+    files[EXTRA] = text + "\n"
+    return case_ss_expect(files, f"duplicate statement of {name} in {EXTRA}:1")
+
+
+def case_ss_pointer_ok():
+    files = good_files()
+    files[EXTRA] = "Review gate: see foreman-delegation.\nBoard check: see foreman-milestone.\n"
+    return run_case(files, lambda errors: errors == [])
+
+
+def case_principles(text, expect_error):
+    files = good_files()
+    files["docs/PRINCIPLES.md"] = text
+    if expect_error:
+        return case_ss_expect(files, "docs/PRINCIPLES.md:3: review rounds are two, as in foreman-delegation")
+    return run_case(files, lambda errors: errors == [])
+
+
+def cause_files(replace_in=None):
+    """good_files (all three Cause-line files exist); replace_in names one file whose <category> becomes <kind>."""
+    files = good_files()
+    if replace_in is not None:
+        text = files[replace_in].replace(CAUSE_LINE, CAUSE_LINE.replace("<category>", "<kind>"))
+        files[replace_in] = text
+        rendered = replace_in.replace("template/", "", 1)
+        if rendered in files:
+            files[rendered] = text.replace("{{PROJECT_NAME}}", "foreman")
+    return files
+
+
+def case_cause_file_missing():
+    files = good_files()
+    del files[CAUSE_FILES[0]]
+    needle = f"Cause line: {CAUSE_FILES[0]} is missing"
+    return run_case(files, lambda errors: any(needle in e for e in errors))
+
+
+def case_board_ok():
+    return run_case(good_files(), lambda errors: errors == [])
+
+
+def case_board_fixpack_lacks_text():
+    files = good_files()
+    text = FIXPACK_TEXT.replace(" The Agent creates no boards.", "")
+    files[FIXPACK_PATH] = text
+    files[".claude/skills/foreman-fixpack/SKILL.md"] = text.replace("{{PROJECT_NAME}}", "foreman")
+    needle = f"Board check: {FIXPACK_PATH} line lacks 'The Agent creates no boards'"
+    return run_case(files, lambda errors: any(needle in e for e in errors))
+
+
+def case_board_milestone_lacks_text():
+    files = good_files()
+    text = MILESTONE_TEXT.replace("in docs/design-reference/ ", "")
+    files[MILESTONE_PATH] = text
+    files[".claude/skills/foreman-milestone/SKILL.md"] = text.replace("{{PROJECT_NAME}}", "foreman")
+    needle = f"Board check: {MILESTONE_PATH} line lacks 'docs/design-reference/'"
+    return run_case(files, lambda errors: any(needle in e for e in errors))
+
+
+def case_cause_ok():
+    return run_case(cause_files(), lambda errors: errors == [])
+
+
+def case_cause_drift():
+    rel = CAUSE_FILES[2]
+    needle = f'Cause line: {rel} lacks the line "{CAUSE_LINE}"'
+    return run_case(cause_files(replace_in=rel), lambda errors: any(needle in e for e in errors))
+
+
 SELFTESTS = [
     ("correct tree gives no errors", case_correct),
+    ("Cause line in all three files passes", case_cause_ok),
+    ("Cause line with <kind> in one file errors", case_cause_drift),
+    ("missing Cause file errors", case_cause_file_missing),
+    ("Board check copies in both files pass", case_board_ok),
+    ("fixpack Board check line without 'The Agent creates no boards' errors", case_board_fixpack_lacks_text),
+    ("milestone Board check line without 'docs/design-reference/' errors", case_board_milestone_lacks_text),
+    ("PRINCIPLES.md with '3 rounds' errors", lambda: case_principles(
+        "# Principles\n\nWe allow 3 rounds of review.\n", True)),
+    ("PRINCIPLES.md with 'three review rounds' errors", lambda: case_principles(
+        "# Principles\n\nWe allow three review rounds.\n", True)),
+    ("second labeled line in another file errors", case_ss_second_labeled_line),
+    ("labeled line in wrong file errors", case_ss_wrong_file),
+    ("missing owner line errors", case_ss_missing_owner_line),
+    ("unlabeled 'at most 2 rework rounds' errors", lambda: case_ss_unlabeled(
+        "Use at most 2 rework rounds per task.", "Review gate")),
+    ("unlabeled 'temporarily blocked' errors", lambda: case_ss_unlabeled(
+        "A step that is temporarily blocked waits.", "Hand nothing on")),
+    ("unlabeled evidence phrase errors", lambda: case_ss_unlabeled(
+        "Every report names command, exit code and commit SHA.", "Evidence rule")),
+    ("unlabeled 'Board missing for' errors", lambda: case_ss_unlabeled(
+        "Board missing for <element> means stop.", "Board check")),
+    ("'The human sets the number' in a repo skill errors", lambda: case_ss_unlabeled(
+        "The human sets the number.", "Version rule")),
+    ("pointer line does not error", case_ss_pointer_ok),
+    ("PRINCIPLES.md with 'three rounds' errors", lambda: case_principles(
+        "# Principles\n\nWe allow three rounds of review.\n", True)),
+    ("PRINCIPLES.md with 'two rounds' passes", lambda: case_principles(
+        "# Principles\n\nWe allow two rounds of review.\n", False)),
     ("chat set missing a rule errors", case_chat_missing_rule),
     ("rule twice in repo set errors and lists both files", case_repo_rule_twice),
     ("unlabeled duplicate statement errors", case_unlabeled_duplicate),
@@ -387,6 +666,9 @@ def main():
             failed = True
     if failed:
         return 1
+    if "--selftest-only" in sys.argv[1:]:
+        print("selftests ok")
+        return 0
 
     errors = check(ROOT)
     if errors:
