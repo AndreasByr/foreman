@@ -1,4 +1,4 @@
-Status: batch-pr · since 2026-11-22T10:30Z · Validierung Runde 4: pass, nur niedrige Funde
+Status: done · since 2026-11-22T12:35Z · UAT durch Maintainer abgenommen, Batch-PR #20 sowie Folge-PRs #21 und #22 in dev gemergt
 Target: dev
 Batch-branch: batch/m012
 Lock: free
