@@ -99,7 +99,7 @@ A `## Findings` section in the result (file changed outside `files:`, or a reado
 - Migrations on sync: the ones from `main` stay unchanged (never rename, edit or delete). The ones from `dev` are re-ordered to sort after the newest migration from `main`, and `up` stays idempotent.
 - No force push. Delete nothing the human did not approve, except your own finished work branch (see `foreman-batch`).
 - Before a push to a batch branch or `dev`, run the production build when `app/`, `server/`, `shared/` or the build config changed; typecheck and unit tests miss bundling errors.
-- Without an order, say where the work lies and ask whether a PR is wanted. "Finish the work" is not an order.
+- No PR, merge, tag, deploy or branch deletion without an explicit order in this session (the batch and release skills define the orders). Without an order, say where the work lies and ask whether a PR is wanted; "Finish the work" is not an order.
 
 ## Closing report
 

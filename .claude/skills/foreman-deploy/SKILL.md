@@ -48,7 +48,7 @@ Rule: only `main` goes to `prod`. `dev` to `main` exists only for the collected 
 
 Rules in `docs/versioning.md`; read it before the first release.
 
-- **Version number:** `docs/versioning.md` rule 5. Propose one with a reason (last tag plus patch for a fix on the released line; the planned minor for the collected release) and ask before you create a changelog file or a tag, patches included.
+- **Version number:** `docs/versioning.md` (Rules, item 5: the number is the human's). Propose one with a reason (last tag plus patch for a fix on the released line; the planned minor for the collected release) and ask before you create a changelog file or a tag, patches included.
 - **Changelog before step 1:** write `docs/changelog/vX.Y.Z.md` per the schema in `docs/versioning.md` on the branch that is released. Draft from the changes since the last tag, user-facing, nothing internal. The human approves it; it travels with the release. Missing file: do not start the release, report.
 - **Tag after the production deploy is green:** tag `vX.Y.Z` on the merge commit of `prod` and push it, only if the order names it. If CI sets the tag, only check that it exists. Otherwise report that the tag is missing and which version it should carry. Never move or delete a tag.
 

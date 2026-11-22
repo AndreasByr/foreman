@@ -132,7 +132,7 @@ check_readme() {
 check_readme "$README"
 
 # Negative self-check: a copy with the Fix pack change set to -1 B must be rejected by the same check.
-sed 's/| -927 B |/| -1 B |/' "$README" > "$TMP/mutated.md"
+sed -E '/^\| Fix pack \|/ s/\| [+-]?[0-9,]+ B \|$/| -1 B |/' "$README" > "$TMP/mutated.md"
 if cmp -s "$README" "$TMP/mutated.md"; then
   fail "self-check: could not alter the Fix pack change in the copy"
 fi
@@ -147,7 +147,18 @@ esac
 # Second negative self-check (only when the measure-reads JSON is available): Batch 0.2.x and its change both
 # raised by 1 B keep the change/consistency rules intact, so only the comparison with the measured value can reject it.
 if git cat-file -e "${BASELINE_COMMIT}^{commit}" 2>/dev/null && [ -s "$TMP/measure.json" ]; then
-  sed -e 's/^| Batch | 32,320 B | 32,155 B | -165 B |/| Batch | 32,320 B | 32,156 B | -164 B |/' "$README" > "$TMP/mutated2.md"
+  node -e '
+    const fs = require("fs");
+    const lines = fs.readFileSync(process.argv[1], "utf8").split("\n");
+    const i = lines.findIndex((l) => l.startsWith("| Batch |"));
+    const c = lines[i].split("|").map((s) => s.trim());
+    const n = (s) => Number(s.replace(/[^0-9]/g, ""));
+    const fmt = (v) => v.toLocaleString("en-US") + " B";
+    const now = n(c[3]) + 1;
+    const ch = now - n(c[2]);
+    lines[i] = "| Batch | " + c[2] + " | " + fmt(now) + " | " + (ch > 0 ? "+" : ch < 0 ? "-" : "") + fmt(Math.abs(ch)) + " |";
+    fs.writeFileSync(process.argv[2], lines.join("\n"));
+  ' "$README" "$TMP/mutated2.md"
   if cmp -s "$README" "$TMP/mutated2.md"; then
     fail "self-check: could not alter the Batch 0.2.x value in the copy"
   fi
@@ -155,7 +166,7 @@ if git cat-file -e "${BASELINE_COMMIT}^{commit}" 2>/dev/null && [ -s "$TMP/measu
     fail "self-check: copy with a changed Batch 0.2.x value was accepted"
   fi
   case "$msg" in
-    *"FAIL: Batch: README says 32156 B for 0.2.x"*) ;;
+    *"FAIL: Batch: README says "*" B for 0.2.x"*) ;;
     *) fail "self-check: copy failed for another reason: $msg" ;;
   esac
 fi

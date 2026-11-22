@@ -68,13 +68,13 @@ Numbers, not claims. Details and the reasons behind each rule: [docs/learnings.m
 
 | Work run | 0.2.1 | 0.2.x (M012) | Change |
 |---|---|---|---|
-| Milestone | 43,065 B | 42,636 B | -429 B |
-| Fix pack | 41,475 B | 40,548 B | -927 B |
-| Batch | 32,320 B | 32,155 B | -165 B |
+| Milestone | 43,065 B | 42,717 B | -348 B |
+| Fix pack | 41,475 B | 40,769 B | -706 B |
+| Batch | 32,320 B | 32,276 B | -44 B |
 
-The wiki skill adds 3,617 B, but only with the wiki switched on. Five rules (review gate, hand nothing on, evidence rule, board check, version number) now stand once each in the repo skills; `scripts/test-rules.py` fails when one is repeated.
+The wiki skill adds 3,617 B, but only with the wiki switched on. Five rules (review gate, hand nothing on, evidence rule, board check, version number) now have one owner each; the other skills point to it, and `scripts/test-rules.py` fails when one is repeated. The cause line of an intervention is kept in three files on purpose (an older test requires it); the same lint keeps the three in step.
 
-**Runs and interventions** come from `node scripts/measure.mjs` into `docs/metrics.md`, per project and regenerated each time. For this repository (M001 to M011, 22 Nov 2026): 11 milestones done, 6 interventions, 1 of them with a cause line (the cause line exists since M011). Worker fallbacks and models per role: no data. The result files stay on the machine that ran the worker, so the script reports a gap instead of a zero. Run times of older milestones have gaps too, because their `STATE.md` logs are not in the current format. The numbers of the other projects arrive after their update with `foreman-update`.
+**Runs and interventions** come from `node scripts/measure.mjs` into `docs/metrics.md`, per project and regenerated each time. For this repository (M001 to M011, 22 Nov 2026): 11 milestones done, 6 interventions, 1 of them with a valid cause line (the cause line exists since M011). Worker fallbacks and models per role: no data. The result files stay on the machine that ran the worker, so the script reports a gap instead of a zero. Run times of older milestones have gaps too, because their `STATE.md` logs are not in the current format. The numbers of the other projects arrive after their update with `foreman-update`.
 
 **Regularly tested** (offline, `scripts/test-all.sh`): installer and update for every module and both trackers, the delegation wrapper with stub providers, the dispatcher with a fake trigger endpoint, the pretest runner with a fake browser, the Notion mirror with a fake API.
 

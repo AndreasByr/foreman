@@ -24,6 +24,7 @@ The `Units:` line of the order is authoritative: touch only those units (for tar
 
 ## Rules
 
+- At most 2 batches per day and target.
 - With `wiki.enabled`: the wiki check of `foreman-batch` step 3 (`--unit <Mnnn>`) for every milestone unit; a non-zero exit blocks.
 - Fixes for `main` are checked by pretest and UAT before any `main` to `prod` release.
 

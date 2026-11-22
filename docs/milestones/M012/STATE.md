@@ -1,4 +1,4 @@
-Status: validation · since 2026-11-22T10:40Z · alle Slices fertig, Prüfung läuft
+Status: rework · since 2026-11-22T11:25Z · Validierung Runde 1: needs-remediation, Nacharbeit R1
 Target: dev
 Batch-branch: batch/m012
 Lock: free
@@ -18,6 +18,7 @@ Start commit: 5e090af (dev nach M010)
 | S2 | Lesemenge | done | 87b0a9a (rot), b798715 | scripts/measure-reads.mjs, scripts/test-measure-reads.mjs, scripts/test-all.sh | |
 | S3 | README | done | af3bde6 (rot), bf1c630, 375f439 | README.md, docs/learnings.md | |
 | S4 | Rollout-Aufträge | done | bf1c630 (rot), 375f439 | docs/rollout/ | |
+| R1 | Nacharbeit nach Validierung Runde 1 | done | ecc32b9, folgt | Tests, Skills, README, Bericht | |
 
 ## Check plan per slice
 
@@ -57,3 +58,5 @@ Categories: missing-requirement, open-decision, missing-infra, merge-conflict, u
 - 2026-11-22T10:30Z · S3 done: test-readme rot (Stub, Exit 1, af3bde6) -> grün; README, learnings, changelog · bf1c630
 - 2026-11-22T10:40Z · S4 done: test-rollout rot (Stub, Exit 1, bf1c630) -> grün; docs/rollout/ A, B, C; test-all Exit 0 · 375f439
 - 2026-11-22T10:40Z · Wrapper: Worker liefen mit lokaler Config (echte Modell-IDs). Fehlversuch 1 (Worker ohne Bash, S1-Lint) -> Hinweis im Task, zweiter Lauf ok; keine Eskalation, kein Eigencode
+- 2026-11-22T11:10Z · Validierung Runde 1: A needs-attention, B needs-attention, C needs-remediation (Bash war den Prüfern gesperrt, Läufe belegt die Session) · 40171cc
+- 2026-11-22T11:25Z · R1: CI-Klon voll (fetch-depth 0), README-Zahlen gegen Messung (rot nach Kürzung, Exit 1 -> grün), Cause-Zeilen-Wächter, Szenario-Test, Fix-Paket-Board-Regel eigenständig, Git-rules-Verweis, Obergrenze 2 Batches/Tag zurück, Bericht docs/agent-reports/2026-11-22-M012.md, Red-Beweise gegen 5e090af (Exit 1 je Test) · ecc32b9

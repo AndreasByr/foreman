@@ -30,7 +30,7 @@ Points follow, numbered `F1`, `F2`, ... Each is `Fix:` or `Analysis:` with probl
 3. **Plan and create `STATE.md`** from `docs/fixpacks/_TEMPLATE/STATE.md`:
    - Read `docs/learnings.md` first.
    - Table per point: `#`, type (fix/analysis), title, status (open / in progress / done / blocked), areas, check (test file or command), board, commit.
-   - Board check: as in `foreman-milestone`, per point. Every point has a `Board:` line; `Board: no interface` is for pure text, spacing and bug corrections. A point with a missing board is `blocked` (unit `needs-input`); the others go on. The Agent creates no boards.
+   - Board check (planning): every point has a `Board:` line. A point with a new or changed interface needs an approved board file under `docs/design-reference/` on the batch branch; without it the point is `blocked` and the unit `needs-input`, the question names the element without a board. The others go on. The Agent creates no boards. `Board: no interface` is for pure text, spacing and bug corrections.
    - **Order:** analyses first. Points sharing a cause or files go one after another. Same cause: one commit naming both numbers, noted in `STATE.md`.
    - Record the start commit of the batch branch in `STATE.md`.
    - Commit `Fix pack <id>: plan`, push.

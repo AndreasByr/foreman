@@ -23,6 +23,7 @@ Modules: <from .foreman.json>
 
 ## Checklist outside the repo
 
+- [ ] Read the Upgrade part of every version between the installed one and the target in `CHANGELOG.md` and do each item (for example `autopilot.mainAutoMerge`, the `FOREMAN_GATEWAY_*` variable names, `webhook_format`, the `wiki` block)
 - [ ] Update the foreman plugin in claude.ai or with `/plugin update` (2 min)
 - [ ] Refresh the project instructions with `foreman-project-mode` (2 min)
 - [ ] Check the model IDs in `tools/delegate/config.toml` and merge new keys by hand (5 min)
