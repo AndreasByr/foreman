@@ -72,3 +72,5 @@ Why the rules in foreman exist. Skills hold the rule; the story lives here. Proj
 
 
 - **Planning documents leaked real project, host and person names into a public repo.** Requirements, roadmap, milestone briefs and reports named real projects and servers. `scripts/privacy-scan.sh` now also checks a hashed denylist (`scripts/privacy-denylist.sha256`; add words with `python3 scripts/privacy-scan.py --hash <word>`), and the roadmap and brief skills require placeholders in public repos. Git history keeps the old text until it is rewritten.
+- **A denylist scan never finds everything.** The wiki scan (M010) was bypassed in six different ways over six review rounds (plurals, markup, Unicode, link targets, link titles, nested brackets). Decide early what the scan promises (accidental leaks, not attacks) and keep the human check at UAT as the second barrier.
+- **Workers that read the repo `CLAUDE.md` may refuse to code** ("only after exit 1"). Put "you are the delegated worker: edit the files directly" into every task file.
