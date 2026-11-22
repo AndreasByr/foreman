@@ -1,4 +1,4 @@
-Status: rework · since 2026-11-22T11:25Z · Validierung Runde 1: needs-remediation, Nacharbeit R1
+Status: rework · since 2026-11-22T12:05Z · Validierung Runde 2: 3x needs-attention, Nacharbeit R2
 Target: dev
 Batch-branch: batch/m012
 Lock: free
@@ -18,7 +18,8 @@ Start commit: 5e090af (dev nach M010)
 | S2 | Lesemenge | done | 87b0a9a (rot), b798715 | scripts/measure-reads.mjs, scripts/test-measure-reads.mjs, scripts/test-all.sh | |
 | S3 | README | done | af3bde6 (rot), bf1c630, 375f439 | README.md, docs/learnings.md | |
 | S4 | Rollout-Aufträge | done | bf1c630 (rot), 375f439 | docs/rollout/ | |
-| R1 | Nacharbeit nach Validierung Runde 1 | done | ecc32b9, folgt | Tests, Skills, README, Bericht | |
+| R1 | Nacharbeit nach Validierung Runde 1 | done | ecc32b9, 4c6cc2c, 875daac | Tests, Skills, README, Bericht | |
+| R2 | Nacharbeit nach Validierung Runde 2 | done | c810de3 | Board- und Cause-Wächter, CI strikt, Zahlen | |
 
 ## Check plan per slice
 
@@ -60,3 +61,6 @@ Categories: missing-requirement, open-decision, missing-infra, merge-conflict, u
 - 2026-11-22T10:40Z · Wrapper: Worker liefen mit lokaler Config (echte Modell-IDs). Fehlversuch 1 (Worker ohne Bash, S1-Lint) -> Hinweis im Task, zweiter Lauf ok; keine Eskalation, kein Eigencode
 - 2026-11-22T11:10Z · Validierung Runde 1: A needs-attention, B needs-attention, C needs-remediation (Bash war den Prüfern gesperrt, Läufe belegt die Session) · 40171cc
 - 2026-11-22T11:25Z · R1: CI-Klon voll (fetch-depth 0), README-Zahlen gegen Messung (rot nach Kürzung, Exit 1 -> grün), Cause-Zeilen-Wächter, Szenario-Test, Fix-Paket-Board-Regel eigenständig, Git-rules-Verweis, Obergrenze 2 Batches/Tag zurück, Bericht docs/agent-reports/2026-11-22-M012.md, Red-Beweise gegen 5e090af (Exit 1 je Test) · ecc32b9
+- 2026-11-22T12:00Z · Validierung Runde 2 (875daac): A, B, C needs-attention; mittlere Befunde: Board-Regel als zweite Kopie im Fix-Paket-Skill (nicht als bewusst vermerkt, ohne Wächter), falsche Begründung zur Cause-Zeile, Evidenz fehlt im Log
+- 2026-11-22T12:10Z · R2 Evidenz auf c810de3: python3 scripts/test-rules.py Exit 0; node scripts/measure-reads.mjs Exit 0 (Milestone -351 B, Fix-Paket -709 B, Batch -44 B); bash scripts/test-all.sh Exit 0; bash scripts/check-config.sh Exit 0; CI=1 bash scripts/test-readme.sh im flachen Klon Exit 1 (Basis fehlt), ohne CI Exit 0
+- 2026-11-22T12:10Z · Frühere Läufe: R1 auf 875daac test-all Exit 0, check-config Exit 0 (vor R2); Red-Beweise gegen 5e090af: test-measure-reads Exit 1, test-readme Exit 1, test-rollout Exit 1, test-rules Exit 1
