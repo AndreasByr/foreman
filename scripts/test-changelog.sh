@@ -58,8 +58,8 @@ for s in sections:
     elif not any(l.strip() for l in s["upgrade"]):
         problems.append(f"section '{s['title']}': '### Upgrade' part is empty")
 
-# 3. Unreleased exists and its upgrade part names the required words.
-unreleased = [s for s in sections if re.match(r"^Unreleased\b", s["title"])]
+# 3. The newest section (Unreleased, or the latest version once released) exists and its upgrade part names the required words.
+unreleased = sections[:1]
 if not unreleased:
     problems.append("section 'Unreleased' is missing")
 else:
