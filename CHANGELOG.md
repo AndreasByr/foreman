@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.4 (2026-11-22)
+
+### New
+
+- **Model rule per thread category (block v3).** `.foreman.json` gets an optional `models` block: `threads` maps categories (`question`, `fixpack`, `milestone`, `brief`, `roadmap`, `architecture`, `bugRetry`, `release`, `docs`) to a class (`strong`, `standard`, `cheap`), plus `coordinator` and `effort`. Defaults: standard everywhere, strong for brief, roadmap, architecture and a bug after a failed first fix. The block carries the table and the project chat sets the class when it opens a thread. Classes, no version numbers. `scripts/check-config.sh` validates the block.
+
+### Upgrade
+- Files: `scripts/check-config.sh` is replaced by `./install.sh <project> --update` (validates the new `models` block). Nothing else changes.
+- Steps: update the foreman plugin in claude.ai or with `/plugin update`, then run `foreman-project-mode` (refresh) in the project; it replaces the block v2 with v3 (2 min). Edit `models` in `.foreman.json` first if you want other classes. The dispatcher code does not change in this version, so no pull of the foreman checkout on the dispatcher machine is needed.
+- Optional: `models` in `.foreman.json`; without it the defaults apply. `pass_env`, `webhook_format` and `mainAutoMerge` stay as in 0.2.2.
+
 ## 0.2.3 (2026-11-22)
 
 ### Fixed

@@ -1,5 +1,5 @@
 {
-  "foreman": "0.2.3",
+  "foreman": "0.2.4",
   "project": "foreman",
   "name": "foreman",
   "scope": "repo",
@@ -26,5 +26,20 @@
     "releaseDay": "Friday",
     "workRun": ""
   },
-  "mirror": {}
+  "mirror": {},
+  "models": {
+    "coordinator": "standard",
+    "effort": "medium",
+    "threads": {
+      "question": "standard",
+      "fixpack": "standard",
+      "milestone": "standard",
+      "brief": "strong",
+      "roadmap": "strong",
+      "architecture": "strong",
+      "bugRetry": "strong",
+      "release": "standard",
+      "docs": "standard"
+    }
+  }
 }
