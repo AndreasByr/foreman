@@ -155,11 +155,23 @@ t("local overlay: the runner reads both files from the working directory", async
     assert.equal(await main(["--plan", "p.json", "--out", "out"], { env, chromium: fakeBrowser([]), axe: FakeAxe, stdout: () => {}, stderr: (m) => errs.push(m) }), 1);
     assert.ok(errs.join("\n").includes("productionHosts"));
     // broken overlay: exit 2, the content is not echoed
-    writeFileSync(join(dir, ".foreman.local.json"), "{ " + SECRET);
+    // the marker is not one of the scrubbed secrets, so only the runner's own message keeps it out
+    const MARK = "LEAK-MARKER-4711";
+    writeFileSync(join(dir, ".foreman.local.json"), "{ " + MARK);
     errs.length = 0;
     assert.equal(await main(["--plan", "p.json", "--out", "out"], { env, stderr: (m) => errs.push(m) }), 2);
-    assert.ok(errs.join("\n").includes(".foreman.local.json is not valid JSON") && !errs.join("\n").includes(SECRET));
+    assert.ok(errs.join("\n").includes(".foreman.local.json is not valid JSON") && !errs.join("\n").includes(MARK));
   } finally { process.chdir(cwd); rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("local overlay: __proto__ and inherited keys never merge into the config", () => {
+  const base = { pretest: { productionHosts: ["app.example.com"] } };
+  const m = mergeConfig(base, JSON.parse('{"__proto__":{"pretest":{"injected":true}},"toString":{"x":1}}'));
+  assert.equal(Object.getPrototypeOf(m), Object.prototype);
+  assert.equal(m.injected, undefined);
+  assert.equal(m.pretest.injected, undefined);
+  assert.equal(Object.hasOwn(m, "toString"), false);
+  assert.deepEqual(m.pretest.productionHosts, ["app.example.com"]);
 });
 
 let n = 0;

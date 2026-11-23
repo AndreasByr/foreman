@@ -261,6 +261,12 @@ def test_gateway_base_url_env_name():
             os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
 
 
+def test_gateway_url_env_name_is_kept_from_workers():
+    """The variable named in [gateway] base_url_env holds an address; it is treated like a secret name (not passed on)."""
+    cfg = rt.tomllib.loads(GATEWAY_CONFIG.replace('base_url = "https://gw.example"\n', 'base_url_env = "MY_GW_URL"\n'))
+    assert "MY_GW_URL" in rt.secret_names(cfg)
+
+
 def test_gateway_key_default_name():
     cfg = rt.tomllib.loads(GATEWAY_CONFIG.replace('api_key_env = "TEST_GATEWAY_KEY"\n', ""))
     assert rt.endpoint_cfg(cfg, "gateway")["api_key_env"] == "FOREMAN_GATEWAY_KEY"
