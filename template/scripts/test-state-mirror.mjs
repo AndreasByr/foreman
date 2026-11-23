@@ -349,6 +349,7 @@ t("wiki: CLI without --unit only warns on a missing Wiki line; --unit M001 makes
     delete env.ITSAPLAN_URL;
     delete env.ITSAPLAN_API_KEY;
     delete env.LINEAR_API_KEY;
+    delete env.FOREMAN_STATUS_DIR;
     const cfg = (wiki) => writeFileSync(join(dir, ".foreman.json"), JSON.stringify({ modules: [], wiki }));
     const statePath = join(dir, "docs/milestones/M001/STATE.md");
     mkdirSync(join(dir, "docs/milestones/M001"), { recursive: true });

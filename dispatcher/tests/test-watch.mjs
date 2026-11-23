@@ -337,6 +337,37 @@ t("watch R2: a problem that returns before the old ticket was closed reuses that
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+t("watch R3: tracker-only delivery that keeps failing (recovery, or a returning problem) stops after 5 tries, at most 5 comments", async () => {
+  for (const scenario of ["recovery", "returning"]) {
+    const { dir, cfg, status } = setup({ channels: ["tracker"], tracker: { project_key: "KEY", url_env: "TRK_URL", key_env: "TRK_KEY" } });
+    try {
+      const env = { TRK_URL: "https://plan.example", TRK_KEY: "key_SECRET_123456" };
+      mkdirSync(cfg.workdir, { recursive: true });
+      const entry = scenario === "recovery"
+        ? { since: iso(NOW - 3 * H), lastSent: iso(NOW - H), state: "stale", ticket: "T1" }
+        : { since: iso(NOW - 3 * H), lastSent: iso(NOW - H), state: "stale", ticket: "T1", recoveredNotified: true };
+      writeFileSync(join(cfg.workdir, "alerts.json"), JSON.stringify({ dispatcher: entry }));
+      const calls = [];
+      const fetch = async (url, o = {}) => {
+        const method = o.method ?? "GET", path = new URL(url).pathname;
+        calls.push({ method, path });
+        const json = (data) => ({ ok: true, status: 200, text: async () => JSON.stringify(data) });
+        if (method === "PATCH") return { ok: false, status: 500, text: async () => "no" };
+        if (method === "GET" && path === "/projects/KEY") return json({ columns: [{ id: "c2", name: "Action Required" }, { id: "c3", name: "Done" }] });
+        return json({});
+      };
+      for (let i = 0; i < 10; i++) {
+        if (scenario === "recovery") writeBeat(status, "dispatcher", { now: NOW + i * 15 * 60000 - 60000, maxAgeMin: 30 });
+        else writeBeat(status, "dispatcher", { result: "error", note: "boom", now: NOW + i * 15 * 60000 - 60000, maxAgeMin: 30 });
+        await watch({ config: cfg, env, now: NOW + i * 15 * 60000, fetch, log: () => {} });
+      }
+      const comments = calls.filter((c) => c.method === "POST" && c.path === "/issues/T1/comments").length;
+      assert.ok(comments <= 5, `${scenario}: ${comments} comments`);
+      assert.ok(calls.filter((c) => c.method === "PATCH").length <= 5, `${scenario}: moves`);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }
+});
+
 t("watch.sh: runs the watcher with dispatcher.env and exits with its code", () => {
   const dir = mkdtempSync(join(tmpdir(), "foreman-watchsh-"));
   try {

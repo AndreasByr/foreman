@@ -40,6 +40,8 @@ Fix direction (this pack): heartbeat file per module, a watcher that does not de
 
 Round 1 (validation, opus): F1, F4, F6 pass; F2, F3 needs-attention; F5 needs-remediation. Fixed in R1 (65dab93): default status directory for the tracker-sync beat, error beat when `state-mirror` crashes, ticket retry on partial delivery (`ticketPending`, `recoveredNotified`), `peer.json` atomic and cleared.
 
+Round 3: needs-attention (comment spam when a tracker-only delivery keeps failing, two cases; test isolation gap). Fixed in R3 with a generic cap of 5 failed deliveries per module and `FOREMAN_STATUS_DIR` removed from test children.
+
 Round 2: needs-attention, two medium findings: tests wrote into the real status directory (HOME now set in tests and in `test-install.sh`), tracker retries without limit (now 5 tries, then give up); two low: a returning problem now reuses the old ticket; a flapping watcher alarms again at once (kept, intended).
 
 Left on purpose (low): stale to error does not re-alarm before the repeat time, no lock for the watcher, `project:a` and `project_a` share a file, the first error line of a failed update step is not in the project beat, `status` knows the default dispatcher limit only from the config, beat files of removed projects stay (documented).
@@ -61,4 +63,5 @@ Where should the alarm go? Recommendation: tracker comment plus push (webhook or
 - 2026-11-23T10:30Z · F3 · 830382f
 - 2026-11-23T10:40Z · F6, full run rc=0 · 4ba13bc
 - 2026-11-23T10:50Z · review 1, R1, full run rc=0 · 65dab93
-- 2026-11-23T11:05Z · review 2, R2, full run rc=0
+- 2026-11-23T11:05Z · review 2, R2, full run rc=0 · 94a82c1
+- 2026-11-23T11:20Z · review 3, R3 (delivery cap, test isolation), full run rc=0

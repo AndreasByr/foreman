@@ -173,7 +173,10 @@ export async function watch({ config, env = process.env, now = Date.now(), fetch
   const say = (m) => log(redact(m, secrets));
 
   const judged = judge(readBeats(dir), { now, limits, defaultLimitMin }).filter((j) => j.module !== WATCHER);
-  const before = loadAlerts(alertsPath);
+  // failed first messages of new problems have no entry yet; their counters live under the reserved key "_unsent"
+  const { _unsent, ...before } = loadAlerts(alertsPath);
+  const unsentTries = isObj(_unsent) ? _unsent : {};
+  const nextUnsent = {};
   const { alarms, recovered, next } = decide(judged, before, now, { repeatMs });
   const tracker = makeTracker(config, env, workdir, fetchImpl, say);
 
@@ -212,19 +215,29 @@ export async function watch({ config, env = process.env, now = Date.now(), fetch
     if (ok) delivered++;
     const ticket = results.find((r) => r.status === "sent" && r.ticket)?.ticket;
     const trackerOk = hasTracker && results[trackerIdx]?.status === "sent";
+    // generic delivery cap: consecutive undelivered messages per module (outer safety net)
+    const tries = ok ? 0 : (Number(isObj(old) ? old.failTries : 0) || Number(unsentTries[a.module]) || 0) + 1;
+    const gaveUp = !ok && tries >= MAX_TRIES;
+    if (gaveUp) say(`gave up delivering the alarm for ${a.module} after ${MAX_TRIES} tries`);
+    if (ok && isObj(next[a.module])) delete next[a.module].failTries;
     if (a.kind === "recovered") {
-      if (!ok) next[a.module] = old; // keep the entry, retry next run
-      else if (hasTracker && !trackerOk && isObj(old) && old.ticket) next[a.module] = { ...old, recoveredNotified: true, closeTries: 1 }; // retry only the tracker part (this attempt counts)
+      if (!ok) {
+        if (gaveUp) delete next[a.module];
+        else next[a.module] = { ...old, failTries: tries }; // keep the entry, retry next run
+      } else if (hasTracker && !trackerOk && isObj(old) && old.ticket) next[a.module] = { ...old, recoveredNotified: true, closeTries: 1 }; // retry only the tracker part (this attempt counts)
     } else if (ok) {
       if (ticket) {
         const { ticketPending, ticketTries, ...rest } = next[a.module];
         next[a.module] = { ...rest, ticket };
       } else if (hasTracker && !(isObj(old) && old.ticket)) next[a.module] = { ...next[a.module], ticketPending: true, ticketTries: 1 };
     } else if (a.kind === "new") {
-      if (isObj(old) && old.recoveredNotified) next[a.module] = old; // keep the old ticket, retried next run
-      else delete next[a.module]; // stays unknown, retried next run
-    }
-    else next[a.module] = old; // repeat: keep the old lastSent
+      if (gaveUp) { const { ticketPending, ...rest } = next[a.module]; next[a.module] = rest; } // remembered, stops repeating
+      else if (isObj(old) && old.recoveredNotified) next[a.module] = { ...old, failTries: tries }; // keep the old ticket, retried next run
+      else { delete next[a.module]; nextUnsent[a.module] = tries; } // stays unknown, retried next run
+    } else if (gaveUp) {
+      const { failTries, ...rest } = next[a.module];
+      next[a.module] = rest; // lastSent is now: waits for the next repeat
+    } else next[a.module] = { ...old, failTries: tries }; // repeat: keep the old lastSent
   }
 
   // Tracker-only retries: recovery tickets not yet closed, problem tickets not yet opened.
@@ -264,8 +277,9 @@ export async function watch({ config, env = process.env, now = Date.now(), fetch
     say(delivered === 0 ? deliveryNote : `${undelivered} of ${messages.length} messages not delivered`);
   }
 
-  if (JSON.stringify(next) !== JSON.stringify(before)) {
-    try { saveAlerts(alertsPath, next); } catch (e) { say(`cannot write ${alertsPath}: ${firstLine(e)}`); deliveryNote ||= "cannot write alert state"; }
+  const toSave = Object.keys(nextUnsent).length ? { ...next, _unsent: nextUnsent } : next;
+  if (JSON.stringify(toSave) !== JSON.stringify(_unsent === undefined ? before : { ...before, _unsent })) {
+    try { saveAlerts(alertsPath, toSave); } catch (e) { say(`cannot write ${alertsPath}: ${firstLine(e)}`); deliveryNote ||= "cannot write alert state"; }
   }
 
   try {
