@@ -33,7 +33,7 @@ planning → slice ⇄ rework → validation → batch-pr → awaiting-merge →
                      needs-input ◄─── question / security finding / 3 failed rounds ──────┘            └► release-ready → done (target main, after release)
 ```
 
-`STATE.md` holds the status. Everything else (tracker, UAT list) is a mirror. With tracker `none` the question, the answer (`docs/answers/<unit>.md`) and the UAT list (`docs/uat/<unit>.md`) are files in the repo.
+`STATE.md` holds the status and must be current before every report and PR; CI (`check-state-touched.mjs`) fails a PR with code but no `STATE.md` change. Everything else (tracker, UAT list) is a mirror. With tracker `none` the question, the answer (`docs/answers/<unit>.md`) and the UAT list (`docs/uat/<unit>.md`) are files in the repo.
 
 The pretest verdict has three values: `fix-round` (findings about the unit, a fix pack follows), `uat-ready` (the UAT list holds only what needs a second real account or a product decision) and `intervention` (the unit cannot go on without the human; status `needs-input`).
 

@@ -1,8 +1,8 @@
-Status: fixpack · since 2026-11-23T08:50Z · F1 done
+Status: fixpack · since 2026-11-23T08:50Z · F1 to F4 done, review open
 Target: dev
 Branch: claude/project-thread-hyupfn
 PR: -
-Next: F2
+Next: review, final run, PR
 Batch-branch: batch/dev
 Lock: free
 Tracker: -
@@ -17,10 +17,10 @@ Start commit: 949ca60
 | # | Type | Title | Status | Areas | Check | Board | Red run (SHA) | Green run (SHA) | Commit |
 |---|---|---|---|---|---|---|---|---|---|
 | A1 | analysis | Why STATE.md drifts in project threads | done | skills, block, CI | code paths | no interface | - | - | see Analysis |
-| F1 | fix | CI check: STATE.md must change with code | done | template/scripts, guards workflow | node scripts/test-check-state-touched.mjs | no interface | rc=1 on 367d1ef (module missing) | rc=0, 9 tests | see git log |
-| F2 | fix | STATE.md update is a gate in the skills | open | delegation, fixpack, milestone skills | bash scripts/test-state-gate.sh | no interface | - | - | - |
-| F3 | fix | Slimmer STATE template | open | _TEMPLATE/STATE.md | bash scripts/test-state-gate.sh | no interface | - | - | - |
-| F4 | fix | Block v4: gate and coordinator rule | open | instruction-block.md, SKILL.md | bash scripts/test-project-block.sh | no interface | - | - | - |
+| F1 | fix | CI check: STATE.md must change with code | done | template/scripts, guards workflow | node scripts/test-check-state-touched.mjs | no interface | rc=1 on 367d1ef (module missing) | rc=0, 9 tests | 265272f |
+| F2 | fix | STATE.md update is a gate in the skills | done | delegation, fixpack, milestone skills | bash scripts/test-state-gate.sh | no interface | rc=1 on 265272f + test | rc=0, batch-run -23 B vs baseline | 22036c1 |
+| F3 | fix | Slimmer STATE template | done | _TEMPLATE/STATE.md | bash scripts/test-state-gate.sh | no interface | rc=1 on 22036c1 (template check) | rc=0, mirror 23/23, measure 64/64 | dd2196d |
+| F4 | fix | Block v4: gate and coordinator rule | done | instruction-block.md, SKILL.md | bash scripts/test-project-block.sh | no interface | rc=1 on dd2196d + test | rc=0 | see git log |
 
 ## Analysis A1
 
@@ -41,3 +41,5 @@ Proposal: F1 to F4 of the order.
 - 2026-11-23T08:50Z · plan · analysis first, F1 to F4 in order
 - 2026-11-23T09:05Z · A1 analysis written · -
 - 2026-11-23T09:15Z · F1 script, test, workflow, test-all, install test green · see git log
+- 2026-11-23T09:35Z · F2, F3 done · 22036c1, dd2196d
+- 2026-11-23T09:50Z · F4, changelog, WORKFLOW line · see git log
