@@ -61,4 +61,4 @@ Keep `STATE.md` current, write the report as **interim state** (done, open, next
 
 ## Excluded
 
-PR, merge, deploy, browser verification against dev/staging (that is the pretest), changes to roadmap or briefs, access to production tenants. The batch PR is created only on order (`foreman-batch`).
+PR, merge, deploy, browser verification against dev/staging (that is the pretest), changes to roadmap or briefs, access to production tenants. The batch PR is created only on order (`foreman-batch`). A merge on the human's go ends with the After-merge step (`foreman-delegation`).

@@ -87,4 +87,4 @@ Local browser runs for acceptance are mandatory.
 
 ## Excluded
 
-Deploy, PRs, merges (until `foreman-batch` is ordered), changes to brief and roadmap, browser verification against dev/staging, access to production tenants.
+Deploy, PRs, merges (until `foreman-batch` is ordered), changes to brief and roadmap, browser verification against dev/staging, access to production tenants. A merge on the human's go ends with the After-merge step (`foreman-delegation`).
