@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { validatePlan, baseUrl, isSafePath, scrub, summary, runPretest, requiredVariables } from "./lib/pretest-run.mjs";
+import { validatePlan, baseUrl, isSafePath, scrub, summary, runPretest, requiredVariables, mergeConfig } from "./lib/pretest-run.mjs";
 import { main } from "./pretest-run.mjs";
 
 const queue = [];
@@ -121,6 +121,45 @@ t("cli: exit codes and secret scrubbing in messages", async () => {
     assert.equal(await main(["--plan", planFile, "--out", dir], { conf: { pretest: cfg }, env, stderr: (m) => errs.push(m) }), 1);
     assert.ok(!errs.join("\n").includes(SECRET));
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("local overlay: .foreman.local.json is merged over .foreman.json, arrays and scalars replace", () => {
+  const base = { context: { name: "x" }, pretest: { targets: { dev: "" }, productionHosts: [], tenants: { dev: ["a"] } } };
+  const local = { pretest: { targets: { dev: "https://dev.example.com" }, productionHosts: ["app.example.com"] } };
+  const m = mergeConfig(base, local);
+  assert.equal(m.pretest.targets.dev, "https://dev.example.com");
+  assert.deepEqual(m.pretest.productionHosts, ["app.example.com"]);
+  assert.deepEqual(m.pretest.tenants, { dev: ["a"] });
+  assert.equal(m.context.name, "x");
+  assert.deepEqual(mergeConfig(base, {}), base);
+  assert.deepEqual(base.pretest.productionHosts, []);
+});
+
+t("local overlay: the runner reads both files from the working directory", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "pretest-local-"));
+  const cwd = process.cwd();
+  try {
+    writeFileSync(join(dir, "p.json"), JSON.stringify(plan()));
+    const checked = { ...cfg, targets: { dev: "", staging: "" }, productionHosts: [] };
+    writeFileSync(join(dir, ".foreman.json"), JSON.stringify({ pretest: checked }));
+    process.chdir(dir);
+    const errs = [];
+    // without the overlay the empty target is refused
+    assert.equal(await main(["--plan", "p.json", "--out", "out"], { env, chromium: fakeBrowser([]), axe: FakeAxe, stdout: () => {}, stderr: (m) => errs.push(m) }), 1);
+    assert.ok(errs.at(-1).includes("is missing in .foreman.json and .foreman.local.json"));
+    writeFileSync(join(dir, ".foreman.local.json"), JSON.stringify({ pretest: { targets: { dev: "https://dev.example.com" }, productionHosts: ["app.example.com"] } }));
+    assert.equal(await main(["--plan", "p.json", "--out", "out"], { env, chromium: fakeBrowser([]), axe: FakeAxe, stdout: () => {}, stderr: (m) => errs.push(m) }), 0);
+    // an overlay that lists the target as production is still refused
+    writeFileSync(join(dir, ".foreman.local.json"), JSON.stringify({ pretest: { targets: { dev: "https://app.example.com" }, productionHosts: ["app.example.com"] } }));
+    errs.length = 0;
+    assert.equal(await main(["--plan", "p.json", "--out", "out"], { env, chromium: fakeBrowser([]), axe: FakeAxe, stdout: () => {}, stderr: (m) => errs.push(m) }), 1);
+    assert.ok(errs.join("\n").includes("productionHosts"));
+    // broken overlay: exit 2, the content is not echoed
+    writeFileSync(join(dir, ".foreman.local.json"), "{ " + SECRET);
+    errs.length = 0;
+    assert.equal(await main(["--plan", "p.json", "--out", "out"], { env, stderr: (m) => errs.push(m) }), 2);
+    assert.ok(errs.join("\n").includes(".foreman.local.json is not valid JSON") && !errs.join("\n").includes(SECRET));
+  } finally { process.chdir(cwd); rmSync(dir, { recursive: true, force: true }); }
 });
 
 let n = 0;
