@@ -1,6 +1,7 @@
 {
   "workdir": "~/.local/share/foreman-dispatcher",
   "cooldown_minutes": 45,
+  "max_tasks_cap": 3,
   "webhook_url_env": "DISPATCHER_ERROR_WEBHOOK_URL",
   "webhook_format": "auto",
   "foreman_version_source": "release",

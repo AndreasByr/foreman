@@ -15,7 +15,39 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { judge, readBeats, statusDir, writeBeat } from "./heartbeat.mjs";
 
-const HARD_MAX_TASKS = 3;
+const DEFAULT_MAX_TASKS_CAP = 3;
+const ABSOLUTE_MAX_TASKS = 10;
+const DEFAULT_COOLDOWN_MINUTES = 45;
+
+const unset = (v) => v === undefined || v === null;
+const isPositiveInt = (v) => Number.isInteger(v) && v > 0;
+const isPositiveNumber = (v) => typeof v === "number" && Number.isFinite(v) && v > 0;
+
+/**
+ * Resolves the start limits of one project. cap: config max_tasks_cap (default 3, at most 10). max: project max_tasks
+ * (default = cap, at most cap). cooldownMinutes: project cooldown_minutes, then config cooldown_minutes, then 45.
+ * Returns { cap, max, cooldownMinutes, notes: [{ level: "default" | "warn", text }] }.
+ */
+export function resolveLimits(config, project) {
+  const notes = [];
+  let cap = DEFAULT_MAX_TASKS_CAP;
+  if (!unset(config.max_tasks_cap)) {
+    if (!isPositiveInt(config.max_tasks_cap)) notes.push({ level: "warn", text: `max_tasks_cap invalid (${JSON.stringify(config.max_tasks_cap)}), ${DEFAULT_MAX_TASKS_CAP} used` });
+    else if (config.max_tasks_cap > ABSOLUTE_MAX_TASKS) { cap = ABSOLUTE_MAX_TASKS; notes.push({ level: "warn", text: `max_tasks_cap ${config.max_tasks_cap} capped to ${ABSOLUTE_MAX_TASKS}` }); }
+    else cap = config.max_tasks_cap;
+  }
+  let max = cap;
+  if (unset(project.max_tasks)) notes.push({ level: "default", text: `max_tasks not set, default used (${cap})` });
+  else if (!isPositiveInt(project.max_tasks)) notes.push({ level: "warn", text: `max_tasks invalid (${JSON.stringify(project.max_tasks)}), ${cap} used` });
+  else if (project.max_tasks > cap) { notes.push({ level: "warn", text: `max_tasks ${project.max_tasks} capped to ${cap}` }); }
+  else max = project.max_tasks;
+  let cooldownMinutes = DEFAULT_COOLDOWN_MINUTES;
+  const cooldownRaw = unset(project.cooldown_minutes) ? config.cooldown_minutes : project.cooldown_minutes;
+  if (unset(cooldownRaw)) notes.push({ level: "default", text: `cooldown_minutes not set, default used (${DEFAULT_COOLDOWN_MINUTES} min)` });
+  else if (!isPositiveNumber(cooldownRaw)) notes.push({ level: "warn", text: `cooldown_minutes invalid (${JSON.stringify(cooldownRaw)}), ${DEFAULT_COOLDOWN_MINUTES} min used` });
+  else cooldownMinutes = cooldownRaw;
+  return { cap, max, cooldownMinutes, notes };
+}
 
 export function expandHome(p) {
   return p && p.startsWith("~") ? join(homedir(), p.slice(1)) : p;
@@ -71,15 +103,19 @@ function loadState(path) {
   } catch { return { fired: {} }; }
 }
 
-/** Picks the tasks to start: at most `max` (never above 3), one per unit, none fired within the cooldown. */
-export function selectTasks(tasks, state, now, { max = HARD_MAX_TASKS, cooldownMs = 45 * 60 * 1000 } = {}) {
+/**
+ * Picks the tasks to start: at most `max`, never above `cap` and never above ABSOLUTE_MAX_TASKS (10), one per unit,
+ * none fired within the cooldown (`cooldownMs`, per unit).
+ */
+export function selectTasks(tasks, state, now, { max = DEFAULT_MAX_TASKS_CAP, cap = DEFAULT_MAX_TASKS_CAP, cooldownMs = DEFAULT_COOLDOWN_MINUTES * 60 * 1000 } = {}) {
+  const limit = Math.min(max, cap, ABSOLUTE_MAX_TASKS);
   const chosen = [], skipped = [], units = new Set();
   for (const t of tasks) {
     if (!t.prompt) { skipped.push({ ...t, why: "no PROMPT block" }); continue; }
     const last = Date.parse(state.fired?.[t.unit] ?? ""); // cooldown per unit, whatever the kind
     if (units.has(t.unit) && t.unit !== "-") { skipped.push({ ...t, why: "unit already has a task" }); continue; }
     if (Number.isFinite(last) && now - last < cooldownMs) { skipped.push({ ...t, why: "fired recently" }); continue; }
-    if (chosen.length >= Math.min(max, HARD_MAX_TASKS)) { skipped.push({ ...t, why: "limit reached" }); continue; }
+    if (chosen.length >= limit) { skipped.push({ ...t, why: "limit reached" }); continue; }
     chosen.push(t);
     units.add(t.unit);
   }
@@ -486,7 +522,6 @@ export async function run({ config, env = process.env, dryRun = false, only = nu
   mkdirSync(stateDir, { recursive: true });
   const lock = join(workdir, "dispatch.lock");
   if (!dryRun && !acquireLock(lock)) { log("another dispatcher run is active; skipping"); return 0; }
-  const cooldownMs = (config.cooldown_minutes ?? 45) * 60 * 1000;
   let failed = false, notifyFailed = false;
   const failedProjects = [];
   const versionCache = { done: false, current: null };
@@ -502,8 +537,15 @@ export async function run({ config, env = process.env, dryRun = false, only = nu
       if (project.enabled === false || (only && project.name !== only)) continue;
       const secrets = [env[project.fire_token_env], project.deploy_key_env ? env[project.deploy_key_env] : null, ...Object.values(project.pass_env ?? {}).map((n) => env[n])];
       const say = (m) => log(`[${new Date(now).toISOString()}] ${redact(m, secrets)}`);
+      const limits = resolveLimits(config, project);
+      const cooldownMs = limits.cooldownMinutes * 60 * 1000;
       let pErr = null, pNote = null, started = 0;
       try {
+        for (const n of limits.notes) if (n.level === "warn") say(`${project.name}: ${n.text}`);
+        if (dryRun) {
+          say(`${project.name}: limits max_tasks=${limits.max} (cap ${limits.cap}), cooldown=${limits.cooldownMinutes} min`);
+          for (const n of limits.notes) if (n.level === "default") say(`${project.name}: ${n.text}. Ask the human for this value (dispatcher/README.md, Limits)`);
+        }
         let dir = join(workdir, "repos", project.name);
         if (update) dir = updateRepo(project, workdir, env, say);
         else if (!existsSync(join(dir, ".git"))) throw new Error("no clone yet (run without --no-update first)");
@@ -522,7 +564,7 @@ export async function run({ config, env = process.env, dryRun = false, only = nu
         for (const l of stderr.split("\n").filter(Boolean)) say(`${project.name}: check note: ${l}`);
         const parsed = parseCheckOutput(stdout);
         if (parsed.nothing || !parsed.tasks.length) { say(`${project.name}: nothing to do`); pNote = "nothing to do"; continue; }
-        const { chosen, skipped } = selectTasks(parsed.tasks, state, now, { max: project.max_tasks ?? HARD_MAX_TASKS, cooldownMs });
+        const { chosen, skipped } = selectTasks(parsed.tasks, state, now, { max: limits.max, cap: limits.cap, cooldownMs });
         for (const s of skipped) say(`${project.name}: skip ${s.kind} ${s.unit} (${s.why})`);
         for (const task of chosen) {
           if (dryRun) { say(`${project.name}: would start ${task.kind} ${task.unit} (${task.info}) via ${project.fire_command ? "command" : "fire URL"}`); continue; }
