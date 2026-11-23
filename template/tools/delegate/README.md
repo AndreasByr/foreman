@@ -56,7 +56,7 @@ timeout), the wrapper repeats the role with `fallback_model`. A failed task (red
 ## Gateway backend
 
 `gateway/<alias>` sends the worker through your LiteLLM proxy (module `gateway`). Settings live in the `[gateway]` table:
-`base_url`, `api_key_env` (the name of the variable that holds a virtual key) and `fallback_model`. The aliases are
+`base_url` (or `base_url_env`, the name of the variable that holds the address; default `FOREMAN_GATEWAY_URL`), `api_key_env` (the name of the variable that holds a virtual key) and `fallback_model`. The aliases are
 `task-simple`, `task-research`, `task-normal`, `task-complex` and `task-testing`. The key reaches only the worker that uses
 the gateway. If the proxy is unreachable, the key is missing or a plan limit is exhausted, the wrapper repeats the role with
 `fallback_model`, a `claude/<id>` model run through `claude -p` with your Claude subscription. No Anthropic API key is used.
