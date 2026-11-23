@@ -1,8 +1,8 @@
-Status: awaiting-merge · since 2026-11-23T17:00Z · all gates green, review pass in round 2
+Status: uat-ready · since 2026-11-23T16:50Z · PR #39 merged to dev (0ab1013), waiting for UAT
 Target: dev
 Branch: fix/local-overlay-gateway-env
-PR: -
-Next: batch PR to dev, merge on green gates, then UAT by the human
+PR: #39
+Next: UAT by the human, then release only on go
 Batch-branch: fix/local-overlay-gateway-env
 Lock: free
 Tracker: -
@@ -41,3 +41,4 @@ None. `bash scripts/test-all.sh` rc=0 before the first change (commit a64cb2b, s
 - 2026-11-23T16:45Z · F1, F2 red tests 54ff77a, code b589a3c, 471cb95, changelog 7124481 · test-all rc=0
 - 2026-11-23T16:55Z · review round 1 needs-attention, R1 af1c015 → 111b899 · test-all rc=0
 - 2026-11-23T17:00Z · review round 2 pass · -
+- 2026-11-23T16:50Z · PR #39 merged to dev (0ab1013), CI test and guards green; #38 closed · -
