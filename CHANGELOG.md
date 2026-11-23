@@ -4,7 +4,7 @@
 
 ### New
 
-- **STATE.md is a gate (block v4).** Without autopilot, project threads let `STATE.md` drift. Now the update is a gate before every report and PR in `foreman-delegation`, `foreman-fixpack` and `foreman-milestone`, and the block (v4) says so. The project chat checks that the PR changes `STATE.md` before it passes a UAT list on. New `scripts/check-state-touched.mjs` runs in the `foreman-guards` workflow: a PR that changes code or fix pack and milestone files without a unit `STATE.md` goes red (PRs from `main`, `dev`, `sync/*`, `dependabot/*`, `renovate/*` and `foreman-update*` are skipped; a deleted `STATE.md` does not count).
+- **STATE.md is a gate (block v4).** Without autopilot, project threads let `STATE.md` drift. Now the update is a gate before every report and PR in `foreman-delegation`, `foreman-fixpack` and `foreman-milestone`, and the block (v4) says so. The project chat checks that the branch or PR changes `STATE.md` before it passes a UAT list or PR link on. New `scripts/check-state-touched.mjs` runs in the `foreman-guards` workflow: a PR that changes code or fix pack and milestone files without a unit `STATE.md` goes red (PRs from `main`, `dev`, `sync/*`, `dependabot/*`, `renovate/*` and `foreman-update*` and `agent/foreman-update*` are skipped; a deleted `STATE.md` does not count).
 - **Slimmer STATE template.** The header gets `Branch:`, `PR:` and `Next:`. The fix pack table drops the Areas and Board columns and shows red and green runs in one column. The mirror script reads the same fields as before.
 
 ### Upgrade

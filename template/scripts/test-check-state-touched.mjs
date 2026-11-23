@@ -54,10 +54,10 @@ t("sync and release PRs (head main or dev) are skipped", () => {
 });
 
 t("bot, sync and foreman update PRs are skipped by head prefix", () => {
-  for (const h of ["dependabot/npm/x", "renovate/x", "sync/main-to-dev", "foreman-update-0.2.5", "foreman-update"]) {
+  for (const h of ["dependabot/npm/x", "renovate/x", "sync/main-to-dev", "foreman-update-0.2.5", "foreman-update", "agent/foreman-update-0.2.5"]) {
     assert.equal(checkStateTouched(["scripts/a.mjs"], { headRef: h }).ok, true, h);
   }
-  assert.equal(checkStateTouched(["scripts/a.mjs"], { headRef: "agent/foreman-update-x" }).ok, false);
+  assert.equal(checkStateTouched(["scripts/a.mjs"], { headRef: "agent/other-x" }).ok, false);
 });
 
 t("a deleted STATE.md does not count", () => {
@@ -73,6 +73,7 @@ t("CLI on a real repo: red without STATE.md, green with it, 2 on bad usage", () 
   try {
     git("init", "-q", "-b", "dev");
     put("README.md", "x\n");
+    put("docs/milestones/M001/STATE.md", "Status: slice\n");
     git("add", "-A"); git("commit", "-qm", "base");
     git("checkout", "-qb", "work");
     put("scripts/a.mjs", "1\n");
@@ -84,7 +85,7 @@ t("CLI on a real repo: red without STATE.md, green with it, 2 on bad usage", () 
     git("add", "-A"); git("commit", "-qm", "state");
     r = cli("--base", "dev", "--head", "work");
     assert.equal(r.status, 0, r.stdout + r.stderr);
-    git("rm", "-q", STATE); git("commit", "-qm", "drop state");
+    git("rm", "-q", STATE, "docs/milestones/M001/STATE.md"); git("commit", "-qm", "drop state");
     r = cli("--base", "dev", "--head", "work");
     assert.equal(r.status, 1, "deleted STATE.md must stay red: " + r.stdout + r.stderr);
     r = cli("--base", "dev", "--head", "work", "--head-ref", "dependabot/x");

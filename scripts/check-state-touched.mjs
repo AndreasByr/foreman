@@ -2,7 +2,7 @@
 // CI check: a PR that changes code or fix pack/milestone files must also change a unit STATE.md.
 //   node scripts/check-state-touched.mjs --base <ref> --head <ref> [--head-ref <branch name of the PR>]
 // Files = `git diff --name-only <base>...<head>`. Exempt: docs outside docs/fixpacks and docs/milestones, root *.md, LICENSE.
-// PRs are skipped when the head branch is main or dev, or starts with sync/, dependabot/, renovate/ or foreman-update (sync, bot and foreman update PRs).
+// PRs are skipped when the head branch is main or dev, or starts with sync/, dependabot/, renovate/, foreman-update or agent/foreman-update (sync, bot and foreman update PRs).
 // A deleted STATE.md does not count as a change.
 // Exit 0: ok. 1: STATE.md missing. 2: usage error or unknown ref (stderr starts with "check-state-touched:").
 // Tests: node scripts/test-check-state-touched.mjs
@@ -10,7 +10,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const SKIP_HEADS = ["main", "dev"];
-const SKIP_PREFIXES = ["sync/", "dependabot/", "renovate/", "foreman-update"];
+const SKIP_PREFIXES = ["sync/", "dependabot/", "renovate/", "foreman-update", "agent/foreman-update"];
 const STATE_FILE = /^docs\/(fixpacks|milestones)\/(?!_TEMPLATE\/)[^/]+\/STATE\.md$/;
 const UNIT_FILE = /^docs\/(fixpacks|milestones)\//;
 
