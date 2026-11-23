@@ -1,8 +1,8 @@
-Status: batch-pr · since 2026-11-23T15:30Z · PR #36 open, waiting for CI
+Status: uat-ready · since 2026-11-23T15:35Z · PR #36 merged to dev (7781fa8), waiting for UAT
 Target: dev
 Branch: batch/dev
 PR: #36
-Next: merge the PR to dev, then UAT by the human; release 0.2.5 only on go
+Next: UAT by the human, then release 0.2.5 only on go
 Batch-branch: batch/dev
 Lock: free
 Tracker: -
@@ -53,3 +53,4 @@ None. Start commit 84dd33c: `node dispatcher/tests/test-dispatch.mjs` rc=0, 78 t
 - 2026-11-23T15:13Z · F3 · docs · 1f56b04
 - 2026-11-23T15:30Z · review rounds 1 to 3, rework R1 to R3 · 8886831
 - 2026-11-23T15:25Z · test-all rc=0 · 8886831
+- 2026-11-23T15:33Z · PR #36 CI green (test, guards), merged with a merge commit · 7781fa8
