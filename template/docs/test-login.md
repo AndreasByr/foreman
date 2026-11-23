@@ -33,6 +33,10 @@ The pretest logs in without driving a third-party login (OAuth, SSO, a chat plat
 }
 ```
 
+### Keeping addresses out of the repo (`.foreman.local.json`)
+
+Put the values that must not be committed (the dev address, the production hosts) into `.foreman.local.json` next to `.foreman.json`. The file is git-ignored (the installer adds it to `.gitignore`), has the same shape and holds only what differs, for example `{ "pretest": { "targets": { "dev": "https://dev.example.com" }, "productionHosts": ["app.example.com"] } }`. The pretest runner merges it over `.foreman.json`: objects merge key by key, arrays and single values of the local file replace. The guards still apply to the merged result. The file must exist where the work run starts the runner, so provide it there (a path outside the repo is not read). Only the pretest runner reads it; scripts that read `.foreman.json` directly see the committed file.
+
 `roles` maps a role name to the name of the variable that holds that account's ID. The variables must also exist in the work run's environment (names only in this file). `blocked` are regular expressions matched against tenants and paths; use them for a tenant that must never be touched.
 
 ## Effects in other systems

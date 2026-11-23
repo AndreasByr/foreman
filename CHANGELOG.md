@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Local overlay `.foreman.local.json` for the pretest runner.** The runner merges an optional, git-ignored `.foreman.local.json` over `.foreman.json` (objects merge, arrays and values of the local file replace). Addresses and production hosts can stay out of the repository; the guards check the merged result. The installer adds the file to the project's `.gitignore`. A broken local file stops the run with exit code 2 and does not echo its content.
+
+### Upgrade
+- Files replaced by `--update`: `scripts/pretest-run.mjs`, `scripts/lib/pretest-run.mjs`, `scripts/test-pretest.mjs`; local edits there are lost, read the dry-run list first. `docs/test-login.md` stays yours.
+- Steps: run `./install.sh <project> --update`; this version does not change the dispatcher, so no pull of the foreman checkout on the dispatcher machine is needed, and an update of the dispatcher is not required. To use the overlay, move the values out of `.foreman.json` into `.foreman.local.json`, add that file to `.gitignore` (new installs get the line) and make sure the file exists where the work run starts.
+- Optional: the overlay; without the file nothing changes. `pass_env`, `webhook_format` and `mainAutoMerge` stay as in 0.2.2.
+
 ## 0.2.4 (2026-11-22)
 
 ### New
