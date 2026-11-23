@@ -129,4 +129,17 @@ for term in watch.sh "dispatcher machine"; do
 done
 echo "ok CHANGELOG.md names heartbeat and the watcher upgrade step"
 
+# dispatcher limits: max_tasks_cap, cooldown_minutes and max_tasks are asked for, not defaulted
+need dispatcher/README.md max_tasks_cap
+need dispatcher/README.md cooldown_minutes
+need dispatcher/README.md "Limits"
+need plugins/foreman/skills/foreman-project/references/tracker-and-dispatcher.md max_tasks_cap
+need plugins/foreman/skills/foreman-project/references/tracker-and-dispatcher.md cooldown_minutes
+need plugins/foreman/skills/foreman-project/SKILL.md cooldown_minutes
+need plugins/foreman/skills/foreman-setup/references/prerequisites.md cooldown_minutes
+need plugins/foreman/skills/foreman-update/SKILL.md max_tasks
+need docs/MODULES.md max_tasks_cap
+need CHANGELOG.md max_tasks_cap
+need docs/learnings.md max_tasks_cap
+
 echo "dispatcher docs tests: ok"

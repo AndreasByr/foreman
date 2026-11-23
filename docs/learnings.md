@@ -69,6 +69,7 @@ Why the rules in foreman exist. Skills hold the rule; the story lives here. Proj
 - Typecheck, lint and unit tests miss bundling errors (for example a relative runtime import of shared code in a UI component). The production build is mandatory before pushing to a batch branch.
 - Worker task and result files were committed for weeks (about 2,000 files, 28 MB) and every run cloned them. They are git-ignored; only the agent report stays.
 - Workers have no git, so scope can only be checked with a file snapshot before and after the run.
+- A fixed code constant cap of 3 could not be raised without a local code edit that the next update overwrites, and setup copied the example defaults without asking. Now `max_tasks_cap` lives in the config (at most 10), `cooldown_minutes` can be set per project, and the dry run prints a line for every value that is not set.
 
 - **Workers lost their Claude login in the cloud.** A wrapper that started `claude -p` with a clean `HOME` and expected `CLAUDE_CODE_OAUTH_TOKEN` or an API key got "Not logged in" in every Claude Code cloud session: the login belongs to the session. `execution` failed, the session coded every slice itself. Rule: Claude workers inherit the session's login by default, foreign keys are stripped, a login failure stops further Claude attempts and exits 5 so the session hands the task to its own subagent.
 

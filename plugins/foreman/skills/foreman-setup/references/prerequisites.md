@@ -66,10 +66,10 @@ Why: an existing Linear account can serve as the tracker mirror. No sub-issues a
 Why: starts work runs without you. Lives in `dispatcher/` of the foreman repo and is not copied into the project.
 
 1. Clone the foreman repo on the server.
-2. Copy `dispatcher/config.example.json` to `config.json`: per project the repo, branch, check command, `fire_url_env`, `fire_token_env`, `enabled`, `max_tasks`.
+2. Copy `dispatcher/config.example.json` to `config.json`: per project the repo, branch, check command, `fire_url_env`, `fire_token_env`, `enabled`, `max_tasks`, `cooldown_minutes`. Ask the human for `max_tasks` (per project), `cooldown_minutes` and, only if they want more than 3 starts per run, `max_tasks_cap`, with the recommendation from `dispatcher/README.md` (Limits); do not keep the example values unasked.
 3. Copy `dispatcher/dispatcher.env.example` to `dispatcher.env`, fill the variables (names are in the file). Mode 600.
 4. Add a read-only deploy key to the project repo (GitHub: repo Settings, Deploy keys, leave "Allow write access" off).
-5. Dry run: `dispatch.sh --dry-run`. The `TASK` lines must match the units you expect.
+5. Dry run: `dispatch.sh --dry-run`. The `TASK` lines must match the units you expect, and the `limits` lines must show the chosen values with no `default used` line.
 6. Install the systemd service and timer from `dispatcher/systemd/` (every 10 minutes). Enable lingering for the user (`loginctl enable-linger <user>`) so the timer runs after logout. Cron works too (see the dispatcher README).
 7. To stop: disable the timer, or set `enabled` to false for one project.
 

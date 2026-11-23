@@ -10,6 +10,7 @@
 - **After-merge step also for manual threads (block v5).** The step "`STATE.md` to its next status, run the mirror, only then close the thread" lived only in the autopilot run. A project thread that merged on the human's "go" and closed skipped it, so the tracker kept the old status. Now `foreman-delegation` defines the After-merge step, `foreman-batch`, `foreman-fixpack` and `foreman-milestone` point to it, and the block (v5) carries one line.
 - **Mirror and tracker client are tested together.** `state-mirror.mjs` names the client methods it needs. A test compares them with the real itsaplan and Linear clients and with the test fake, and scans the mirror source so the list cannot go stale. A client that lacks a method now stops the mirror at once with the file to check, not with `client.project is not a function`.
 - **`install.sh --update` warns about files it does not ship.** The update report (also with `--dry-run`) lists scripts in `scripts/` and `scripts/lib/` that this foreman version does not ship, and the old folder `docs/fixpakete/`. Nothing is deleted or changed because of it; if such a file replaced a foreman script, remove or rename it by hand.
+- **Dispatcher limits are asked for, not defaulted.** The cap of 3 starts per run is now `max_tasks_cap` in `dispatcher/config.json` (default 3, at most 10). Each project has `max_tasks`, and `cooldown_minutes` is set at top level (default 45) or per project. The dry run prints a `limits` line per project and an `Ask the human for this value` line for every value that is not set. Setup, project start and update ask for these values instead of keeping the defaults.
 
 ### Upgrade
 - Files: `./install.sh <project> --update` replaces the three skills, the two `_TEMPLATE/STATE.md` files, `.github/workflows/foreman-guards.yml` and adds `scripts/check-state-touched.mjs` with its test. It also replaces `scripts/state-mirror.mjs` (client check). The update warning lives in the foreman checkout, not in your project. Nothing else changes.
@@ -18,6 +19,8 @@
 - Alarm files: new `dispatcher/heartbeat.mjs`, `dispatcher/watch.mjs`, `dispatcher/watch.sh`, `dispatcher/status.sh` and the systemd units `dispatcher/systemd/foreman-watcher.service` and `.timer`; `scripts/state-mirror.mjs` and `scripts/lib/heartbeat.mjs` via `./install.sh <project> --update`.
 - Alarm steps: pull the foreman checkout on the dispatcher machine, install the watcher timer (or the cron line in `crontab.example`), set `alarm` in `config.json`, and set `FOREMAN_STATUS_DIR` for the tracker sync if you want its beat.
 - Alarm optional: nothing changes without `alarm` in `config.json`; the watcher then uses the webhook only.
+- Files (dispatcher limits): the dispatcher code changed, so pull the foreman checkout on the dispatcher machine.
+- Steps/Optional (dispatcher limits): answer the questions. Run `./dispatch.sh --dry-run`, set `max_tasks` and `cooldown_minutes` per project in `config.json`, and optionally `max_tasks_cap`. Nothing changes if you set nothing: the defaults stay 3 starts per run and 45 min cooldown.
 
 ## 0.2.4 (2026-11-22)
 
