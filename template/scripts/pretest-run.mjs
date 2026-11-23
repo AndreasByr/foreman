@@ -19,7 +19,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
     plan = JSON.parse(readFileSync(o.plan, "utf8"));
     const readJson = (file) => {
       try { return JSON.parse(readFileSync(file, "utf8")); }
-      catch (e) { throw Object.assign(new Error(`${file} is not valid JSON.`), { exitCode: 2 }); }
+      catch { throw Object.assign(new Error(`${file} is not valid JSON.`), { exitCode: 2 }); }
     };
     const conf = deps.conf ?? mergeConfig(existsSync(".foreman.json") ? readJson(".foreman.json") : {}, existsSync(".foreman.local.json") ? readJson(".foreman.local.json") : {});
     cfg = conf.pretest;
