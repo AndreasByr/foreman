@@ -7,7 +7,7 @@ import { checklist } from "./lib/state.mjs";
 import { openQuestion, explanationText, hasExplanation, answers } from "./lib/intervention.mjs";
 import * as mirror from "./state-mirror.mjs";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -461,6 +461,31 @@ t("wiki: CLI without --unit only warns on a missing Wiki line; --unit M001 makes
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+t("tracker-sync beat: tracker none beats ok, a configured tracker without credentials beats error, no status dir set means no file", () => {
+  const dir = mkdtempSync(join(tmpdir(), "mirror-beat-"));
+  try {
+    spawnSync("git", ["init", "-q"], { cwd: dir });
+    mkdirSync(join(dir, "docs/milestones/M001"), { recursive: true });
+    writeFileSync(join(dir, "docs/milestones/M001/STATE.md"), "Status: slice · since 2026-01-01T00:00Z\nTarget: dev\n\n# M001: x\n");
+    const status = join(dir, "status");
+    const base = { ...process.env };
+    for (const k of ["ITSAPLAN_URL", "ITSAPLAN_API_KEY", "LINEAR_API_KEY", "FOREMAN_STATUS_DIR"]) delete base[k];
+    const run = (env) => spawnSync(process.execPath, [join(HERE, "state-mirror.mjs"), "--local"], { cwd: dir, encoding: "utf8", env: { ...base, ...env } });
+    const beat = () => JSON.parse(readFileSync(join(status, "tracker-sync.json"), "utf8"));
+    writeFileSync(join(dir, ".foreman.json"), JSON.stringify({ modules: [] }));
+    assert.equal(run({}).status, 0);
+    assert.ok(!existsSync(status), "no FOREMAN_STATUS_DIR: nothing written");
+    assert.equal(run({ FOREMAN_STATUS_DIR: status }).status, 0);
+    assert.equal(beat().result, "ok");
+    writeFileSync(join(dir, ".foreman.json"), JSON.stringify({ modules: ["tracker-itsaplan"], mirror: { itsaplan: { projectKey: "P" } } }));
+    const r = run({ FOREMAN_STATUS_DIR: status });
+    assert.equal(r.status, 0, "exit code of the skip stays as before");
+    assert.equal(beat().result, "error");
+    assert.match(beat().note, /ITSAPLAN_URL/);
+    assert.ok(r.stdout.includes("SKIP|itsaplan"), r.stdout);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 for (const [name, fn] of queue) {
