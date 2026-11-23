@@ -90,9 +90,9 @@ for term in foreman_version_source foreman_repo update_notice "foreman update av
   need docs/MODULES.md "$term"
 done
 
-# CHANGELOG.md: only the section that introduced the update notice counts (Unreleased, or 0.2.2 once released; later patch sections do not repeat it). Its parts run from the heading to the next ## or ### heading.
+# CHANGELOG.md: only the section that introduced the update notice counts (Unreleased, or 0.2.5 once released; later patch sections do not repeat it). Its parts run from the heading to the next ## or ### heading.
 [ -f CHANGELOG.md ] || fail "missing file CHANGELOG.md"
-unreleased=$(awk '/^## /{on = ($0 ~ /^## (Unreleased|0\.2\.2)( |$)/)} on' CHANGELOG.md)
+unreleased=$(awk '/^## /{on = ($0 ~ /^## (Unreleased|0\.2\.5|0\.2\.2)( |$)/)} on' CHANGELOG.md)
 [ -n "$unreleased" ] || fail "CHANGELOG.md has no section"
 # part HEADING: the lines under HEADING inside the Unreleased section
 part() { awk -v h="$1" '$0 == h {on = 1; next} /^#{2,3} / {on = 0} on' <<<"$unreleased"; }
