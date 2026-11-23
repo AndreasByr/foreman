@@ -9,11 +9,38 @@ Needs: Node 20+, git, a machine that is on (a small VPS, a home server, a Raspbe
 1. Clones or updates a read-only checkout with a deploy key (read access only).
 2. Runs the project's check script (`scripts/autopilot-check.sh --no-fetch`) with a clean environment: only PATH, HOME, LANG and the variables listed in the project's `pass_env` (`NAME` -> name of the variable in the dispatcher environment). Other projects' tokens never reach it. Exit code not 0: nothing is started, the error is logged and sent to the webhook.
 3. Parses the output: `TASK|<kind>|<unit>|<info>` lines and `=== PROMPT n <kind> <unit> ===` ... `=== END n ===` blocks (`ENDE` is accepted too). `NOTHING|...` means nothing to do.
-4. Starts at most 3 tasks, at most one per unit, and none for a unit it started within `cooldown_minutes` (default 45), so two runs 10 minutes apart never start the same unit twice before the work run took its lock.
+4. Starts at most `max_tasks` tasks per project (default: the cap `max_tasks_cap`, 3), at most one per unit, and none for a unit it started within `cooldown_minutes` (default 45), so two runs 10 minutes apart never start the same unit twice before the work run took its lock. See Limits.
 5. Fire target:
    - **Claude Code routine (recommended):** `POST` to the routine's fire URL with the headers `Authorization: Bearer <token>`, `anthropic-beta: experimental-cc-routine-2026-04-01`, `anthropic-version: 2023-06-01` and the body `{"text": "<order text>"}`. The answer's session URL is logged.
    - **Other agents:** `fire_command`, a shell command that receives the order text on stdin, for example `opencode run`. It runs detached in the project checkout with the same environment rule (only PATH, HOME, LANG and the `pass_env` names) plus `FOREMAN_PROJECT`, `FOREMAN_KIND` and `FOREMAN_UNIT` set, output in `<workdir>/logs/`. Resuming a session, running several orders in parallel and cleaning up after a crashed agent are then your job: the dispatcher starts the command and does not watch it. The lock in `STATE.md` still protects each unit for 3 hours.
 6. Tokens and keys are never logged. A failed start goes to the optional webhook (`DISPATCHER_ERROR_WEBHOOK_URL`). The body depends on `webhook_format` in `config.json`: `discord` sends `{"content": ...}`, `slack` sends `{"text": ...}`, `auto` (default) decides by host (`discord.com`, `discordapp.com`, `hooks.slack.com`). Unknown host, an invalid or non-https URL or an unknown format is logged as `webhook not used: <reason>` without the URL, nothing is sent, the exit code stays 1.
+
+## Limits
+
+Three settings in `config.json` decide how many work runs start and how soon a unit may start again. Setup, project start and update ask for the values; nothing is kept silently.
+
+| Key | Where | Default | Meaning |
+|---|---|---|---|
+| `max_tasks_cap` | top level | 3, at most 10 | Ceiling of starts per run for all projects. A higher value is capped to 10 with a warning. |
+| `max_tasks` | per project | the cap | Starts per run for this project. Never above the cap; a higher value is capped with a warning. |
+| `cooldown_minutes` | top level, optional per project | 45 | Minutes before the same unit may start again. A project's value overrides the top-level one. |
+
+- One task per unit per run. A second task of the same unit waits for a later run.
+- A task skipped for a limit, the cooldown or the unit rule is not stored. The next run (10 minutes later) prints it again, and it starts when there is room.
+- The dry run (`./dispatch.sh --dry-run`) prints per project `limits max_tasks=2 (cap 3), cooldown=90 min`. These are the values in use. A `not set, default used` line followed by `Ask the human for this value` means the key is missing in `config.json`; set it. A line with `invalid` or `capped` means the value is not used as written.
+- `config.example.json` leaves `max_tasks_cap`, `cooldown_minutes` and each project's `max_tasks` out on purpose. A copied example therefore gets `not set, default used` lines in the dry run, so the human is asked for these values.
+- A missing `max_tasks_cap` gives no question line. The cap stays at 3 unless the human wants more.
+- `max_tasks: 0` and other non-positive values are invalid. The dispatcher warns and uses the cap instead. To pause a project, set `"enabled": false`.
+- `cooldown_minutes` is at most 1440 (24 h). An invalid project value falls back to the top-level value, then to 45.
+- Warnings repeat on every run until the config is fixed.
+
+### How to choose
+
+Setup, project start and update ask these three questions, each with its recommendation.
+
+- **`max_tasks`**: 1 for `fire_command` runs on a laptop or small machine. 2 for a cloud routine; 3 only if the routine's plan allows that many runs at once.
+- **`cooldown_minutes`**: about the longest normal run of one unit. Recommend 90 when pretest runs are used (they take about 20 to 90 minutes), 45 otherwise. Too low risks a second start before the work run took its lock; too high delays a follow-up task of the same unit.
+- **`max_tasks_cap`**: leave at 3. Raise it only with a reason (several projects, a plan with many parallel runs), at most 10. It lives in the config, so a foreman update does not overwrite it.
 
 ## Update notice
 

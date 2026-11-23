@@ -1593,6 +1593,156 @@ t("heartbeat R1: peer.json forgets the watcher once it is ok again, so a later o
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+// Configurable limits: max_tasks_cap (config), max_tasks and cooldown_minutes (project, config fallback for the cooldown).
+const rl = (config, project = {}) => dispatchModule.resolveLimits(config, project);
+
+t("resolveLimits: cap is 3 by default, taken from config, clamped to 10 with a warn note, invalid values fall back to 3", () => {
+  assert.equal(rl({}).cap, 3);
+  assert.equal(rl({ max_tasks_cap: 5 }).cap, 5);
+  const high = rl({ max_tasks_cap: 25 });
+  assert.equal(high.cap, 10);
+  assert.ok(high.notes.some((n) => n.level === "warn" && n.text.includes("capped")), "warn note for a cap above 10");
+  for (const bad of [0, -1, 2.5, "x"]) {
+    const r = rl({ max_tasks_cap: bad });
+    assert.equal(r.cap, 3, `invalid cap ${JSON.stringify(bad)} falls back to 3`);
+    assert.ok(r.notes.some((n) => n.level === "warn" && n.text.includes("invalid")), `warn note for cap ${JSON.stringify(bad)}`);
+  }
+});
+
+t("resolveLimits: max_tasks defaults to the cap with a default note, is capped above the cap, invalid values fall back to the cap", () => {
+  const none = rl({}, {});
+  assert.equal(none.max, 3);
+  assert.ok(none.notes.some((n) => n.level === "default" && n.text.includes("max_tasks") && n.text.includes("not set, default used")), "default note naming max_tasks");
+  assert.equal(rl({ max_tasks_cap: 5 }, {}).max, 5, "default max follows the cap");
+  assert.equal(rl({ max_tasks_cap: 5 }, { max_tasks: 2 }).max, 2, "a valid lower max is kept");
+  const above = rl({ max_tasks_cap: 5 }, { max_tasks: 8 });
+  assert.equal(above.max, 5);
+  assert.ok(above.notes.some((n) => n.level === "warn" && n.text.includes("capped")), "warn note for max above cap");
+  for (const bad of [0, -1, 2.5, "x"]) {
+    const r = rl({ max_tasks_cap: 5 }, { max_tasks: bad });
+    assert.equal(r.max, 5, `invalid max_tasks ${JSON.stringify(bad)} falls back to the cap`);
+    assert.ok(r.notes.some((n) => n.level === "warn" && n.text.includes("invalid")), `warn note for max_tasks ${JSON.stringify(bad)}`);
+  }
+});
+
+t("resolveLimits: cooldown is project, then config, then 45 minutes; default and invalid notes", () => {
+  assert.equal(rl({}, { cooldown_minutes: 10 }).cooldownMinutes, 10, "project beats nothing");
+  assert.equal(rl({ cooldown_minutes: 180 }, {}).cooldownMinutes, 180, "config used when project is unset");
+  assert.equal(rl({ cooldown_minutes: 180 }, { cooldown_minutes: 10 }).cooldownMinutes, 10, "project beats config");
+  const none = rl({}, {});
+  assert.equal(none.cooldownMinutes, 45);
+  assert.ok(none.notes.some((n) => n.level === "default" && n.text.includes("cooldown_minutes") && n.text.includes("not set, default used")), "default note naming cooldown_minutes");
+  for (const bad of [0, -5, "x"]) {
+    const r = rl({}, { cooldown_minutes: bad });
+    assert.equal(r.cooldownMinutes, 45, `invalid cooldown ${JSON.stringify(bad)} falls back to 45`);
+    assert.ok(r.notes.some((n) => n.level === "warn" && n.text.includes("invalid")), `warn note for cooldown ${JSON.stringify(bad)}`);
+  }
+});
+
+t("resolveLimits R1: invalid project cooldown_minutes falls back to the config value, else 45, with a warn note", () => {
+  for (const bad of ["x", 0, -5]) {
+    const withConfig = rl({ cooldown_minutes: 180 }, { cooldown_minutes: bad });
+    assert.equal(withConfig.cooldownMinutes, 180, `invalid project cooldown ${JSON.stringify(bad)} falls back to the config value 180`);
+    assert.ok(withConfig.notes.some((n) => n.level === "warn" && n.text.includes("invalid")), `warn note with "invalid" for project cooldown ${JSON.stringify(bad)}`);
+    const noConfig = rl({}, { cooldown_minutes: bad });
+    assert.equal(noConfig.cooldownMinutes, 45, `invalid project cooldown ${JSON.stringify(bad)} without config falls back to 45`);
+    assert.ok(noConfig.notes.some((n) => n.level === "warn" && n.text.includes("invalid")), `warn note with "invalid" for project cooldown ${JSON.stringify(bad)} without config`);
+  }
+});
+
+t("resolveLimits R1: cooldown above 1440 minutes is capped to 1440 with a warn note, project or config", () => {
+  const fromProject = rl({}, { cooldown_minutes: 5000 });
+  assert.equal(fromProject.cooldownMinutes, 1440, "project cooldown 5000 capped to 1440");
+  assert.ok(fromProject.notes.some((n) => n.level === "warn" && n.text.includes("capped")), 'warn note with "capped" for project cooldown');
+  const fromConfig = rl({ cooldown_minutes: 5000 }, {});
+  assert.equal(fromConfig.cooldownMinutes, 1440, "config cooldown 5000 capped to 1440");
+  assert.ok(fromConfig.notes.some((n) => n.level === "warn" && n.text.includes("capped")), 'warn note with "capped" for config cooldown');
+  const exact = rl({}, { cooldown_minutes: 1440 });
+  assert.equal(exact.cooldownMinutes, 1440, "exactly 1440 is kept");
+  assert.ok(!exact.notes.some((n) => n.text.includes("capped")), "no cap note at exactly 1440");
+});
+
+t("resolveLimits: everything set validly gives empty notes", () => {
+  const r = rl({ max_tasks_cap: 5, cooldown_minutes: 60 }, { max_tasks: 4, cooldown_minutes: 10 });
+  assert.deepEqual({ cap: r.cap, max: r.max, cooldownMinutes: r.cooldownMinutes }, { cap: 5, max: 4, cooldownMinutes: 10 });
+  assert.deepEqual(r.notes, []);
+});
+
+t("selectTasks: a cap option raises the limit (up to 10); without it max alone stays limited to 3", () => {
+  const now = Date.parse("2026-01-01T10:00:00Z");
+  const six = Array.from({ length: 6 }, (_, i) => ({ n: i, kind: "coding", unit: `x${i}`, info: "", prompt: "p" }));
+  assert.equal(selectTasks(six, { fired: {} }, now, { max: 6, cap: 5 }).chosen.length, 5);
+  assert.equal(selectTasks(six, { fired: {} }, now, { max: 10 }).chosen.length, 3);
+});
+
+const FIVE_UNITS = Array.from({ length: 5 }, (_, i) => [
+  `TASK|coding|v${i + 1}|slice`,
+  `=== PROMPT ${i + 1} coding v${i + 1} ===`,
+  `Foreman task: coding | unit: v${i + 1}`,
+  `=== END ${i + 1} ===`,
+]).flat().join("\n");
+
+t("run: config max_tasks_cap 5 and project max_tasks 5 start five tasks on five units", async () => {
+  const { dir, cfg, env } = setup(FIVE_UNITS, { config: { max_tasks_cap: 5 }, project: { max_tasks: 5 } });
+  try {
+    const calls = [];
+    const fetch = async (url, o) => { calls.push({ url, o }); return { ok: true, status: 200, text: async () => "{}" }; };
+    assert.equal(await run({ config: cfg, env, fetch, log: () => {}, now: Date.parse("2026-01-01T10:00:00Z") }), 0);
+    assert.equal(calls.length, 5);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("run: project cooldown_minutes 10 beats config cooldown_minutes 180: a unit fired at 10:00 starts again at 10:15", async () => {
+  const { dir, cfg, env } = setup(SAMPLE, { config: { cooldown_minutes: 180 }, project: { cooldown_minutes: 10 } });
+  try {
+    const calls = [];
+    const fetch = async (url, o) => { calls.push({ url, o }); return { ok: true, status: 200, text: async () => "{}" }; };
+    await run({ config: cfg, env, fetch, log: () => {}, now: Date.parse("2026-01-01T10:00:00Z") });
+    assert.equal(calls.length, 2);
+    calls.length = 0;
+    await run({ config: cfg, env, fetch, log: () => {}, update: false, now: Date.parse("2026-01-01T10:15:00Z") });
+    assert.equal(calls.length, 2, "10 minutes cooldown is over at 10:15");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("run --dry-run: one limits line per project with max_tasks= and cooldown=; default used for unset limits", async () => {
+  const set = setup(SAMPLE, { config: { max_tasks_cap: 5 }, project: { max_tasks: 5, cooldown_minutes: 10 } });
+  try {
+    const logs = [];
+    const fetch = async () => { throw new Error("must not be called"); };
+    await run({ config: set.cfg, env: set.env, fetch, dryRun: true, log: (m) => logs.push(m) });
+    const lines = logs.filter((l) => l.includes("limits"));
+    assert.equal(lines.length, 1, "one limits line for one project");
+    assert.ok(lines[0].includes("max_tasks=") && lines[0].includes("cooldown="), lines[0]);
+  } finally { rmSync(set.dir, { recursive: true, force: true }); }
+
+  const unset = setup(SAMPLE);
+  try {
+    const logs = [];
+    const fetch = async () => { throw new Error("must not be called"); };
+    await run({ config: unset.cfg, env: unset.env, fetch, dryRun: true, log: (m) => logs.push(m) });
+    assert.ok(logs.some((l) => l.includes("default used") && l.includes("max_tasks")), "a default line naming max_tasks");
+  } finally { rmSync(unset.dir, { recursive: true, force: true }); }
+});
+
+t("run: valid limits log no limits line; invalid project max_tasks logs a max_tasks invalid line on a normal run", async () => {
+  const ok = setup(SAMPLE, { config: { max_tasks_cap: 5 }, project: { max_tasks: 5, cooldown_minutes: 10 } });
+  try {
+    const logs = [];
+    const fetch = async () => ({ ok: true, status: 200, text: async () => "{}" });
+    await run({ config: ok.cfg, env: ok.env, fetch, log: (m) => logs.push(m), now: Date.parse("2026-01-01T10:00:00Z") });
+    assert.ok(!logs.some((l) => l.includes("limits")), "no limits line when everything is valid");
+  } finally { rmSync(ok.dir, { recursive: true, force: true }); }
+
+  const bad = setup(SAMPLE, { project: { max_tasks: "x" } });
+  try {
+    const logs = [];
+    const fetch = async () => ({ ok: true, status: 200, text: async () => "{}" });
+    await run({ config: bad.cfg, env: bad.env, fetch, log: (m) => logs.push(m), now: Date.parse("2026-01-01T10:00:00Z") });
+    assert.ok(logs.some((l) => l.includes("max_tasks") && l.includes("invalid")), "invalid max_tasks is logged");
+  } finally { rmSync(bad.dir, { recursive: true, force: true }); }
+});
+
 let passed = 0;
 const failures = [];
 for (const [name, fn] of queue) {

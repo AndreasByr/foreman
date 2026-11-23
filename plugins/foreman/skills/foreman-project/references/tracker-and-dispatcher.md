@@ -27,16 +27,17 @@ Read when you reach steps 6 and 7.
 
 ## Dispatcher entry (Autopilot)
 
-The dispatcher runs on the human's machine (`dispatcher/` in the foreman repo) and costs no model tokens. Every 10 minutes per enabled project it fetches the repo with a read-only deploy key, runs `scripts/autopilot-check.sh`, and for each `TASK` line (at most 3 per run, one per unit) starts a work run with the prompt block that belongs to it.
+The dispatcher runs on the human's machine (`dispatcher/` in the foreman repo) and costs no model tokens. Every 10 minutes per enabled project it fetches the repo with a read-only deploy key, runs `scripts/autopilot-check.sh`, and for each `TASK` line (at most `max_tasks` per run for this project, one per unit, and none within `cooldown_minutes` of its last start) starts a work run with the prompt block that belongs to it. Limits and their recommendations: `dispatcher/README.md`, Limits.
 
-Entry in `config.json` per project: `repo`, `branch` (usually `dev`), the check command, `fire_url_env`, `fire_token_env`, `enabled`, `max_tasks`. For other agents use `fire_command` instead (the prompt arrives on stdin, for example `opencode run`); resuming and parallel runs are then up to the human.
+Entry in `config.json` per project: `repo`, `branch` (usually `dev`), the check command, `fire_url_env`, `fire_token_env`, `enabled`, `max_tasks`, `cooldown_minutes`. For other agents use `fire_command` instead (the prompt arrives on stdin, for example `opencode run`); resuming and parallel runs are then up to the human.
 
 Steps for the human:
 
 1. Create the work-run routine with an API trigger (routines UI or a Claude Code session in the cloud environment). Environment: the project repo, network to the worker provider and the tracker, the project's variables.
 2. Generate the token in the UI. It is shown once. Put URL and token into `dispatcher.env` under the names in `config.json`.
 3. Add the read-only deploy key to the repo.
-4. `dispatch.sh --dry-run`: the `TASK` lines match the units you expect and no token appears in the log.
-5. Enable the timer.
+4. Ask for the limits: `max_tasks` for this project, `cooldown_minutes`, and `max_tasks_cap` only if the human wants more than 3 starts per run. Each with the recommendation from `dispatcher/README.md` (Limits). Write the answers into the entry; never keep the example values without asking.
+5. `dispatch.sh --dry-run`: the `TASK` lines match the units you expect, the `limits` line shows the chosen values, no `not set, default used` line appears, and no token appears in the log.
+6. Enable the timer.
 
 Smoke test: fire the work run with the text "smoke test"; success is "smoke test ok".
