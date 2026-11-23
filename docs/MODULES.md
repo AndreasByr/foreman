@@ -47,8 +47,8 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 - `foreman_repo`: `owner/name` of the foreman repository for the release lookup. Default `AndreasByr/foreman`.
 - `update_notice`: `true` (default) or `false`. Set `false` to switch off the `foreman update available` notice for all projects, or in a project's entry for that project only.
 - `max_tasks_cap`: top level in `dispatcher/config.json`. Ceiling of work runs started per dispatcher run, for all projects. Default 3, at most 10 (a higher value is capped to 10).
-- `max_tasks`: per project in `dispatcher/config.json`. Work runs started per run for that project. Default: the value of `max_tasks_cap`; never above it.
-- `cooldown_minutes`: top level as the default for all projects, or per project as override. Minutes before the same unit may start again. Default 45.
+- `max_tasks`: per project in `dispatcher/config.json`. Work runs started per run for that project. Default: the value of `max_tasks_cap`; never above it. A value of 0 or below is invalid (warning, the cap applies); pause a project with `enabled: false`.
+- `cooldown_minutes`: top level as the default for all projects, or per project as override. Minutes before the same unit may start again. Default 45. At most 1440 (24 h); an invalid project value falls back to the top-level value, then 45.
 - `autopilot.batchHours`: in `.foreman.json`, the local hours (in `context.timeZone`) of the merge window in which the check starts the batch PR. Default 3, 7, 11, 15, 19, 23.
 - `autopilot.waitHours`: in `.foreman.json`, the wait time in hours after which the check starts the batch PR outside the merge window. Default 4. `FOREMAN_WAIT_SECONDS` still overrides the wait time.
 

@@ -138,6 +138,7 @@ need plugins/foreman/skills/foreman-project/references/tracker-and-dispatcher.md
 need plugins/foreman/skills/foreman-project/SKILL.md cooldown_minutes
 need plugins/foreman/skills/foreman-setup/references/prerequisites.md cooldown_minutes
 need plugins/foreman/skills/foreman-update/SKILL.md max_tasks
+need plugins/foreman/skills/foreman-update/SKILL.md cooldown_minutes
 need docs/MODULES.md max_tasks_cap
 need CHANGELOG.md max_tasks_cap
 need docs/learnings.md max_tasks_cap

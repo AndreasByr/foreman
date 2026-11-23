@@ -14,13 +14,13 @@
 
 ### Upgrade
 - Files: `./install.sh <project> --update` replaces the three skills, the two `_TEMPLATE/STATE.md` files, `.github/workflows/foreman-guards.yml` and adds `scripts/check-state-touched.mjs` with its test. It also replaces `scripts/state-mirror.mjs` (client check). The update warning lives in the foreman checkout, not in your project. Nothing else changes.
-- Steps: update the foreman plugin in claude.ai or with `/plugin update`, then run `foreman-project-mode` (refresh) in the project; it replaces the block (v3 or v4) with v5 (2 min). The dispatcher code does not change in this version, so no pull of the foreman checkout on the dispatcher machine is needed. Open PRs without a `STATE.md` change turn red after the update; add the state file to them. Put the update itself on a branch named `foreman-update-<version>`.
+- Steps: update the foreman plugin in claude.ai or with `/plugin update`, then run `foreman-project-mode` (refresh) in the project; it replaces the block (v3 or v4) with v5 (2 min). Open PRs without a `STATE.md` change turn red after the update; add the state file to them. Put the update itself on a branch named `foreman-update-<version>`.
 - Optional: nothing new to set. `pass_env`, `webhook_format` and `mainAutoMerge` stay as before. Existing `STATE.md` files keep working; the new header lines are optional there.
 - Alarm files: new `dispatcher/heartbeat.mjs`, `dispatcher/watch.mjs`, `dispatcher/watch.sh`, `dispatcher/status.sh` and the systemd units `dispatcher/systemd/foreman-watcher.service` and `.timer`; `scripts/state-mirror.mjs` and `scripts/lib/heartbeat.mjs` via `./install.sh <project> --update`.
 - Alarm steps: pull the foreman checkout on the dispatcher machine, install the watcher timer (or the cron line in `crontab.example`), set `alarm` in `config.json`, and set `FOREMAN_STATUS_DIR` for the tracker sync if you want its beat.
 - Alarm optional: nothing changes without `alarm` in `config.json`; the watcher then uses the webhook only.
 - Files (dispatcher limits): the dispatcher code changed, so pull the foreman checkout on the dispatcher machine.
-- Steps/Optional (dispatcher limits): answer the questions. Run `./dispatch.sh --dry-run`, set `max_tasks` and `cooldown_minutes` per project in `config.json`, and optionally `max_tasks_cap`. Nothing changes if you set nothing: the defaults stay 3 starts per run and 45 min cooldown.
+- Steps/Optional (dispatcher limits): Before the pull: a project that uses `max_tasks: 0` as a pause must be set to `"enabled": false`, because 0 is now invalid and the cap applies. Answer the questions. Run `./dispatch.sh --dry-run`, set `max_tasks` and `cooldown_minutes` per project in `config.json`, and optionally `max_tasks_cap`. Otherwise nothing changes if you set nothing: the defaults stay 3 starts per run and 45 min cooldown.
 
 ## 0.2.4 (2026-11-22)
 
