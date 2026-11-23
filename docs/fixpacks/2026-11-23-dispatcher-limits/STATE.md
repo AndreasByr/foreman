@@ -1,7 +1,7 @@
-Status: batch-pr · since 2026-11-23T15:25Z · all gates green, batch PR to dev opened
+Status: batch-pr · since 2026-11-23T15:30Z · PR #36 open, waiting for CI
 Target: dev
 Branch: batch/dev
-PR: pending
+PR: #36
 Next: merge the PR to dev, then UAT by the human; release 0.2.5 only on go
 Batch-branch: batch/dev
 Lock: free
