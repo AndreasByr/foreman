@@ -37,7 +37,10 @@ export function mergeConfig(base, overlay) {
   const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
   if (!isObj(base) || !isObj(overlay)) return overlay === undefined ? base : overlay;
   const out = { ...base };
-  for (const [k, v] of Object.entries(overlay)) out[k] = k in base ? mergeConfig(base[k], v) : v;
+  for (const [k, v] of Object.entries(overlay)) {
+    if (k in Object.prototype) continue; // __proto__, constructor, toString ...: never a config key
+    out[k] = Object.hasOwn(base, k) ? mergeConfig(base[k], v) : v;
+  }
   return out;
 }
 

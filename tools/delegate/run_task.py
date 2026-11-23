@@ -361,6 +361,7 @@ def extra_env(cfg):
 
 def secret_names(cfg):
     names = {cfg["defaults"].get("api_key_env", ""), endpoint_cfg(cfg, "gateway")["api_key_env"]} | set(claude_auth_names(cfg))
+    names.add(cfg.get("gateway", {}).get("base_url_env", ""))  # an address variable with a custom name stays out of workers too
     names |= {m.get("api_key_env", "") for m in cfg["mcp"].values()}
     return {n for n in names if n}
 

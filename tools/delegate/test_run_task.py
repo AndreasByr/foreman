@@ -264,6 +264,7 @@ def test_gateway_base_url_env_name():
 def test_gateway_url_env_name_is_kept_from_workers():
     """The variable named in [gateway] base_url_env holds an address; it is treated like a secret name (not passed on)."""
     cfg = rt.tomllib.loads(GATEWAY_CONFIG.replace('base_url = "https://gw.example"\n', 'base_url_env = "MY_GW_URL"\n'))
+    cfg.setdefault("mcp", {})
     assert "MY_GW_URL" in rt.secret_names(cfg)
 
 
