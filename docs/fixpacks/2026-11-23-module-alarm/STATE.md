@@ -1,7 +1,7 @@
 Status: uat-ready · since 2026-11-23T12:10Z · review pass after round 4, waiting for UAT
 Target: dev
 Branch: claude/project-thread-p86kk4
-PR: -
+PR: #35
 Next: UAT by the human, release only on go
 Batch-branch: batch/dev
 Lock: free
