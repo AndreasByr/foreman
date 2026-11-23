@@ -68,6 +68,8 @@ A project has a project chat (coordinator) and one thread per work package. A th
 | Thread | Writes the pack or brief files and runs `foreman-fixpack` or `foreman-milestone` itself, with the same gates |
 | Human | Says "go" for PR, merge, release |
 
+A thread that merges on "go" finishes with the After-merge step (`foreman-delegation`): the `STATE.md` status, the mirror, then close.
+
 Models by class: each thread category (question, fixpack, milestone, brief, roadmap, architecture, bugRetry, release, docs) has a fixed class in `.foreman.json` `models.threads`, like the roles in the delegate's `config.toml`. Defaults: standard class at medium effort everywhere, strong class for brief, roadmap, architecture and a bug after a failed first fix; cheap class is never a thread default, bulk work goes to the delegate workers. The project chat reads the table from the project instructions and sets the class when it opens a thread.
 
 The rules live in the project instructions. `foreman-project-mode` writes them (coordinator tool or paste) and refreshes them after an update, by comparing the version in the marker line `foreman-project-block`. Source of the text: `plugins/foreman/skills/foreman-project-mode/references/instruction-block.md`.

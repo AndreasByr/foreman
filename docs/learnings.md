@@ -85,9 +85,9 @@ Numbers, not claims. Reasons behind each rule are in the sections above.
 
 | Work run | 0.2.1 | 0.2.x (M012) | Change |
 |---|---|---|---|
-| Milestone | 43,065 B | 42,853 B | -212 B |
-| Fix pack | 41,475 B | 40,906 B | -569 B |
-| Batch | 32,320 B | 32,318 B | -2 B |
+| Milestone | 43,065 B | 42,928 B | -137 B |
+| Fix pack | 41,475 B | 40,981 B | -494 B |
+| Batch | 32,320 B | 32,312 B | -8 B |
 
 The wiki skill adds 3,617 B, but only with the wiki switched on. Four rules (review gate, hand nothing on, evidence rule, version number) now have one owner each; the other skills point to it, and `scripts/test-rules.py` fails when one is repeated. The board check is kept in two places on purpose (slice in `foreman-milestone`, fix pack point in `foreman-fixpack`: a fix pack run does not load the milestone skill); the intervention cause line has its owner in `foreman-dispatch-run/references/intervention.md` and a one-line mention in milestone and fix pack. The same lint checks the key phrases of these copies (design-reference path, no boards by the Agent, the Cause token).
 

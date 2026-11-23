@@ -8,6 +8,8 @@ import { openQuestion, explanationText, hasExplanation, answers } from "./lib/in
 import * as mirror from "./state-mirror.mjs";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { itsaplanClient } from "./lib/itsaplan-api.mjs";
+import { linearClient } from "./lib/linear-api.mjs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -515,6 +517,48 @@ t("tracker-sync beat R1: default status directory is used when it exists; a cras
     assert.equal(b.result, "error");
     assert.match(b.note, /JSON/i);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ----- client contract -----
+
+t("contract: real itsaplan client has every method the mirror needs", () => {
+  const real = itsaplanClient({ url: "http://x", key: "k" });
+  assert.deepEqual(mirror.missingClientMethods(real, mirror.ITSAPLAN_CLIENT_METHODS), []);
+  const lin = linearClient({ key: "k" });
+  assert.deepEqual(mirror.missingClientMethods(lin, mirror.LINEAR_CLIENT_METHODS), []);
+  assert.deepEqual(mirror.missingClientMethods({}, ["a", "b"]), ["a", "b"]);
+});
+
+t("contract: method lists match the source", () => {
+  const src = readFileSync(join(HERE, "state-mirror.mjs"), "utf8");
+  const body = (start) => {
+    const from = src.indexOf(`async function ${start}`);
+    assert.ok(from >= 0, `${start} not found`);
+    const rest = src.slice(from);
+    const end = rest.search(/\n\/\/ ----------/);
+    return end < 0 ? rest : rest.slice(0, end);
+  };
+  const used = (text) => [...new Set([...text.matchAll(/\bclient\.(\w+)\(/g)].map((m) => m[1]))].sort();
+  assert.deepEqual(used(body("mirrorItsaplan")), [...mirror.ITSAPLAN_CLIENT_METHODS].sort());
+  assert.deepEqual(used(body("mirrorLinear")), [...mirror.LINEAR_CLIENT_METHODS].sort());
+});
+
+t("contract: fakeClient covers the itsaplan list", () => {
+  assert.deepEqual(mirror.missingClientMethods(fakeClient([]), mirror.ITSAPLAN_CLIENT_METHODS), []);
+});
+
+t("contract: old client with other method names fails at once", async () => {
+  const oldClient = { projekt: async () => ({}), kommentar: async () => {}, issueAnlegen: async () => ({}) };
+  await assert.rejects(
+    () => mirrorItsaplan([], { projectKey: "P" }, true, oldClient),
+    (e) => {
+      assert.ok(e.message.includes("client"), e.message);
+      for (const name of mirror.ITSAPLAN_CLIENT_METHODS) assert.ok(e.message.includes(name), e.message);
+      assert.ok(e.message.includes("scripts/lib/itsaplan-api.mjs"), e.message);
+      assert.ok(!e.message.includes("is not a function"), e.message);
+      return true;
+    },
+  );
 });
 
 for (const [name, fn] of queue) {

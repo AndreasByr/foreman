@@ -110,9 +110,28 @@ let pending = 0;
 export const pendingChanges = () => pending;
 export const resetPending = () => { pending = 0; };
 
+// ---------- client contract ----------
+
+// Methods the mirror calls on a tracker client. A test keeps these lists equal to the calls in the source below.
+export const ITSAPLAN_CLIENT_METHODS = ["project", "issues", "createIssue", "updateIssue", "comments", "comment"];
+export const LINEAR_CLIENT_METHODS = ["gql", "comments", "comment"];
+
+/** Names from `names` that the client does not provide as functions. */
+export function missingClientMethods(client, names) {
+  return names.filter((n) => typeof client?.[n] !== "function");
+}
+
+function assertClient(client, names, file) {
+  const missing = missingClientMethods(client, names);
+  if (missing.length > 0) {
+    throw new Error(`tracker client lacks: ${missing.join(", ")}. The client file (${file}) does not fit state-mirror.mjs; run ./install.sh <project> --update from the foreman checkout`);
+  }
+}
+
 // ---------- itsaplan ----------
 
 async function mirrorItsaplan(units, cfg, dry, client = itsaplanClient(), aliases = {}) {
+  assertClient(client, ITSAPLAN_CLIENT_METHODS, "scripts/lib/itsaplan-api.mjs");
   const key = cfg.projectKey;
   if (!key) throw new Error("mirror.itsaplan.projectKey is missing in .foreman.json");
   const project = await client.project(key);
@@ -151,6 +170,7 @@ async function mirrorItsaplan(units, cfg, dry, client = itsaplanClient(), aliase
 // ---------- Linear ----------
 
 async function mirrorLinear(units, cfg, dry, client = linearClient()) {
+  assertClient(client, LINEAR_CLIENT_METHODS, "scripts/lib/linear-api.mjs");
   const team = await client.gql(`query($k:String!){teams(filter:{key:{eq:$k}}){nodes{id states{nodes{id name}} labels(first:250){nodes{id name}}}}}`, { k: cfg.teamKey });
   const t = team.teams.nodes[0];
   if (!t) throw new Error(`Linear team ${cfg.teamKey} not found. Check teamKey in .foreman.json`);
