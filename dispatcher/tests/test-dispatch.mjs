@@ -1574,6 +1574,25 @@ t("heartbeat: the dispatcher alarms when the watcher beat is stale, once per rep
 });
 
 
+t("heartbeat R1: peer.json forgets the watcher once it is ok again, so a later outage alarms again", async () => {
+  const { dir, cfg, env } = setup("NOTHING|Nothing to do.\n");
+  try {
+    env.DISPATCHER_ERROR_WEBHOOK_URL = "https://discord.com/api/webhooks/1/SECRETHOOK";
+    const calls = [];
+    const fetch = async (url, o) => { calls.push(o?.body ?? ""); return { ok: true, status: 200, text: async () => "{}" }; };
+    const now = Date.parse("2026-01-01T12:00:00Z");
+    const status = join(cfg.workdir, "status");
+    writeBeat(status, "watcher", { now: now - 5 * 3600 * 1000, maxAgeMin: 45 });
+    await run({ config: cfg, env, fetch, log: () => {}, now });
+    assert.equal(calls.length, 1);
+    writeBeat(status, "watcher", { now: now + 300000, maxAgeMin: 45 });
+    await run({ config: cfg, env, fetch, log: () => {}, now: now + 600000 });
+    assert.deepEqual(JSON.parse(readFileSync(join(cfg.workdir, "peer.json"), "utf8")), {});
+    await run({ config: cfg, env, fetch, log: () => {}, now: now + 3 * 3600 * 1000 });
+    assert.equal(calls.length, 2, "second outage within the repeat time of the first alarm still alarms");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 let passed = 0;
 const failures = [];
 for (const [name, fn] of queue) {

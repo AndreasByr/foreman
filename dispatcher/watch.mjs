@@ -23,7 +23,8 @@ export function decide(judged, alertState, now, { repeatMs = 6 * HOUR } = {}) {
   const problems = new Map();
   for (const j of judged ?? []) if (j.state !== "ok") problems.set(j.module, j);
   for (const [module, j] of problems) {
-    const old = known[module];
+    // a recovery that was already announced does not count as a known problem
+    const old = isObj(known[module]) && known[module].recoveredNotified ? undefined : known[module];
     const base = { module, state: j.state, ageMin: j.ageMin, limitMin: j.limitMin, lastRun: j.lastRun, note: j.note };
     if (!isObj(old)) {
       alarms.push({ ...base, kind: "new", since: iso(now) });
@@ -181,7 +182,17 @@ export async function watch({ config, env = process.env, now = Date.now(), fetch
     return results;
   };
 
-  const messages = [...alarms, ...recovered.map((r) => ({ ...r, kind: "recovered" }))];
+  const trackerOnly = async (a, ticket) => {
+    try { return await tracker(alarmText(a), a, ticket); } catch (e) { say(`tracker failed: ${firstLine(e)}`); return { status: "failed" }; }
+  };
+  const hasTracker = channels.includes("tracker");
+  const trackerIdx = channels.indexOf("tracker");
+  const messages = [...alarms], retryRecovery = [];
+  for (const r of recovered) {
+    const o = before[r.module];
+    if (isObj(o) && o.recoveredNotified) retryRecovery.push({ ...r, kind: "recovered" });
+    else messages.push({ ...r, kind: "recovered" });
+  }
   let delivered = 0, anyUsable = false;
   for (const a of messages) {
     const old = before[a.module];
@@ -190,12 +201,37 @@ export async function watch({ config, env = process.env, now = Date.now(), fetch
     const ok = results.some((r) => r.status === "sent");
     if (ok) delivered++;
     const ticket = results.find((r) => r.status === "sent" && r.ticket)?.ticket;
+    const trackerOk = hasTracker && results[trackerIdx]?.status === "sent";
     if (a.kind === "recovered") {
       if (!ok) next[a.module] = old; // keep the entry, retry next run
+      else if (hasTracker && !trackerOk && isObj(old) && old.ticket) next[a.module] = { ...old, recoveredNotified: true }; // retry only the tracker part
     } else if (ok) {
-      if (ticket) next[a.module] = { ...next[a.module], ticket };
+      if (ticket) {
+        const { ticketPending, ...rest } = next[a.module];
+        next[a.module] = { ...rest, ticket };
+      } else if (hasTracker && !(isObj(old) && old.ticket)) next[a.module] = { ...next[a.module], ticketPending: true };
     } else if (a.kind === "new") delete next[a.module]; // stays unknown, retried next run
     else next[a.module] = old; // repeat: keep the old lastSent
+  }
+
+  // Tracker-only retries: recovery tickets not yet closed, problem tickets not yet opened.
+  for (const a of retryRecovery) {
+    if (!hasTracker) continue; // channel removed: drop the entry
+    const old = before[a.module];
+    const r = await trackerOnly(a, old.ticket);
+    if (r.status !== "sent") next[a.module] = old;
+  }
+  const judgedBy = new Map(judged.map((j) => [j.module, j]));
+  for (const [module, entry] of Object.entries(next)) {
+    if (!hasTracker || !isObj(entry) || !entry.ticketPending || entry.ticket) continue;
+    if (alarms.some((a) => a.module === module) || !judgedBy.has(module) || judgedBy.get(module).state === "ok") continue;
+    const j = judgedBy.get(module);
+    const a = { module, state: j.state, ageMin: j.ageMin, limitMin: j.limitMin, lastRun: j.lastRun, note: j.note, kind: "new", since: entry.since };
+    const r = await trackerOnly(a, undefined);
+    if (r.status === "sent" && r.ticket) {
+      const { ticketPending, ...rest } = entry;
+      next[module] = { ...rest, ticket: r.ticket };
+    }
   }
 
   const undelivered = messages.length - delivered;

@@ -488,6 +488,34 @@ t("tracker-sync beat: tracker none beats ok, a configured tracker without creden
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+t("tracker-sync beat R1: default status directory is used when it exists; a crash of the script beats error and exits 1", () => {
+  const dir = mkdtempSync(join(tmpdir(), "mirror-beat2-"));
+  try {
+    spawnSync("git", ["init", "-q"], { cwd: dir });
+    mkdirSync(join(dir, "docs/milestones/M001"), { recursive: true });
+    writeFileSync(join(dir, "docs/milestones/M001/STATE.md"), "Status: slice · since 2026-01-01T00:00Z\nTarget: dev\n\n# M001: x\n");
+    writeFileSync(join(dir, ".foreman.json"), JSON.stringify({ modules: [] }));
+    const base = { ...process.env, HOME: dir };
+    for (const k of ["ITSAPLAN_URL", "ITSAPLAN_API_KEY", "LINEAR_API_KEY", "FOREMAN_STATUS_DIR"]) delete base[k];
+    const run = (env = {}) => spawnSync(process.execPath, [join(HERE, "state-mirror.mjs"), "--local"], { cwd: dir, encoding: "utf8", env: { ...base, ...env } });
+    const def = join(dir, ".local/share/foreman-dispatcher/status");
+    assert.equal(run().status, 0);
+    assert.ok(!existsSync(def), "default directory absent: nothing written");
+    mkdirSync(def, { recursive: true });
+    assert.equal(run().status, 0);
+    assert.ok(existsSync(join(def, "tracker-sync.json")), "default status directory beat missing");
+    assert.equal(JSON.parse(readFileSync(join(def, "tracker-sync.json"), "utf8")).result, "ok");
+    const status = join(dir, "status");
+    writeFileSync(join(dir, ".foreman.json"), "{not json");
+    const r = run({ FOREMAN_STATUS_DIR: status });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok(existsSync(join(status, "tracker-sync.json")), "error beat missing after the crash");
+    const b = JSON.parse(readFileSync(join(status, "tracker-sync.json"), "utf8"));
+    assert.equal(b.result, "error");
+    assert.match(b.note, /JSON/i);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 for (const [name, fn] of queue) {
   await fn();
   n++;

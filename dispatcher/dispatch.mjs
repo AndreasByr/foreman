@@ -9,7 +9,7 @@
 // --dry-run: update and check as usual, print what would be started, start nothing and write no state.
 // Config: see config.example.json. Secrets come from the environment (dispatcher.env), never from the config file.
 import { spawn, spawnSync } from "node:child_process";
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -454,10 +454,18 @@ async function watcherCheck(config, env, { workdir, statusPath, now, fetchImpl, 
     if (!w) return;
     const limit = config.heartbeat?.limits_minutes?.watcher ?? 45;
     const j = judge([w], { now, limits: { watcher: limit } })[0];
-    if (j.state === "ok") return;
     const peerPath = join(workdir, "peer.json");
     let peer = {};
     try { const p = JSON.parse(readFileSync(peerPath, "utf8")); if (p && typeof p === "object" && !Array.isArray(p)) peer = p; } catch { /* none yet */ }
+    const savePeer = () => {
+      const tmp = `${peerPath}.${process.pid}.tmp`;
+      try { writeFileSync(tmp, `${JSON.stringify(peer, null, 2)}\n`); renameSync(tmp, peerPath); }
+      catch (e) { try { rmSync(tmp, { force: true }); } catch { /* ignore */ } throw e; }
+    };
+    if (j.state === "ok") {
+      if ("watcher" in peer) { delete peer.watcher; savePeer(); }
+      return;
+    }
     const last = Date.parse(peer.watcher ?? "");
     const repeatMs = (config.alarm?.repeat_hours ?? 6) * 3600 * 1000;
     if (Number.isFinite(last) && now - last < repeatMs) return;
@@ -466,7 +474,7 @@ async function watcherCheck(config, env, { workdir, statusPath, now, fetchImpl, 
     const r = await notify(config, env, msg, fetchImpl, say);
     if (r === "sent") {
       peer.watcher = new Date(now).toISOString();
-      writeFileSync(peerPath, `${JSON.stringify(peer, null, 2)}\n`);
+      savePeer();
     }
   } catch (e) { say(`watcher check failed: ${String(e?.message ?? e).split("\n")[0]}`); }
 }

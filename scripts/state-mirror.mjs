@@ -274,4 +274,16 @@ async function main() {
 
 export { mirrorItsaplan, mirrorLinear };
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) main();
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  main().catch((e) => {
+    const message = String(e?.message ?? e).split("\n")[0];
+    console.log(`ERROR|state-mirror|${message}`);
+    const args = process.argv.slice(2);
+    const dry = args.includes("--dry-run") || args.includes("--check") || args.includes("--help");
+    try {
+      const beat = beatDir();
+      if (beat && !dry) writeBeat(beat, "tracker-sync", { result: "error", note: message });
+    } catch { /* never throws */ }
+    process.exit(1);
+  });
+}

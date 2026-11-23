@@ -1,6 +1,6 @@
 // Heartbeat files: one JSON file per module in FOREMAN_STATUS_DIR, written atomically. Never throws.
 // Format: {"module","last_run" (ISO, ms, Z),"result" ("ok"|"error"),"note" (first line, max 300),"max_age_min" (number|null)}
-import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const MODULE_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;
@@ -8,7 +8,13 @@ const MODULE_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;
 export function beatDir(env = process.env) {
   try {
     const dir = env?.FOREMAN_STATUS_DIR;
-    return typeof dir === "string" && dir !== "" ? dir : null;
+    if (typeof dir === "string" && dir !== "") return dir;
+    const home = env?.HOME;
+    if (typeof home === "string" && home !== "") {
+      const def = join(home, ".local/share/foreman-dispatcher/status");
+      if (existsSync(def)) return def;
+    }
+    return null;
   } catch {
     return null;
   }

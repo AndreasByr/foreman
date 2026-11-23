@@ -208,6 +208,67 @@ t("watch: tracker channel opens one ticket in Action Required, comments on repea
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+t("watch R1: webhook sent but ticket creation failed: the ticket is retried on the next run, the webhook is not repeated", async () => {
+  const { dir, cfg, status } = setup({ channels: ["webhook", "tracker"], tracker: { project_key: "KEY", url_env: "TRK_URL", key_env: "TRK_KEY" } });
+  try {
+    const env = { TRK_URL: "https://plan.example", TRK_KEY: "key_SECRET_123456", DISPATCHER_ERROR_WEBHOOK_URL: HOOK };
+    writeBeat(status, "dispatcher", { now: NOW - 14 * H, maxAgeMin: 30 });
+    let trackerDown = true;
+    const calls = [];
+    const fetch = async (url, o = {}) => {
+      const method = o.method ?? "GET", path = new URL(url).pathname;
+      calls.push({ url, method, path });
+      const json = (data) => ({ ok: true, status: 200, text: async () => JSON.stringify(data) });
+      if (url === HOOK) return json({});
+      if (trackerDown && path.startsWith("/projects")) return { ok: false, status: 500, text: async () => "down" };
+      if (method === "GET" && path === "/projects/KEY") return json({ columns: [{ id: "c2", name: "Action Required" }, { id: "c3", name: "Done" }] });
+      if (method === "GET") return json({ items: [] });
+      if (method === "POST" && path === "/projects/KEY/issues") return json({ id: "T9" });
+      return json({});
+    };
+    await watch({ config: cfg, env, now: NOW, fetch, log: () => {} });
+    assert.equal(calls.filter((c) => c.url === HOOK).length, 1);
+    let alerts = JSON.parse(readFileSync(join(cfg.workdir, "alerts.json"), "utf8"));
+    assert.equal(alerts.dispatcher.ticketPending, true);
+    trackerDown = false;
+    await watch({ config: cfg, env, now: NOW + 15 * 60000, fetch, log: () => {} });
+    assert.equal(calls.filter((c) => c.url === HOOK).length, 1, "webhook not repeated");
+    assert.ok(calls.some((c) => c.method === "POST" && c.path === "/projects/KEY/issues"), "ticket created on retry");
+    alerts = JSON.parse(readFileSync(join(cfg.workdir, "alerts.json"), "utf8"));
+    assert.equal(alerts.dispatcher.ticket, "T9");
+    assert.ok(!alerts.dispatcher.ticketPending);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("watch R1: recovery webhook sent but moving the ticket to Done failed: retried, recovery message not repeated", async () => {
+  const { dir, cfg, status } = setup({ channels: ["webhook", "tracker"], tracker: { project_key: "KEY", url_env: "TRK_URL", key_env: "TRK_KEY" } });
+  try {
+    const env = { TRK_URL: "https://plan.example", TRK_KEY: "key_SECRET_123456", DISPATCHER_ERROR_WEBHOOK_URL: HOOK };
+    mkdirSync(cfg.workdir, { recursive: true });
+    writeFileSync(join(cfg.workdir, "alerts.json"), JSON.stringify({ dispatcher: { since: iso(NOW - 3 * H), lastSent: iso(NOW - H), state: "stale", ticket: "T1" } }));
+    writeBeat(status, "dispatcher", { now: NOW - 60000, maxAgeMin: 30 });
+    let trackerDown = true;
+    const calls = [];
+    const fetch = async (url, o = {}) => {
+      const method = o.method ?? "GET", path = new URL(url).pathname;
+      calls.push({ url, method, path });
+      const json = (data) => ({ ok: true, status: 200, text: async () => JSON.stringify(data) });
+      if (url === HOOK) return json({});
+      if (trackerDown && path.startsWith("/projects")) return { ok: false, status: 500, text: async () => "down" };
+      if (method === "GET" && path === "/projects/KEY") return json({ columns: [{ id: "c2", name: "Action Required" }, { id: "c3", name: "Done" }] });
+      return json({});
+    };
+    await watch({ config: cfg, env, now: NOW, fetch, log: () => {} });
+    assert.equal(calls.filter((c) => c.url === HOOK).length, 1);
+    assert.ok(JSON.parse(readFileSync(join(cfg.workdir, "alerts.json"), "utf8")).dispatcher, "entry kept for the ticket retry");
+    trackerDown = false;
+    await watch({ config: cfg, env, now: NOW + 15 * 60000, fetch, log: () => {} });
+    assert.equal(calls.filter((c) => c.url === HOOK).length, 1, "recovery message not repeated");
+    assert.ok(calls.some((c) => c.method === "PATCH" && c.path === "/issues/T1"));
+    assert.deepEqual(JSON.parse(readFileSync(join(cfg.workdir, "alerts.json"), "utf8")), {});
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 t("watch.sh: runs the watcher with dispatcher.env and exits with its code", () => {
   const dir = mkdtempSync(join(tmpdir(), "foreman-watchsh-"));
   try {
