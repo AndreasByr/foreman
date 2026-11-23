@@ -473,7 +473,7 @@ t("tracker-sync beat: tracker none beats ok, a configured tracker without creden
     const base = { ...process.env };
     for (const k of ["ITSAPLAN_URL", "ITSAPLAN_API_KEY", "LINEAR_API_KEY", "FOREMAN_STATUS_DIR"]) delete base[k];
     const run = (env) => spawnSync(process.execPath, [join(HERE, "state-mirror.mjs"), "--local"], { cwd: dir, encoding: "utf8", env: { ...base, ...env } });
-    const beat = () => JSON.parse(readFileSync(join(status, "tracker-sync.json"), "utf8"));
+    const beat = () => { assert.ok(existsSync(join(status, "tracker-sync.json")), "tracker-sync beat file missing"); return JSON.parse(readFileSync(join(status, "tracker-sync.json"), "utf8")); };
     writeFileSync(join(dir, ".foreman.json"), JSON.stringify({ modules: [] }));
     assert.equal(run({}).status, 0);
     assert.ok(!existsSync(status), "no FOREMAN_STATUS_DIR: nothing written");

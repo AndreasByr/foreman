@@ -182,7 +182,7 @@ function itsaplanFetch(tickets) {
 t("watch: tracker channel opens one ticket in Action Required, comments on repeat, moves to Done on recovery", async () => {
   const { dir, cfg, status } = setup({ channels: ["tracker"], tracker: { project_key: "KEY", url_env: "TRK_URL", key_env: "TRK_KEY" } });
   try {
-    const env = { TRK_URL: "https://plan.example/api", TRK_KEY: "key_SECRET_123456" };
+    const env = { TRK_URL: "https://plan.example", TRK_KEY: "key_SECRET_123456" };
     writeBeat(status, "dispatcher", { now: NOW - 14 * H, maxAgeMin: 30 });
     const { calls, fetch } = itsaplanFetch([]);
     await watch({ config: cfg, env, now: NOW, fetch, log: () => {} });
