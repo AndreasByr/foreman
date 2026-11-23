@@ -1,8 +1,8 @@
 Status: uat-ready · since 2026-11-23T10:20Z · review pass (round 2), waiting for UAT
 Target: dev
 Branch: claude/project-thread-3cdeih
-PR: pending
-Next: PR to dev, merge when CI is green, then After-merge step; UAT by the human, release only on go
+PR: #34 (merged into dev, e7d2154)
+Next: UAT by the human (docs/uat/2026-11-23-post-merge-step.md), release only on go
 Batch-branch: batch/dev
 Lock: free
 Tracker: -
@@ -43,3 +43,4 @@ none
 - 2026-11-23T10:05Z · F1, F2, F3 done, red then green · c61be58, 135b95b, a77a60c
 - 2026-11-23T10:12Z · review round 1, rework R1 · a0db486, 34b2834
 - 2026-11-23T10:20Z · review round 2 pass, `scripts/test-all.sh` rc=0 · 34b2834
+- 2026-11-23T10:25Z · PR #34 merged into dev (CI green: test, guards) · e7d2154
