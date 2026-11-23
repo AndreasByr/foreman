@@ -6,6 +6,20 @@
   "foreman_version_source": "release",
   "foreman_repo": "AndreasByr/foreman",
   "update_notice": true,
+  "heartbeat": {
+    "limits_minutes": { "dispatcher": 30, "watcher": 45 },
+    "default_limit_minutes": null
+  },
+  "alarm": {
+    "channels": ["webhook"],
+    "repeat_hours": 6,
+    "push_url_env": "ALARM_PUSH_URL",
+    "tracker": {
+      "project": "my-project",
+      "url_env": "MY_PROJECT_ITSAPLAN_URL",
+      "key_env": "MY_PROJECT_ITSAPLAN_API_KEY"
+    }
+  },
   "projects": [
     {
       "name": "my-project",

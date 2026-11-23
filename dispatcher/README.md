@@ -90,9 +90,50 @@ journalctl --user -u foreman-dispatcher.service -n 50
 
 **cron alternative:** `crontab -e` and add the line from `crontab.example`.
 
+## Heartbeat, watcher and alarm
+
+A module that stops used to raise no alarm. A 14 hour standstill went unnoticed. The dispatcher was the only part that could report, and it reported only while it ran and only through the webhook. Now every module writes a heartbeat, and a separate watcher judges them.
+
+**Heartbeats.** One JSON file per module, in `<workdir>/status/` or in the directory named by `FOREMAN_STATUS_DIR`. Each file holds `module`, `last_run`, `result` (`ok` or `error`), `note` and an optional `max_age_min`. Writers:
+
+- The dispatcher writes `dispatcher` and `project:<name>` for each enabled project. It does this on every run except `--dry-run`. A run that is skipped because another run holds the lock writes nothing, so a hung run turns stale.
+- `scripts/state-mirror.mjs` writes `tracker-sync`, but only when `FOREMAN_STATUS_DIR` is set. It writes `error` when the mirror failed or was skipped for missing credentials. Its exit code does not change.
+- Any script: `node dispatcher/heartbeat.mjs beat <module> ok|error [note]`.
+
+**Watcher.** `dispatcher/watch.sh` runs every 15 minutes, from its own systemd timer or a cron line. It does not depend on the dispatcher. It judges every beat except its own (`watcher`). A beat is:
+
+- `error`: the last beat says `error`.
+- `stale`: the last run is older than the limit.
+- `never`: the module has a limit in `heartbeat.limits_minutes` but never sent a beat.
+
+The limit comes from the first setting that exists:
+
+1. `heartbeat.limits_minutes.<module>` in `config.json`. Defaults: `dispatcher` 30, `watcher` 45.
+2. The beat's own `max_age_min`.
+3. `heartbeat.default_limit_minutes`. Default: none. A module without a limit alarms only on error.
+
+**Alarms.** One alarm per new problem. A problem that stays is repeated after `alarm.repeat_hours` (default 6). When the module is ok again, one recovery message follows. The channels are set in `alarm.channels` (default `["webhook"]`):
+
+- `webhook`: the error webhook (`DISPATCHER_ERROR_WEBHOOK_URL`).
+- `push`: an HTTPS POST of the text to the URL in the variable named by `alarm.push_url_env` (default `ALARM_PUSH_URL`). For example an ntfy topic URL.
+- `tracker`: an itsaplan ticket. A new problem opens a ticket in "Action Required". A repeat adds a comment. Recovery adds a comment and moves the ticket to "Done". Set `alarm.tracker.project_key`, or `project` to read the key from that project's `.foreman.json`. `url_env` and `key_env` name the variables for the itsaplan URL and API key (defaults `ITSAPLAN_URL` and `ITSAPLAN_API_KEY`).
+
+An alarm counts as delivered when at least one channel sent it. If none did, the watcher exits 1, writes an error beat and retries on the next run.
+
+The dispatcher checks the watcher beat on each run. If the watcher beat is stale or failed, the dispatcher sends a webhook message, at most once per `alarm.repeat_hours`. So the two watch each other. The watcher never judges itself.
+
+**Status.** `dispatcher/status.sh`, or `node dispatcher/heartbeat.mjs status`, prints a table of all modules. It exits 1 when any module is not ok. To run it by name, add `alias foreman-status='~/foreman/dispatcher/status.sh'` to your shell profile.
+
+**Setup on the dispatcher machine:**
+
+1. Add `heartbeat` and `alarm` to `config.json`. See `config.example.json`. Without `alarm`, the watcher uses the webhook only.
+2. For the `push` channel, set `ALARM_PUSH_URL` in `dispatcher.env`.
+3. Install the watcher timer: `cp systemd/foreman-watcher.service systemd/foreman-watcher.timer ~/.config/systemd/user/`, then `systemctl --user daemon-reload` and `systemctl --user enable --now foreman-watcher.timer`. For cron, add the watcher line from `crontab.example`.
+4. For the tracker sync, set `FOREMAN_STATUS_DIR` where `state-mirror.mjs` runs. Point it at the directory the watcher reads.
+
 ## Switch off
 
-Per project: `"enabled": false` in `config.json`. Everything: `systemctl --user disable --now foreman-dispatcher.timer` (or remove the cron line). Nothing is left running; a started work run finishes on its own and frees its lock.
+Per project: `"enabled": false` in `config.json`. Everything: `systemctl --user disable --now foreman-dispatcher.timer` (or remove the cron line). Nothing is left running; a started work run finishes on its own and frees its lock. The watcher stops with `systemctl --user disable --now foreman-watcher.timer` (or by removing its cron line).
 
 ## Merging into main
 

@@ -4,6 +4,7 @@
 
 ### New
 
+- **Alarm when a module stops.** Every module now writes a heartbeat: one JSON file per module in `<workdir>/status/` or `FOREMAN_STATUS_DIR`. The dispatcher writes its own beat and one per project, `state-mirror.mjs` writes `tracker-sync`, and any script can use `node dispatcher/heartbeat.mjs beat`. A new watcher (`dispatcher/watch.sh`, every 15 minutes, own timer) judges the beats as error, stale or never reported. Alarms go to the webhook, a push URL or a tracker ticket (`alarm.channels`), once per problem, again after `alarm.repeat_hours`, with one recovery message. `dispatcher/status.sh` shows all modules and exits 1 when one is not ok. A failing step now ends in an error beat.
 - **STATE.md is a gate (block v4).** Without autopilot, project threads let `STATE.md` drift. Now the update is a gate before every report and PR in `foreman-delegation`, `foreman-fixpack` and `foreman-milestone`, and the block (v4) says so. The project chat checks that the branch or PR changes `STATE.md` before it passes a UAT list or PR link on. New `scripts/check-state-touched.mjs` runs in the `foreman-guards` workflow: a PR that changes code or fix pack and milestone files without a unit `STATE.md` goes red (PRs from `main`, `dev`, `sync/*`, `dependabot/*`, `renovate/*` and `foreman-update*` and `agent/foreman-update*` are skipped; a deleted `STATE.md` does not count).
 - **Slimmer STATE template.** The header gets `Branch:`, `PR:` and `Next:`. The fix pack table drops the Areas and Board columns and shows red and green runs in one column. The mirror script reads the same fields as before.
 
@@ -11,6 +12,9 @@
 - Files: `./install.sh <project> --update` replaces the three skills, the two `_TEMPLATE/STATE.md` files, `.github/workflows/foreman-guards.yml` and adds `scripts/check-state-touched.mjs` with its test. Nothing else changes.
 - Steps: update the foreman plugin in claude.ai or with `/plugin update`, then run `foreman-project-mode` (refresh) in the project; it replaces the block v3 with v4 (2 min). The dispatcher code does not change in this version, so no pull of the foreman checkout on the dispatcher machine is needed. Open PRs without a `STATE.md` change turn red after the update; add the state file to them. Put the update itself on a branch named `foreman-update-<version>`.
 - Optional: nothing new to set. `pass_env`, `webhook_format` and `mainAutoMerge` stay as before. Existing `STATE.md` files keep working; the new header lines are optional there.
+- Alarm files: new `dispatcher/heartbeat.mjs`, `dispatcher/watch.mjs`, `dispatcher/watch.sh`, `dispatcher/status.sh` and the systemd units `dispatcher/systemd/foreman-watcher.service` and `.timer`; `scripts/state-mirror.mjs` and `scripts/lib/heartbeat.mjs` via `./install.sh <project> --update`.
+- Alarm steps: pull the foreman checkout on the dispatcher machine, install the watcher timer (or the cron line in `crontab.example`), set `alarm` in `config.json`, and set `FOREMAN_STATUS_DIR` for the tracker sync if you want its beat.
+- Alarm optional: nothing changes without `alarm` in `config.json`; the watcher then uses the webhook only.
 
 ## 0.2.4 (2026-11-22)
 
