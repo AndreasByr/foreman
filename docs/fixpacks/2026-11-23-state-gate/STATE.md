@@ -1,7 +1,7 @@
 Status: uat-ready · since 2026-11-23T10:00Z · review pass, waiting for UAT
 Target: dev
 Branch: claude/project-thread-hyupfn
-PR: <number>
+PR: #33
 Next: UAT by the human, then release only on go
 Batch-branch: batch/dev
 Lock: free
