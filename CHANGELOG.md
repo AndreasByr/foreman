@@ -4,13 +4,13 @@
 
 ### New
 
-- **STATE.md is a gate (block v4).** Without autopilot, project threads let `STATE.md` drift. Now the update is a gate before every report and PR in `foreman-delegation`, `foreman-fixpack` and `foreman-milestone`, and the block (v4) says so. The project chat checks that the PR changes `STATE.md` before it passes a UAT list on. New `scripts/check-state-touched.mjs` runs in the `foreman-guards` workflow: a PR that changes code or fix pack and milestone files without a unit `STATE.md` goes red (PRs from `main` or `dev` are skipped).
+- **STATE.md is a gate (block v4).** Without autopilot, project threads let `STATE.md` drift. Now the update is a gate before every report and PR in `foreman-delegation`, `foreman-fixpack` and `foreman-milestone`, and the block (v4) says so. The project chat checks that the PR changes `STATE.md` before it passes a UAT list on. New `scripts/check-state-touched.mjs` runs in the `foreman-guards` workflow: a PR that changes code or fix pack and milestone files without a unit `STATE.md` goes red (PRs from `main`, `dev`, `sync/*`, `dependabot/*`, `renovate/*` and `foreman-update*` are skipped; a deleted `STATE.md` does not count).
 - **Slimmer STATE template.** The header gets `Branch:`, `PR:` and `Next:`. The fix pack table drops the Areas and Board columns and shows red and green runs in one column. The mirror script reads the same fields as before.
 
 ### Upgrade
 - Files: `./install.sh <project> --update` replaces the three skills, the two `_TEMPLATE/STATE.md` files, `.github/workflows/foreman-guards.yml` and adds `scripts/check-state-touched.mjs` with its test. Nothing else changes.
-- Steps: update the foreman plugin in claude.ai or with `/plugin update`, then run `foreman-project-mode` (refresh) in the project; it replaces the block v3 with v4 (2 min). The dispatcher code does not change in this version, so no pull of the foreman checkout on the dispatcher machine is needed. Open PRs without a `STATE.md` change turn red after the update; add the state file to them.
-- Optional: nothing new to set. `pass_env`, `webhook_format` and `mainAutoMerge` stay as in 0.2.2. Existing `STATE.md` files keep working; the new header lines are optional there.
+- Steps: update the foreman plugin in claude.ai or with `/plugin update`, then run `foreman-project-mode` (refresh) in the project; it replaces the block v3 with v4 (2 min). The dispatcher code does not change in this version, so no pull of the foreman checkout on the dispatcher machine is needed. Open PRs without a `STATE.md` change turn red after the update; add the state file to them. Put the update itself on a branch named `foreman-update-<version>`.
+- Optional: nothing new to set. `pass_env`, `webhook_format` and `mainAutoMerge` stay as before. Existing `STATE.md` files keep working; the new header lines are optional there.
 
 ## 0.2.4 (2026-11-22)
 

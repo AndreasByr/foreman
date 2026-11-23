@@ -29,7 +29,7 @@ Points follow, numbered `F1`, `F2`, ... Each is `Fix:` or `Analysis:` with probl
 2. **Store the order:** the order text unchanged to `docs/fixpacks/<id>/ORDER.md`. If `docs/fixpacks/<id>/STATE.md` exists (continuation), go to step 4 with the first open point.
 3. **Plan and create `STATE.md`** from `docs/fixpacks/_TEMPLATE/STATE.md`:
    - Read `docs/learnings.md` first.
-   - Table per point: `#`, type (fix/analysis), title, status (open / in progress / done / blocked), areas, check (test file or command), board, commit.
+   - Table per point: `#`, type (fix/analysis), title, status (open / in progress / done / blocked), check (test file or command), red → green (SHA), commit.
    - Board check (planning): every point has a `Board:` line. A point with a new or changed interface needs an approved board file under `docs/design-reference/` on the batch branch; without it the point is `blocked` and the unit `needs-input`, the question names the element without a board. The others go on. The Agent creates no boards. `Board: no interface` is for pure text, spacing and bug corrections.
    - **Order:** analyses first. Points sharing a cause or files go one after another. Same cause: one commit naming both numbers, noted in `STATE.md`.
    - Record the start commit of the batch branch in `STATE.md`.

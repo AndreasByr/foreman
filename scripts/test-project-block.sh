@@ -130,7 +130,7 @@ grep -qF "\`<!-- foreman-project-block v$N -->\`" "$SKILL/SKILL.md" || fail "$SK
 # 11. State gate: the block names the STATE.md gate for threads and the coordinator check.
 BLOCK=$(sed -n '/<!-- foreman-project-block v/,/<!-- \/foreman-project-block -->/p' "$REF")
 grep -qF 'STATE.md` is current' <<<"$BLOCK" || fail "$REF: block lacks the gate '\`STATE.md\` is current'"
-grep -qF 'checks that the PR changes `STATE.md`' <<<"$BLOCK" || fail "$REF: block lacks the coordinator check 'checks that the PR changes \`STATE.md\`'"
+grep -qF 'checks that the branch or PR changes `STATE.md`' <<<"$BLOCK" || fail "$REF: block lacks the coordinator check 'checks that the branch or PR changes STATE.md'"
 [ "$(wc -c <<<"$BLOCK")" -le 2600 ] || fail "$REF: block is larger than 2600 bytes"
 
 echo "project block: ok"

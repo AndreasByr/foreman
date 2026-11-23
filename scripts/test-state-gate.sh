@@ -22,7 +22,7 @@ for d in docs template/docs; do
   done
   f="$d/fixpacks/_TEMPLATE/STATE.md"
   grep -q '^| # |' "$f" || fail "$f has no points table"
-  for col in Areas Board 'Green run'; do
+  for col in Areas Board 'Red run' 'Green run'; do
     grep '^| # |' "$f" | grep -qF "$col" && fail "$f table still has column '$col'"
   done
   [ "$(grep '^| # |' "$f" | tr -cd '|' | wc -c)" -le 8 ] || fail "$f table has more than 7 columns"

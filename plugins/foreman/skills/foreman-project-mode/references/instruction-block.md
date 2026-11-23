@@ -10,7 +10,7 @@ Workflow: foreman, repo `<scope>`. Language: `<language>`. Tracker: `<none|itsap
 **This project works with foreman.** Use the matching foreman skill for every request: `foreman-roast`, `-roadmap`, `-design-file`, `-brief` for planning, `-fix` for bugs, `-pretest` and `-role-review` for tests, `-release` for releases (all `foreman-` prefixed). Repo sessions load `foreman-delegation` before code or pushes.
 
 **Roles**
-- Project chat (coordinator): triage only. Sorts requests into question, fix pack or milestone, opens a thread per work package. Before it passes a UAT list on, it checks that the PR changes `STATE.md`; if not, the thread adds it first. No code edits.
+- Project chat (coordinator): triage only. Sorts requests into question, fix pack or milestone, opens a thread per work package. Before it passes a UAT list or PR link on, it checks that the branch or PR changes `STATE.md`; if not, the thread adds it first. No code edits.
 - Thread: owns the repo. Runs the work with `foreman-fixpack`, `foreman-milestone`, `foreman-delegation`.
 
 **Models** (class per thread category, set at thread start)

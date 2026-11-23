@@ -53,6 +53,18 @@ t("sync and release PRs (head main or dev) are skipped", () => {
   assert.equal(checkStateTouched(["scripts/a.mjs"], { headRef: "batch/dev" }).ok, false);
 });
 
+t("bot, sync and foreman update PRs are skipped by head prefix", () => {
+  for (const h of ["dependabot/npm/x", "renovate/x", "sync/main-to-dev", "foreman-update-0.2.5", "foreman-update"]) {
+    assert.equal(checkStateTouched(["scripts/a.mjs"], { headRef: h }).ok, true, h);
+  }
+  assert.equal(checkStateTouched(["scripts/a.mjs"], { headRef: "agent/foreman-update-x" }).ok, false);
+});
+
+t("a deleted STATE.md does not count", () => {
+  assert.equal(checkStateTouched(["scripts/a.mjs", STATE], { stateFiles: ["scripts/a.mjs"] }).ok, false);
+  assert.equal(checkStateTouched(["scripts/a.mjs", STATE], { stateFiles: [STATE] }).ok, true);
+});
+
 t("CLI on a real repo: red without STATE.md, green with it, 2 on bad usage", () => {
   const dir = mkdtempSync(join(tmpdir(), "state-touched-"));
   const git = (...a) => { const r = spawnSync("git", ["-C", dir, "-c", "user.email=t@t", "-c", "user.name=t", ...a], { encoding: "utf8" }); assert.equal(r.status, 0, r.stderr); return r.stdout; };
@@ -72,6 +84,11 @@ t("CLI on a real repo: red without STATE.md, green with it, 2 on bad usage", () 
     git("add", "-A"); git("commit", "-qm", "state");
     r = cli("--base", "dev", "--head", "work");
     assert.equal(r.status, 0, r.stdout + r.stderr);
+    git("rm", "-q", STATE); git("commit", "-qm", "drop state");
+    r = cli("--base", "dev", "--head", "work");
+    assert.equal(r.status, 1, "deleted STATE.md must stay red: " + r.stdout + r.stderr);
+    r = cli("--base", "dev", "--head", "work", "--head-ref", "dependabot/x");
+    assert.equal(r.status, 0);
     r = cli("--base", "dev");
     assert.equal(r.status, 2);
     r = cli("--base", "nope", "--head", "work");
