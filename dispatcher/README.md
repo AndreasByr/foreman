@@ -28,6 +28,11 @@ Three settings in `config.json` decide how many work runs start and how soon a u
 - One task per unit per run. A second task of the same unit waits for a later run.
 - A task skipped for a limit, the cooldown or the unit rule is not stored. The next run (10 minutes later) prints it again, and it starts when there is room.
 - The dry run (`./dispatch.sh --dry-run`) prints per project `limits max_tasks=2 (cap 3), cooldown=90 min`. These are the values in use. A `not set, default used` line followed by `Ask the human for this value` means the key is missing in `config.json`; set it. A line with `invalid` or `capped` means the value is not used as written.
+- `config.example.json` leaves `max_tasks_cap`, `cooldown_minutes` and each project's `max_tasks` out on purpose. A copied example therefore gets `not set, default used` lines in the dry run, so the human is asked for these values.
+- A missing `max_tasks_cap` gives no question line. The cap stays at 3 unless the human wants more.
+- `max_tasks: 0` and other non-positive values are invalid. The dispatcher warns and uses the cap instead. To pause a project, set `"enabled": false`.
+- `cooldown_minutes` is at most 1440 (24 h). An invalid project value falls back to the top-level value, then to 45.
+- Warnings repeat on every run until the config is fixed.
 
 ### How to choose
 
