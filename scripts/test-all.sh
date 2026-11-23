@@ -31,6 +31,7 @@ bash scripts/test-changelog.sh
 bash scripts/test-update.sh
 bash scripts/test-update-skill.sh
 bash scripts/test-project-block.sh
+bash scripts/test-state-gate.sh
 bash scripts/test-update-docs.sh
 bash scripts/privacy-scan.sh
 bash scripts/test-plugin.sh

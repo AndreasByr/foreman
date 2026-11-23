@@ -40,7 +40,7 @@ Points follow, numbered `F1`, `F2`, ... Each is `Fix:` or `Analysis:` with probl
    - **Blocked** (missing prerequisite, unclear expected result, contradiction with requirements, verification fails after all worker steps): status "blocked" with reason; **continue with the next point**. A blocked point does not stop the pack.
    - **Test it yourself:** Hand nothing on, see `foreman-delegation`. A needed test is built in this pack, else the point is `blocked` (`needs-input`) with the concrete question.
    - Red that existed before the pack: prove with a run on the start commit, report as "Inherited red". Flaky tests: `docs/flaky-tests.md`.
-   - Update `STATE.md` after every point and push it.
+   - `STATE.md` is current after every point (status, branch, PR, next step); push it.
 5. **Independent review at the end:** one wrapper call with role `validation`. The task holds `ORDER.md`, `git diff <start-commit>..HEAD` and `STATE.md`. Questions: is every point met per acceptance? Was anything broken, especially permissions and tenant isolation? For UI: does the rendered output match the board? Does every fix have a test that was red before and green after? Verdict `pass` / `needs-attention` / `needs-remediation` per point, findings with severity.
    **The review blocks completion** (Review gate: `foreman-delegation`). Rework as its own commit (`Fix pack <id> F<n> R1: ...`), review again with the new diff. Still open: point `blocked`, the pack ends `needs-input` (question: the open finding).
 6. **Final run** on the final commit of the batch branch: full unit tests, typecheck, lint and the production build. The build is mandatory because the other checks miss bundling errors. Evidence rule: `foreman-delegation`.
@@ -52,7 +52,7 @@ Points follow, numbered `F1`, `F2`, ... Each is `Fix:` or `Analysis:` with probl
    - Final-run evidence and batch branch state (commits ahead of the target).
    - What only the browser or only the human can prove (re-test list for the next pretest), each with its reason. Pretest gets only what a local browser run cannot prove; the human gets only points needing a real second account or a product decision.
    - "Learned" (or "nothing new").
-   Commit and push.
+   `STATE.md` is current (State gate: `foreman-delegation`). Commit and push.
 8. Set the next status per `STATE.md` rules: `awaiting-merge` (all passed), `needs-input` (blocked or review open). Every `needs-input` writes the `**Cause:** <category> · <one sentence>` line (categories: STATE.md template; rule: `foreman-dispatch-run/references/intervention.md`).
 
 ## Out of context or time

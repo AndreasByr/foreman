@@ -34,7 +34,7 @@ Order "Run milestone M004". Read without changing: `docs/milestones/M004/CONTEXT
    - **Test it yourself:** Hand nothing on, see `foreman-delegation`. Here an impossible test makes the slice `blocked` with the concrete question (unit `needs-input`).
    - **UI against rendered output:** `foreman-delegation`, acceptance item 4 (screenshot or component render against the board).
 4. **One commit per slice** on the milestone batch branch `batch/m004` (worktree: `node scripts/batch-branch.mjs M004`; see `foreman-batch`). Commit message names the slice, for example `M004 S2: ...`.
-5. **Update `STATE.md`:** status, commit, changed files, open points, next step.
+5. **Update `STATE.md`:** status, branch, PR, commit, changed files, open points, next step. `STATE.md` is current before every report and PR (State gate: `foreman-delegation`).
 6. **Report** at `docs/agent-reports/<YYYY-MM-DD>-M004-S2.md` with the gate evidence and a short "Learned" section. Commit and push.
 
 Evidence rule: see `foreman-delegation`.
