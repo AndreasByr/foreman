@@ -29,6 +29,7 @@ import { plan as itsaplanPlan, findIssue } from "./lib/itsaplan-mirror.mjs";
 import { linearClient } from "./lib/linear-api.mjs";
 import { openQuestion, explanationText, hasExplanation } from "./lib/intervention.mjs";
 import { trackerKind } from "./lib/trackers.mjs";
+import { beatDir, writeBeat } from "./lib/heartbeat.mjs";
 
 export { parseState, STATUSES };
 
@@ -263,23 +264,46 @@ async function main() {
     process.exit(2);
   }
   let failed = false;
+  let skipped = false;
+  let beatNote = null;
+  const flag = (line) => { beatNote ??= line; console.log(line); };
   const wikiMissing = wikiProblems(units, conf, onlyId);
   const wikiBlocking = onlyId ? wikiMissing : [];
   const problems = [...interventionProblems(units), ...wikiBlocking];
   for (const p of problems) { pending++; console.log(`PROBLEM|${p}`); }
   if (!onlyId) for (const w of wikiMissing) console.log(`WARN|${w}`);
   if (kind === "itsaplan") {
-    if (!process.env.ITSAPLAN_URL || !process.env.ITSAPLAN_API_KEY) console.log("SKIP|itsaplan|ITSAPLAN_URL or ITSAPLAN_API_KEY missing");
-    else await mirrorItsaplan(units, conf.mirror?.itsaplan ?? {}, dry, undefined, conf.tracker?.columnAliases ?? {}).catch((e) => { failed = true; console.log(`ERROR|itsaplan|${e.message}`); });
+    if (!process.env.ITSAPLAN_URL || !process.env.ITSAPLAN_API_KEY) { skipped = true; flag("SKIP|itsaplan|ITSAPLAN_URL or ITSAPLAN_API_KEY missing"); }
+    else await mirrorItsaplan(units, conf.mirror?.itsaplan ?? {}, dry, undefined, conf.tracker?.columnAliases ?? {}).catch((e) => { failed = true; flag(`ERROR|itsaplan|${e.message}`); });
   } else if (kind === "linear") {
-    if (!conf.mirror?.linear) console.log("SKIP|linear|mirror.linear missing in .foreman.json");
-    else if (!process.env.LINEAR_API_KEY) console.log("SKIP|linear|LINEAR_API_KEY missing");
-    else await mirrorLinear(units, conf.mirror.linear, dry).catch((e) => { failed = true; console.log(`ERROR|linear|${e.message}`); });
+    if (!conf.mirror?.linear) { skipped = true; flag("SKIP|linear|mirror.linear missing in .foreman.json"); }
+    else if (!process.env.LINEAR_API_KEY) { skipped = true; flag("SKIP|linear|LINEAR_API_KEY missing"); }
+    else await mirrorLinear(units, conf.mirror.linear, dry).catch((e) => { failed = true; flag(`ERROR|linear|${e.message}`); });
   }
   if (check && pending > 0) console.log(`DIFF|${pending} changes pending`);
+  const beat = beatDir();
+  if (beat && !dry) {
+    const error = failed || (kind !== "none" && skipped);
+    writeBeat(beat, "tracker-sync", {
+      result: error ? "error" : "ok",
+      note: error ? (beatNote ?? "") : kind === "none" ? "tracker none" : "mirrored",
+    });
+  }
   process.exit(failed || wikiBlocking.length > 0 || (check && pending > 0) ? 1 : 0);
 }
 
 export { mirrorItsaplan, mirrorLinear };
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) main();
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  main().catch((e) => {
+    const message = String(e?.message ?? e).split("\n")[0];
+    console.log(`ERROR|state-mirror|${message}`);
+    const args = process.argv.slice(2);
+    const dry = args.includes("--dry-run") || args.includes("--check") || args.includes("--help");
+    try {
+      const beat = beatDir();
+      if (beat && !dry) writeBeat(beat, "tracker-sync", { result: "error", note: message });
+    } catch { /* never throws */ }
+    process.exit(1);
+  });
+}

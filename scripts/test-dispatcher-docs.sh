@@ -108,4 +108,25 @@ echo "ok CHANGELOG.md Unreleased ### New contains 'foreman update available'"
 # docs/learnings.md
 need docs/learnings.md "foreman update available"
 
+# fix pack 2026-11-23-module-alarm: heartbeat, watcher, alarm, status
+for term in heartbeat watch.sh status.sh ALARM_PUSH_URL repeat_hours tracker-sync FOREMAN_STATUS_DIR limits_minutes; do
+  need dispatcher/README.md "$term"
+done
+for term in heartbeat alarm channels limits_minutes repeat_hours; do
+  need dispatcher/config.example.json "$term"
+done
+need dispatcher/dispatcher.env.example ALARM_PUSH_URL
+need dispatcher/crontab.example watch.sh
+need dispatcher/systemd/foreman-watcher.service watch.sh
+need dispatcher/systemd/foreman-watcher.timer OnUnitActiveSec
+for term in heartbeat tracker-sync watch.sh; do
+  need docs/MODULES.md "$term"
+done
+need docs/learnings.md heartbeat
+grep -q -F -- "heartbeat" <<<"$new" || fail "CHANGELOG.md Unreleased ### New does not contain 'heartbeat'"
+for term in watch.sh "dispatcher machine"; do
+  grep -q -F -- "$term" <<<"$upgrade" || fail "CHANGELOG.md Unreleased ### Upgrade does not contain '$term'"
+done
+echo "ok CHANGELOG.md names heartbeat and the watcher upgrade step"
+
 echo "dispatcher docs tests: ok"

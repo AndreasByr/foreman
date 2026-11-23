@@ -1499,6 +1499,100 @@ t("ticket lookup: 30 existing issues cost one list request and no GET per issue;
 });
 
 // ---- runner: every test runs; a failure prints FAIL with its message and the run goes on ----
+// --- heartbeat (fix pack 2026-11-23-module-alarm) ---
+import { readBeats, writeBeat } from "../heartbeat.mjs";
+const beatOf = (cfg, module) => readBeats(join(cfg.workdir, "status")).find((b) => b.module === module);
+
+t("heartbeat: a good run beats ok for the dispatcher (with its limit) and for the project", async () => {
+  const { dir, cfg, env } = setup("NOTHING|Nothing to do.\n");
+  try {
+    const now = Date.parse("2026-01-01T10:00:00Z");
+    assert.equal(await run({ config: cfg, env, log: () => {}, now }), 0);
+    const d = beatOf(cfg, "dispatcher"), p = beatOf(cfg, "project:p");
+    assert.equal(d.result, "ok");
+    assert.equal(d.last_run, "2026-01-01T10:00:00.000Z");
+    assert.equal(d.max_age_min, 30);
+    assert.equal(p.result, "ok");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("heartbeat: a failing check beats error for the project and the dispatcher, exit 1, even without a webhook", async () => {
+  const { dir, cfg, env } = setup("", { code: 3 });
+  try {
+    assert.equal(await run({ config: cfg, env, log: () => {}, now: Date.parse("2026-01-01T10:00:00Z") }), 1);
+    const p = beatOf(cfg, "project:p");
+    assert.equal(p.result, "error");
+    assert.match(p.note, /check exited with 3/);
+    const d = beatOf(cfg, "dispatcher");
+    assert.equal(d.result, "error");
+    assert.match(d.note, /p/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("heartbeat: a lost failure message is named in the dispatcher beat", async () => {
+  const { dir, cfg, env } = setup("", { code: 3 });
+  try {
+    env.DISPATCHER_ERROR_WEBHOOK_URL = "https://discord.com/api/webhooks/1/SECRETHOOK";
+    const fetch = async () => ({ ok: false, status: 500, text: async () => "no" });
+    assert.equal(await run({ config: cfg, env, fetch, log: () => {}, now: Date.parse("2026-01-01T10:00:00Z") }), 1);
+    assert.match(beatOf(cfg, "dispatcher").note, /notification failed/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("heartbeat: dry run and a skipped run (active lock) write no beat", async () => {
+  const { dir, cfg, env } = setup("NOTHING|Nothing to do.\n");
+  try {
+    await run({ config: cfg, env, dryRun: true, log: () => {} });
+    assert.deepEqual(readBeats(join(cfg.workdir, "status")), []);
+    mkdirSync(cfg.workdir, { recursive: true });
+    writeFileSync(join(cfg.workdir, "dispatch.lock"), String(process.pid));
+    await run({ config: cfg, env, log: () => {} });
+    assert.deepEqual(readBeats(join(cfg.workdir, "status")), []);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("heartbeat: the dispatcher alarms when the watcher beat is stale, once per repeat time; fresh or absent watcher is quiet", async () => {
+  const { dir, cfg, env } = setup("NOTHING|Nothing to do.\n");
+  try {
+    env.DISPATCHER_ERROR_WEBHOOK_URL = "https://discord.com/api/webhooks/1/SECRETHOOK";
+    const calls = [];
+    const fetch = async (url, o) => { calls.push({ url, body: o?.body ?? "" }); return { ok: true, status: 200, text: async () => "{}" }; };
+    const now = Date.parse("2026-01-01T12:00:00Z");
+    const status = join(cfg.workdir, "status");
+    await run({ config: cfg, env, fetch, log: () => {}, now });
+    assert.equal(calls.length, 0, "no watcher beat: not installed, no alarm");
+    writeBeat(status, "watcher", { now: now - 60000, maxAgeMin: 45 });
+    await run({ config: cfg, env, fetch, log: () => {}, now });
+    assert.equal(calls.length, 0, "fresh");
+    writeBeat(status, "watcher", { now: now - 5 * 3600 * 1000, maxAgeMin: 45 });
+    await run({ config: cfg, env, fetch, log: () => {}, now });
+    assert.equal(calls.length, 1);
+    assert.match(JSON.parse(calls[0].body).content, /watcher/);
+    await run({ config: cfg, env, fetch, log: () => {}, now: now + 600000 });
+    assert.equal(calls.length, 1, "not again within the repeat time");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+
+t("heartbeat R1: peer.json forgets the watcher once it is ok again, so a later outage alarms again", async () => {
+  const { dir, cfg, env } = setup("NOTHING|Nothing to do.\n");
+  try {
+    env.DISPATCHER_ERROR_WEBHOOK_URL = "https://discord.com/api/webhooks/1/SECRETHOOK";
+    const calls = [];
+    const fetch = async (url, o) => { calls.push(o?.body ?? ""); return { ok: true, status: 200, text: async () => "{}" }; };
+    const now = Date.parse("2026-01-01T12:00:00Z");
+    const status = join(cfg.workdir, "status");
+    writeBeat(status, "watcher", { now: now - 5 * 3600 * 1000, maxAgeMin: 45 });
+    await run({ config: cfg, env, fetch, log: () => {}, now });
+    assert.equal(calls.length, 1);
+    writeBeat(status, "watcher", { now: now + 300000, maxAgeMin: 45 });
+    await run({ config: cfg, env, fetch, log: () => {}, now: now + 600000 });
+    assert.deepEqual(JSON.parse(readFileSync(join(cfg.workdir, "peer.json"), "utf8")), {});
+    await run({ config: cfg, env, fetch, log: () => {}, now: now + 3 * 3600 * 1000 });
+    assert.equal(calls.length, 2, "second outage within the repeat time of the first alarm still alarms");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 let passed = 0;
 const failures = [];
 for (const [name, fn] of queue) {

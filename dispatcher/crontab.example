@@ -1,2 +1,4 @@
 # Alternative to systemd: every 10 minutes. Adjust the path. Output goes to a log file.
 */10 * * * * $HOME/foreman/dispatcher/dispatch.sh >> $HOME/.local/share/foreman-dispatcher/dispatch.log 2>&1
+# Watcher: every 15 minutes, independent of the dispatcher. Judges the heartbeats and sends the alarms.
+*/15 * * * * $HOME/foreman/dispatcher/watch.sh >> $HOME/.local/share/foreman-dispatcher/watch.log 2>&1

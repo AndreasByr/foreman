@@ -17,6 +17,8 @@ node template/scripts/docs-check.mjs docs/roadmap-0.2.x.md
 bash scripts/test-docs-rules.sh
 (cd template/tools/delegate && python3 test_run_task.py)
 node dispatcher/tests/test-dispatch.mjs
+node dispatcher/tests/test-heartbeat.mjs
+node dispatcher/tests/test-watch.mjs
 python3 scripts/test-setup-catalog.py
 python3 scripts/test-workspace.py
 python3 scripts/test-setup-summary.py
