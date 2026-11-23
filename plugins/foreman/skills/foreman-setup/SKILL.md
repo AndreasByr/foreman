@@ -94,7 +94,7 @@ Read `references/recommended-skills.md`. Ask per skill or "all recommended", and
 Produce, in this order, as one message (a file when you can write files):
 
 1. **Install command**, complete, copy-ready. Flags in `references/profiles-and-modules.md`. The command includes `--workspace workspace.json` and, with a running gateway, `--gateway-url` and `--fallback-model`.
-2. **Checklist** of manual steps, numbered, each with minutes. For Autopilot the dispatcher limits (`max_tasks`, `cooldown_minutes`) are asked, see `references/prerequisites.md`.
+2. **Checklist** of manual steps, numbered, each with minutes. Autopilot: ask the dispatcher limits (`prerequisites.md`).
 3. **Environment variables**, names only, grouped by where they are set (dispatcher host, cloud environment, CI).
 4. **First action**: the single next thing to do, usually "run the command", then "start `foreman-project`".
 
