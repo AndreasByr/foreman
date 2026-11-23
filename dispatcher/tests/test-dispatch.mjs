@@ -1639,6 +1639,29 @@ t("resolveLimits: cooldown is project, then config, then 45 minutes; default and
   }
 });
 
+t("resolveLimits R1: invalid project cooldown_minutes falls back to the config value, else 45, with a warn note", () => {
+  for (const bad of ["x", 0, -5]) {
+    const withConfig = rl({ cooldown_minutes: 180 }, { cooldown_minutes: bad });
+    assert.equal(withConfig.cooldownMinutes, 180, `invalid project cooldown ${JSON.stringify(bad)} falls back to the config value 180`);
+    assert.ok(withConfig.notes.some((n) => n.level === "warn" && n.text.includes("invalid")), `warn note with "invalid" for project cooldown ${JSON.stringify(bad)}`);
+    const noConfig = rl({}, { cooldown_minutes: bad });
+    assert.equal(noConfig.cooldownMinutes, 45, `invalid project cooldown ${JSON.stringify(bad)} without config falls back to 45`);
+    assert.ok(noConfig.notes.some((n) => n.level === "warn" && n.text.includes("invalid")), `warn note with "invalid" for project cooldown ${JSON.stringify(bad)} without config`);
+  }
+});
+
+t("resolveLimits R1: cooldown above 1440 minutes is capped to 1440 with a warn note, project or config", () => {
+  const fromProject = rl({}, { cooldown_minutes: 5000 });
+  assert.equal(fromProject.cooldownMinutes, 1440, "project cooldown 5000 capped to 1440");
+  assert.ok(fromProject.notes.some((n) => n.level === "warn" && n.text.includes("capped")), 'warn note with "capped" for project cooldown');
+  const fromConfig = rl({ cooldown_minutes: 5000 }, {});
+  assert.equal(fromConfig.cooldownMinutes, 1440, "config cooldown 5000 capped to 1440");
+  assert.ok(fromConfig.notes.some((n) => n.level === "warn" && n.text.includes("capped")), 'warn note with "capped" for config cooldown');
+  const exact = rl({}, { cooldown_minutes: 1440 });
+  assert.equal(exact.cooldownMinutes, 1440, "exactly 1440 is kept");
+  assert.ok(!exact.notes.some((n) => n.text.includes("capped")), "no cap note at exactly 1440");
+});
+
 t("resolveLimits: everything set validly gives empty notes", () => {
   const r = rl({ max_tasks_cap: 5, cooldown_minutes: 60 }, { max_tasks: 4, cooldown_minutes: 10 });
   assert.deepEqual({ cap: r.cap, max: r.max, cooldownMinutes: r.cooldownMinutes }, { cap: 5, max: 4, cooldownMinutes: 10 });
