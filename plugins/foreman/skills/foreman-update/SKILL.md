@@ -49,7 +49,7 @@ From `update-classes.json`:
 One code block. Give it to the human; run nothing yourself.
 
 ```
-On a clean working tree, on a fresh branch or the batch branch:
+On a clean working tree, on a fresh branch named `foreman-update-<version>` (the STATE.md check skips it) or the batch branch:
 Steps 1-2 run in the foreman checkout (cd <foreman checkout>), the rest after cd <project path>.
 1. ./install.sh <project path> --update --dry-run
    Read the list.

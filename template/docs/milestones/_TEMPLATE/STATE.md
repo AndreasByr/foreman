@@ -1,5 +1,8 @@
 Status: planning · since <UTC YYYY-MM-DDTHH:MMZ> · <note>
 Target: dev
+Branch: <work branch>
+PR: <number or ->
+Next: <next step, one line>
 Batch-branch: batch/m000
 Lock: free
 Tracker: -

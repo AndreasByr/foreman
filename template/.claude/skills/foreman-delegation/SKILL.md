@@ -17,8 +17,8 @@ Details below. Read them when a case comes up.
 ## Worker rules
 
 - **Model ID rule:** model IDs are exact (no aliases) for the session and for direct providers (`claude/<id>`, `ollama/<id>`); gateway roles use the `task-*` aliases; they are written only in `tools/delegate/config.toml`.
-- **Claude-dir rule:** workers do not write under `.claude/` (skills, hooks and settings are changed by the session only).
-- **Key-file rule:** workers do not read key files (`.env*`, `*.pem`, `id_*`, `credentials*`); they may check only their existence and permissions.
+- **Claude-dir rule:** workers do not write under `.claude/` (the session changes skills, hooks, settings).
+- **Key-file rule:** workers do not read key files (`.env*`, `*.pem`, `id_*`, `credentials*`); only existence and permissions.
 
 ## Roles
 
@@ -85,12 +85,13 @@ A `## Findings` section in the result (file changed outside `files:`, or a reado
 4. **UI:** check the rendered output (local screenshot or component render) against the design board, not only the typecheck. A strong deviation (other structure, missing or extra elements) means not done: `blocked` with the deviation as the question (unit `needs-input`).
 5. **`validation`:** only now, with the diff and the sources in the task. Review gate below.
 6. Flaky tests (red then green without code change): record in `docs/flaky-tests.md`, report as own item, never skip or weaken.
+7. **State gate:** before every report and PR, `STATE.md` is current (status, branch, PR, next step) and in the PR. CI checks it.
 
 **Review gate:** the `validation` verdict must be `pass` with no finding of medium or higher; `needs-attention` and `needs-remediation` block, no "continue with a note". Rework and review again, at most 2 rounds; a security finding escalates after the first failed rework. Still open: unit `needs-input` with the finding as the question, never `awaiting-merge`, `pretest-waiting` or a batch PR. Low findings may stay open and go into the report.
 
 **Hand nothing on:** what the session can check (tests, API call, test-tenant call, local browser run) it checks itself in this unit; only what needs a real second account or a product decision goes to UAT. Nothing is "temporarily" blocked, hidden or disabled until someone tests; a needed test is built in this unit, else the step is `blocked` with the concrete question (unit `needs-input`).
 
-**Evidence rule:** every "done" names command, exit code and commit SHA (git rev-parse --short HEAD). Without all three it counts as open. A command that fails for technical reasons (for example e2e does not start) is an open point, never "done".
+**Evidence rule:** every "done" names command, exit code and commit SHA (git rev-parse --short HEAD). Without all three it counts as open. A command that fails for technical reasons is an open point, never "done".
 
 ## Git rules
 
@@ -103,4 +104,4 @@ A `## Findings` section in the result (file changed outside `files:`, or a reado
 
 ## Closing report
 
-Short: what was done, roles involved (escalations and fallbacks included), what you checked with evidence, branch pushed to, what stays open. Changelog lines (New, Improved, Fixed) for user-visible changes go in the report, not in a file per slice. Write it to `docs/agent-reports/<YYYY-MM-DD>-<slug>.md`, section "Learned": real, reusable findings or "nothing new".
+What was done, roles involved (escalations, fallbacks), what you checked with evidence, branch pushed to, what stays open. Changelog lines (New, Improved, Fixed) for user-visible changes go in the report, not in a file per slice. Write it to `docs/agent-reports/<YYYY-MM-DD>-<slug>.md`, section "Learned": real, reusable findings or "nothing new".
