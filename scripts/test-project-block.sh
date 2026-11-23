@@ -126,6 +126,9 @@ grep -q 'Project instructions up to date' plugins/foreman/skills/foreman-update/
 # 10. Version consistency: the block heading and the skill's example marker must name the current version N.
 grep -qxF "# Project instruction block (v$N)" <(head -n1 "$REF") || fail "$REF: first line is not '# Project instruction block (v$N)'"
 grep -qF "\`<!-- foreman-project-block v$N -->\`" "$SKILL/SKILL.md" || fail "$SKILL/SKILL.md: example marker in section 5 is not '\`<!-- foreman-project-block v$N -->\`'"
+# No stale example marker of another version may remain in the skill.
+STALE=$(grep -oE 'foreman-project-block v[0-9]+' "$SKILL/SKILL.md" | sort -u | grep -vxF "foreman-project-block v$N" || true)
+[ -z "$STALE" ] || fail "$SKILL/SKILL.md: example marker names another version: $STALE"
 
 # 11. State gate: the block names the STATE.md gate for threads and the coordinator check.
 BLOCK=$(sed -n '/<!-- foreman-project-block v/,/<!-- \/foreman-project-block -->/p' "$REF")

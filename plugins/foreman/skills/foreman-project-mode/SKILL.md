@@ -49,7 +49,7 @@ Either path ends with one line: `Project instructions: block v<N> written | past
 
 ## 5. Refresh (update path)
 
-The first marker line carries a version: `<!-- foreman-project-block v4 -->`. Run steps 1 to 4 again whenever:
+The first marker line carries a version: `<!-- foreman-project-block v5 -->`. Run steps 1 to 4 again whenever:
 
 - foreman was updated (`foreman-update`, or a new plugin version) and the block version in `references/instruction-block.md` is higher than the one in the instructions
 - `.foreman.json` changed branches, language or modules

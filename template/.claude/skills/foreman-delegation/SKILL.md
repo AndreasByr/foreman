@@ -34,7 +34,7 @@ Details below. Read them when a case comes up.
 
 **Complex** (start with `execution`, say why in the report): more than about 3 files across modules, schema or migration, auth/permissions, new architecture or dependency, or the task cannot be described precisely. Everything else starts with `execution_simple`; the wrapper escalates by itself.
 
-**Module ollama:** simple roles run on Ollama Cloud. On an API failure the wrapper repeats the role with the fallback model from `config.toml` and notes it; that is no escalation and no reason to code yourself. A red `verify` escalates normally.
+**Module ollama:** simple roles run on Ollama Cloud. On an API failure the wrapper repeats the role with the `config.toml` fallback model and notes it (no escalation, no reason to code yourself). A red `verify` escalates normally.
 
 ## Workflow of a coding order
 
@@ -89,18 +89,19 @@ A `## Findings` section in the result (file changed outside `files:`, or a reado
 
 **Review gate:** the `validation` verdict must be `pass` with no finding of medium or higher; `needs-attention` and `needs-remediation` block, no "continue with a note". Rework and review again, at most 2 rounds; a security finding escalates after the first failed rework. Still open: unit `needs-input` with the finding as the question, never `awaiting-merge`, `pretest-waiting` or a batch PR. Low findings may stay open and go into the report.
 
-**Hand nothing on:** what the session can check (tests, API call, test-tenant call, local browser run) it checks itself in this unit; only what needs a real second account or a product decision goes to UAT. Nothing is "temporarily" blocked, hidden or disabled until someone tests; a needed test is built in this unit, else the step is `blocked` with the concrete question (unit `needs-input`).
+**Hand nothing on:** what the session can check it checks itself in this unit; only what needs a real second account or a product decision goes to UAT. Nothing is "temporarily" blocked, hidden or disabled until someone tests; a needed test is built in this unit, else the step is `blocked` with the concrete question (unit `needs-input`).
 
 **Evidence rule:** every "done" names command, exit code and commit SHA (git rev-parse --short HEAD). Without all three it counts as open. A command that fails for technical reasons is an open point, never "done".
 
 ## Git rules
 
 - Push targets: `dev`, `batch/main`, `batch/dev`, `batch/mNNN`, or the assigned `agent/*` branch. Never `main` or `prod`.
-- Start check before work on `dev`: `git fetch origin main dev`; `git rev-list --count origin/dev..origin/main` must be `0`. Otherwise merge `main` into `dev` first. An open "main to dev (conflict)" PR comes before new work. Fixes for `main` start from a fresh `origin/main`.
+- Start check before work on `dev`: `git fetch origin main dev`; `git rev-list --count origin/dev..origin/main` must be `0`. Otherwise merge `main` into `dev` first. Fixes for `main` start from a fresh `origin/main`.
 - Migrations on sync: the ones from `main` stay unchanged (never rename, edit or delete). The ones from `dev` are re-ordered to sort after the newest migration from `main`, and `up` stays idempotent.
 - No force push. Delete nothing the human did not approve, except your own finished work branch (see `foreman-batch`).
 - Before a push to a batch branch or `dev`, run the production build when `app/`, `server/`, `shared/` or the build config changed; typecheck and unit tests miss bundling errors.
 - No PR, merge, tag, deploy or branch deletion without an explicit order in this session (the batch and release skills define the orders). Without an order, say where the work lies and ask whether a PR is wanted; "Finish the work" is not an order.
+- **After-merge step** (manual threads too): `STATE.md` to its next status, pushed; with a tracker `node scripts/state-mirror.mjs`, then `--check` (exit 0, no `SKIP` line); only then close the thread.
 
 ## Closing report
 
