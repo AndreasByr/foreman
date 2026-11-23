@@ -1,6 +1,6 @@
 # Fix pack 2026-11-23-module-alarm
 
-Summary: 6 of 6 fixes done, 1 analysis done, 0 blocked. Review: round 1 needs-attention, round 2 needs-attention (medium findings fixed in R1 and R2). The third review was not run; the final full run is green.
+Summary: 6 of 6 fixes done, 1 analysis done, 0 blocked. Review: rounds 1 to 4 found medium defects, fixed in R1 to R4 (the fourth rework with the human's go); the review after R4 is pass with one low finding left open. Final full run green.
 
 | # | Title | Type | Result | Cause (one sentence) | Commit | Test |
 |---|---|---|---|---|---|---|

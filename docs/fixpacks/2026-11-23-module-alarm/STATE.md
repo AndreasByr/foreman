@@ -1,8 +1,8 @@
-Status: needs-input · since 2026-11-23T11:45Z · fourth rework round built, waiting for the human's go on round 4 before the PR
+Status: uat-ready · since 2026-11-23T12:10Z · review pass after round 4, waiting for UAT
 Target: dev
 Branch: claude/project-thread-p86kk4
 PR: -
-Next: human answers the round 4 question, then PR to dev, merge, UAT
+Next: UAT by the human, release only on go
 Batch-branch: batch/dev
 Lock: free
 Tracker: -
@@ -40,7 +40,7 @@ Fix direction (this pack): heartbeat file per module, a watcher that does not de
 
 Round 1 (validation, opus): F1, F4, F6 pass; F2, F3 needs-attention; F5 needs-remediation. Fixed in R1 (65dab93): default status directory for the tracker-sync beat, error beat when `state-mirror` crashes, ticket retry on partial delivery (`ticketPending`, `recoveredNotified`), `peer.json` atomic and cleared.
 
-Round 4 (after the third rework): needs-remediation, one medium finding: after the delivery cap gave up, the watcher beat flipped back to ok while the module was still down. Fixed in R4 (`undelivered` flag keeps the beat on error); R4 was built in advance while the human's go for a fourth round was pending (decision card in the thread). No review after R4; mechanical gates green.
+Round 4 (after the third rework): needs-remediation, one medium finding: after the delivery cap gave up, the watcher beat flipped back to ok while the module was still down. Fixed in R4 (`undelivered` flag keeps the beat on error); The human approved round 4 on the decision card. Review after R4: **pass**, one low finding left open (a pending ticket opened after a give-up keeps the watcher beat on error until the next repeat time; safe side).
 
 Round 3: needs-attention (comment spam when a tracker-only delivery keeps failing, two cases; test isolation gap). Fixed in R3 with a generic cap of 5 failed deliveries per module and `FOREMAN_STATUS_DIR` removed from test children.
 
@@ -54,10 +54,7 @@ None. `bash scripts/test-all.sh` was green on the start commit 7b90bf7 (CI state
 
 ## Open question
 
-Round 4: the review after R3 still found one medium defect (fixed in R4, not re-reviewed). Start round 4 officially and re-review, ship as is with the note, or stop? Recommendation: start round 4 (one flag, one test).
-**Cause:** limit-exceeded · fourth rework round needs the human's go
-
-Alarm channel: where should the alarm go? Recommendation: tracker comment plus push (webhook or ntfy). Built configurable; UAT asks the human.
+Round 4 was answered (go). Alarm channel: where should the alarm go? Recommendation: tracker comment plus push (webhook or ntfy). Built configurable; UAT asks the human.
 
 ## Log
 
@@ -69,4 +66,5 @@ Alarm channel: where should the alarm go? Recommendation: tracker comment plus p
 - 2026-11-23T10:40Z · F6, full run rc=0 · 4ba13bc
 - 2026-11-23T10:50Z · review 1, R1, full run rc=0 · 65dab93
 - 2026-11-23T11:05Z · review 2, R2, full run rc=0 · 94a82c1
+- 2026-11-23T11:50Z · R4 built, human go on round 4, review 5 pass, full run rc=0 · 2001cdd
 - 2026-11-23T11:20Z · review 3, R3 (delivery cap, test isolation), full run rc=0
