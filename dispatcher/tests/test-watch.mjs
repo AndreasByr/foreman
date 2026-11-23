@@ -368,6 +368,26 @@ t("watch R3: tracker-only delivery that keeps failing (recovery, or a returning 
   }
 });
 
+t("watch R4: after the delivery cap gave up, the watcher beat stays error while the module is down and nothing was ever delivered", async () => {
+  const { dir, cfg, status } = setup({ channels: ["push"], push_url_env: "MY_PUSH" });
+  try {
+    const env = { MY_PUSH: "https://ntfy.example/topic-secret" };
+    const down = recorder(() => ({ ok: false, status: 500, text: async () => "no" }));
+    for (let i = 0; i < 9; i++) {
+      writeBeat(status, "dispatcher", { result: "error", note: "boom", now: NOW + i * 15 * 60000 - 60000, maxAgeMin: 30 });
+      await watch({ config: cfg, env, now: NOW + i * 15 * 60000, fetch: down.fetch, log: () => {} });
+      assert.equal(readBeats(status).find((b) => b.module === "watcher").result, "error", `run ${i}: still error`);
+    }
+    assert.ok(down.calls.length <= 10, "capped");
+    // the channel works again at the next repeat time: the alarm goes out and the watcher beat is ok
+    const up = recorder();
+    writeBeat(status, "dispatcher", { result: "error", note: "boom", now: NOW + 7 * H - 60000, maxAgeMin: 30 });
+    await watch({ config: cfg, env, now: NOW + 7 * H, fetch: up.fetch, log: () => {} });
+    assert.equal(up.calls.length, 1);
+    assert.equal(readBeats(status).find((b) => b.module === "watcher").result, "ok");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 t("watch.sh: runs the watcher with dispatcher.env and exits with its code", () => {
   const dir = mkdtempSync(join(tmpdir(), "foreman-watchsh-"));
   try {

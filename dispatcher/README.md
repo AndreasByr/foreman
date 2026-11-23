@@ -118,7 +118,7 @@ The limit comes from the first setting that exists:
 - `push`: an HTTPS POST of the text to the URL in the variable named by `alarm.push_url_env` (default `ALARM_PUSH_URL`). For example an ntfy topic URL.
 - `tracker`: an itsaplan ticket. A new problem opens a ticket in "Action Required". A repeat adds a comment. Recovery adds a comment and moves the ticket to "Done". Set `alarm.tracker.project_key`, or `project` to read the key from that project's `.foreman.json`. `url_env` and `key_env` name the variables for the itsaplan URL and API key (defaults `ITSAPLAN_URL` and `ITSAPLAN_API_KEY`).
 
-An alarm counts as delivered when at least one channel sent it. If none did, the watcher exits 1, writes an error beat and retries on the next run. The watcher also exits 1 as long as any module is not ok, even when the alarm was delivered, so a systemd unit shows failed during an outage. A tracker ticket that failed to open is retried every run (without repeating the other channels); the same holds for closing it on recovery.
+An alarm counts as delivered when at least one channel sent it. If none did, the watcher exits 1, writes an error beat and retries on the next run. After 5 failed deliveries per module the watcher stops retrying until the next repeat time, keeps its own beat on `error` and exits 1, so the outage stays visible. The watcher also exits 1 as long as any module is not ok, even when the alarm was delivered, so a systemd unit shows failed during an outage. A tracker ticket that failed to open is retried every run (without repeating the other channels); the same holds for closing it on recovery.
 
 A beat file of a removed or disabled project stays and keeps alarming. When you remove a project, delete `<workdir>/status/project_<name>.json`.
 
