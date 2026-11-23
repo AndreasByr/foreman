@@ -335,6 +335,8 @@ def main(argv):
         for fn in names:
             if not fn.endswith(UNKNOWN_EXT):
                 continue
+            if ".local." in fn:
+                continue  # project-local files foreman itself recommends, e.g. session-setup.local.sh
             rel = sub + "/" + fn
             path = os.path.join(base, fn)
             if rel in template_rels or not os.path.lexists(path) or not os.path.isfile(path):

@@ -307,6 +307,7 @@ inst "$d" --project left --modules delegate,tracker-itsaplan,gateway,autopilot,p
 commit "$d" install
 echo "// old client" > "$d/scripts/lib/old-client.mjs"
 echo "// old mirror" > "$d/scripts/old-mirror.mjs"
+echo "# project setup" > "$d/scripts/session-setup.local.sh"
 mkdir -p "$d/docs/fixpakete"; : > "$d/docs/fixpakete/README.md"
 commit "$d" leftovers
 h0=$(tree_hash "$d")
@@ -317,12 +318,15 @@ need_line "18a" "  scripts/lib/old-client.mjs"
 need_line "18a" "  scripts/old-mirror.mjs"
 printf '%s\n' "$OUT" | grep -q '^  docs/fixpakete/ .*older name' || fail "18a: no line starting '  docs/fixpakete/' with 'older name': $OUT"
 need_line "18a" "$WARN_TAIL"
+if printf '%s\n' "$OUT" | grep -q 'session-setup.local.sh'; then fail "18a: project-local file listed in the dry run: $OUT"; fi
 [ "$(tree_hash "$d")" = "$h0" ] || fail "18a: dry run changed the tree"
 [ -f "$d/scripts/lib/old-client.mjs" ] && [ -f "$d/scripts/old-mirror.mjs" ] && [ -f "$d/docs/fixpakete/README.md" ] || fail "18a: leftover file missing after dry run"
 upd "$d"
 [ "$RC" = 0 ] || fail "18b: update exit $RC: $ERR"
 need_line "18b" "$WARN_HEAD"
 need_line "18b" "  scripts/lib/old-client.mjs"
+if printf '%s\n' "$OUT" | grep -q 'session-setup.local.sh'; then fail "18b: project-local file listed after the update: $OUT"; fi
+[ -f "$d/scripts/session-setup.local.sh" ] || fail "18b: project-local file missing after update"
 [ -f "$d/scripts/lib/old-client.mjs" ] && [ -f "$d/scripts/old-mirror.mjs" ] && [ -f "$d/docs/fixpakete/README.md" ] || fail "18b: leftover file deleted by update"
 [ "$(tree_hash "$d")" = "$h0" ] || fail "18b: update changed the tree"
 # 18c. clean fresh installs produce no warning (default modules, and the non-default module set)

@@ -101,7 +101,7 @@ A `## Findings` section in the result (file changed outside `files:`, or a reado
 - No force push. Delete nothing the human did not approve, except your own finished work branch (see `foreman-batch`).
 - Before a push to a batch branch or `dev`, run the production build when `app/`, `server/`, `shared/` or the build config changed; typecheck and unit tests miss bundling errors.
 - No PR, merge, tag, deploy or branch deletion without an explicit order in this session (the batch and release skills define the orders). Without an order, say where the work lies and ask whether a PR is wanted; "Finish the work" is not an order.
-- **After-merge step** (manual threads too): `STATE.md` to its next status, pushed; with a tracker `node scripts/state-mirror.mjs`, then `--check` (exit 0); only then close the thread.
+- **After-merge step** (manual threads too): `STATE.md` to its next status, pushed; with a tracker `node scripts/state-mirror.mjs`, then `--check` (exit 0, no `SKIP` line); only then close the thread.
 
 ## Closing report
 
