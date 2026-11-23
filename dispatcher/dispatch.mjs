@@ -18,6 +18,7 @@ import { judge, readBeats, statusDir, writeBeat } from "./heartbeat.mjs";
 const DEFAULT_MAX_TASKS_CAP = 3;
 const ABSOLUTE_MAX_TASKS = 10;
 const DEFAULT_COOLDOWN_MINUTES = 45;
+const MAX_COOLDOWN_MINUTES = 1440; // 24 h: the state forgets fired units after 24 h, a longer cooldown would not hold
 
 const unset = (v) => v === undefined || v === null;
 const isPositiveInt = (v) => Number.isInteger(v) && v > 0;
@@ -25,7 +26,8 @@ const isPositiveNumber = (v) => typeof v === "number" && Number.isFinite(v) && v
 
 /**
  * Resolves the start limits of one project. cap: config max_tasks_cap (default 3, at most 10). max: project max_tasks
- * (default = cap, at most cap). cooldownMinutes: project cooldown_minutes, then config cooldown_minutes, then 45.
+ * (default = cap, at most cap). cooldownMinutes: valid project cooldown_minutes, then valid config value, then 45;
+ * at most 1440.
  * Returns { cap, max, cooldownMinutes, notes: [{ level: "default" | "warn", text }] }.
  */
 export function resolveLimits(config, project) {
@@ -42,10 +44,19 @@ export function resolveLimits(config, project) {
   else if (project.max_tasks > cap) { notes.push({ level: "warn", text: `max_tasks ${project.max_tasks} capped to ${cap}` }); }
   else max = project.max_tasks;
   let cooldownMinutes = DEFAULT_COOLDOWN_MINUTES;
-  const cooldownRaw = unset(project.cooldown_minutes) ? config.cooldown_minutes : project.cooldown_minutes;
-  if (unset(cooldownRaw)) notes.push({ level: "default", text: `cooldown_minutes not set, default used (${DEFAULT_COOLDOWN_MINUTES} min)` });
-  else if (!isPositiveNumber(cooldownRaw)) notes.push({ level: "warn", text: `cooldown_minutes invalid (${JSON.stringify(cooldownRaw)}), ${DEFAULT_COOLDOWN_MINUTES} min used` });
-  else cooldownMinutes = cooldownRaw;
+  const projectCooldownSet = !unset(project.cooldown_minutes);
+  if (projectCooldownSet && !isPositiveNumber(project.cooldown_minutes)) {
+    notes.push({ level: "warn", text: `project cooldown_minutes invalid (${JSON.stringify(project.cooldown_minutes)}), config or ${DEFAULT_COOLDOWN_MINUTES} min used` });
+  }
+  if (projectCooldownSet && isPositiveNumber(project.cooldown_minutes)) cooldownMinutes = project.cooldown_minutes;
+  else if (!unset(config.cooldown_minutes)) {
+    if (isPositiveNumber(config.cooldown_minutes)) cooldownMinutes = config.cooldown_minutes;
+    else notes.push({ level: "warn", text: `cooldown_minutes invalid (${JSON.stringify(config.cooldown_minutes)}), ${DEFAULT_COOLDOWN_MINUTES} min used` });
+  } else if (!projectCooldownSet) notes.push({ level: "default", text: `cooldown_minutes not set, default used (${DEFAULT_COOLDOWN_MINUTES} min)` });
+  if (cooldownMinutes > MAX_COOLDOWN_MINUTES) {
+    notes.push({ level: "warn", text: `cooldown_minutes ${cooldownMinutes} capped to ${MAX_COOLDOWN_MINUTES} (24 h, the state forgets fired units after that)` });
+    cooldownMinutes = MAX_COOLDOWN_MINUTES;
+  }
   return { cap, max, cooldownMinutes, notes };
 }
 
