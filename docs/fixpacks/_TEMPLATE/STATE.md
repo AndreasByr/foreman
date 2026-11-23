@@ -1,5 +1,8 @@
 Status: fixpack · since <UTC YYYY-MM-DDTHH:MMZ> · <note>
 Target: dev
+Branch: <work branch>
+PR: <number or ->
+Next: <next step, one line>
 Batch-branch: batch/dev
 Lock: free
 Tracker: -
@@ -11,8 +14,8 @@ Start commit: <sha of the batch branch when work started>
 
 ## Points
 
-| # | Type (fix / analysis) | Title | Status (open / in progress / done / blocked) | Areas | Check (test file or command) | Board | Red run (SHA) | Green run (SHA) | Commit |
-|---|---|---|---|---|---|---|---|---|---|
+| # | Type (fix / analysis) | Title | Status (open / in progress / done / blocked) | Check (test file or command) | Red → green (SHA) | Commit |
+|---|---|---|---|---|---|---|
 
 Points with a shared cause: one commit naming both numbers, noted here.
 
