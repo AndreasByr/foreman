@@ -9,11 +9,38 @@ Needs: Node 20+, git, a machine that is on (a small VPS, a home server, a Raspbe
 1. Clones or updates a read-only checkout with a deploy key (read access only).
 2. Runs the project's check script (`scripts/autopilot-check.sh --no-fetch`) with a clean environment: only PATH, HOME, LANG and the variables listed in the project's `pass_env` (`NAME` -> name of the variable in the dispatcher environment). Other projects' tokens never reach it. Exit code not 0: nothing is started, the error is logged and sent to the webhook.
 3. Parses the output: `TASK|<kind>|<unit>|<info>` lines and `=== PROMPT n <kind> <unit> ===` ... `=== END n ===` blocks (`ENDE` is accepted too). `NOTHING|...` means nothing to do.
-4. Starts at most 3 tasks, at most one per unit, and none for a unit it started within `cooldown_minutes` (default 45), so two runs 10 minutes apart never start the same unit twice before the work run took its lock.
+4. Starts at most `max_tasks` tasks per project (default: the cap `max_tasks_cap`, 3), at most one per unit, and none for a unit it started within `cooldown_minutes` (default 45), so two runs 10 minutes apart never start the same unit twice before the work run took its lock. See Limits.
 5. Fire target:
    - **Claude Code routine (recommended):** `POST` to the routine's fire URL with the headers `Authorization: Bearer <token>`, `anthropic-beta: experimental-cc-routine-2026-04-01`, `anthropic-version: 2023-06-01` and the body `{"text": "<order text>"}`. The answer's session URL is logged.
    - **Other agents:** `fire_command`, a shell command that receives the order text on stdin, for example `opencode run`. It runs detached in the project checkout with the same environment rule (only PATH, HOME, LANG and the `pass_env` names) plus `FOREMAN_PROJECT`, `FOREMAN_KIND` and `FOREMAN_UNIT` set, output in `<workdir>/logs/`. Resuming a session, running several orders in parallel and cleaning up after a crashed agent are then your job: the dispatcher starts the command and does not watch it. The lock in `STATE.md` still protects each unit for 3 hours.
 6. Tokens and keys are never logged. A failed start goes to the optional webhook (`DISPATCHER_ERROR_WEBHOOK_URL`). The body depends on `webhook_format` in `config.json`: `discord` sends `{"content": ...}`, `slack` sends `{"text": ...}`, `auto` (default) decides by host (`discord.com`, `discordapp.com`, `hooks.slack.com`). Unknown host, an invalid or non-https URL or an unknown format is logged as `webhook not used: <reason>` without the URL, nothing is sent, the exit code stays 1.
+
+## Limits
+
+Three settings in `config.json` decide how many work runs start and how soon a unit may start again. Setup, project start and update ask for the values; nothing is kept silently.
+
+| Key | Where | Default | Meaning |
+|---|---|---|---|
+| `max_tasks_cap` | top level | 3, at most 10 | Ceiling of starts per run for all projects. A higher value is capped to 10 with a warning. |
+| `max_tasks` | per project | the cap | Starts per run for this project. Never above the cap; a higher value is capped with a warning. |
+| `cooldown_minutes` | top level, optional per project | 45 | Minutes before the same unit may start again. A project's value overrides the top-level one. |
+
+- One task per unit per run. A second task of the same unit waits for a later run.
+- A task skipped for a limit, the cooldown or the unit rule is not stored. The next run (10 minutes later) prints it again, and it starts when there is room.
+- The dry run (`./dispatch.sh --dry-run`) prints per project `limits max_tasks=2 (cap 3), cooldown=90 min`. These are the values in use. A `not set, default used` line followed by `Ask the human for this value` means the key is missing in `config.json`; set it. A line with `invalid` or `capped` means the value is not used as written.
+- `config.example.json` leaves `max_tasks_cap`, `cooldown_minutes` and each project's `max_tasks` out on purpose. A copied example therefore gets `not set, default used` lines in the dry run, so the human is asked for these values.
+- A missing `max_tasks_cap` gives no question line. The cap stays at 3 unless the human wants more.
+- `max_tasks: 0` and other non-positive values are invalid. The dispatcher warns and uses the cap instead. To pause a project, set `"enabled": false`.
+- `cooldown_minutes` is at most 1440 (24 h). An invalid project value falls back to the top-level value, then to 45.
+- Warnings repeat on every run until the config is fixed.
+
+### How to choose
+
+Setup, project start and update ask these three questions, each with its recommendation.
+
+- **`max_tasks`**: 1 for `fire_command` runs on a laptop or small machine. 2 for a cloud routine; 3 only if the routine's plan allows that many runs at once.
+- **`cooldown_minutes`**: about the longest normal run of one unit. Recommend 90 when pretest runs are used (they take about 20 to 90 minutes), 45 otherwise. Too low risks a second start before the work run took its lock; too high delays a follow-up task of the same unit.
+- **`max_tasks_cap`**: leave at 3. Raise it only with a reason (several projects, a plan with many parallel runs), at most 10. It lives in the config, so a foreman update does not overwrite it.
 
 ## Update notice
 
@@ -90,9 +117,52 @@ journalctl --user -u foreman-dispatcher.service -n 50
 
 **cron alternative:** `crontab -e` and add the line from `crontab.example`.
 
+## Heartbeat, watcher and alarm
+
+A module that stops used to raise no alarm. A 14 hour standstill went unnoticed. The dispatcher was the only part that could report, and it reported only while it ran and only through the webhook. Now every module writes a heartbeat, and a separate watcher judges them.
+
+**Heartbeats.** One JSON file per module, in `<workdir>/status/` or in the directory named by `FOREMAN_STATUS_DIR`. Each file holds `module`, `last_run`, `result` (`ok` or `error`), `note` and an optional `max_age_min`. Writers:
+
+- The dispatcher writes `dispatcher` and `project:<name>` for each enabled project. It does this on every run except `--dry-run`. A run that is skipped because another run holds the lock writes nothing, so a hung run turns stale.
+- `scripts/state-mirror.mjs` writes `tracker-sync` when `FOREMAN_STATUS_DIR` is set, or when the default status directory (`~/.local/share/foreman-dispatcher/status`) exists. It writes `error` when the mirror failed, crashed or was skipped for missing credentials. Its exit code does not change.
+- Any script: `node dispatcher/heartbeat.mjs beat <module> ok|error [note]`.
+
+**Watcher.** `dispatcher/watch.sh` runs every 15 minutes, from its own systemd timer or a cron line. It does not depend on the dispatcher. It judges every beat except its own (`watcher`). A beat is:
+
+- `error`: the last beat says `error`.
+- `stale`: the last run is older than the limit.
+- `never`: the module has a limit in `heartbeat.limits_minutes` but never sent a beat.
+
+The limit comes from the first setting that exists:
+
+1. `heartbeat.limits_minutes.<module>` in `config.json`. Defaults: `dispatcher` 30, `watcher` 45.
+2. The beat's own `max_age_min`.
+3. `heartbeat.default_limit_minutes`. Default: none. A module without a limit alarms only on error.
+
+**Alarms.** One alarm per new problem. A problem that stays is repeated after `alarm.repeat_hours` (default 6). When the module is ok again, one recovery message follows. The channels are set in `alarm.channels` (default `["webhook"]`):
+
+- `webhook`: the error webhook (`DISPATCHER_ERROR_WEBHOOK_URL`).
+- `push`: an HTTPS POST of the text to the URL in the variable named by `alarm.push_url_env` (default `ALARM_PUSH_URL`). For example an ntfy topic URL.
+- `tracker`: an itsaplan ticket. A new problem opens a ticket in "Action Required". A repeat adds a comment. Recovery adds a comment and moves the ticket to "Done". Set `alarm.tracker.project_key`, or `project` to read the key from that project's `.foreman.json`. `url_env` and `key_env` name the variables for the itsaplan URL and API key (defaults `ITSAPLAN_URL` and `ITSAPLAN_API_KEY`).
+
+An alarm counts as delivered when at least one channel sent it. If none did, the watcher exits 1, writes an error beat and retries on the next run. After 5 failed deliveries per module the watcher stops retrying until the next repeat time, keeps its own beat on `error` and exits 1, so the outage stays visible. The watcher also exits 1 as long as any module is not ok, even when the alarm was delivered, so a systemd unit shows failed during an outage. A tracker ticket that failed to open is retried every run (without repeating the other channels); the same holds for closing it on recovery.
+
+A beat file of a removed or disabled project stays and keeps alarming. When you remove a project, delete `<workdir>/status/project_<name>.json`.
+
+The dispatcher checks the watcher beat on each run. If the watcher beat is stale or failed, the dispatcher sends a webhook message, at most once per `alarm.repeat_hours`. So the two watch each other. The watcher never judges itself.
+
+**Status.** `dispatcher/status.sh`, or `node dispatcher/heartbeat.mjs status`, prints a table of all modules. It exits 1 when any module is not ok. To run it by name, add `alias foreman-status='~/foreman/dispatcher/status.sh'` to your shell profile.
+
+**Setup on the dispatcher machine:**
+
+1. Add `heartbeat` and `alarm` to `config.json`. See `config.example.json`. Without `alarm`, the watcher uses the webhook only.
+2. For the `push` channel, set `ALARM_PUSH_URL` in `dispatcher.env`.
+3. Install the watcher timer: `cp systemd/foreman-watcher.service systemd/foreman-watcher.timer ~/.config/systemd/user/`, then `systemctl --user daemon-reload` and `systemctl --user enable --now foreman-watcher.timer`. For cron, add the watcher line from `crontab.example`.
+4. For the tracker sync, set `FOREMAN_STATUS_DIR` where `state-mirror.mjs` runs. Point it at the directory the watcher reads.
+
 ## Switch off
 
-Per project: `"enabled": false` in `config.json`. Everything: `systemctl --user disable --now foreman-dispatcher.timer` (or remove the cron line). Nothing is left running; a started work run finishes on its own and frees its lock.
+Per project: `"enabled": false` in `config.json`. Everything: `systemctl --user disable --now foreman-dispatcher.timer` (or remove the cron line). Nothing is left running; a started work run finishes on its own and frees its lock. The watcher stops with `systemctl --user disable --now foreman-watcher.timer` (or by removing its cron line).
 
 ## Merging into main
 

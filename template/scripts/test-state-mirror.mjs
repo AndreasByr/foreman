@@ -7,7 +7,9 @@ import { checklist } from "./lib/state.mjs";
 import { openQuestion, explanationText, hasExplanation, answers } from "./lib/intervention.mjs";
 import * as mirror from "./state-mirror.mjs";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { itsaplanClient } from "./lib/itsaplan-api.mjs";
+import { linearClient } from "./lib/linear-api.mjs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -345,10 +347,11 @@ t("wiki: CLI without --unit only warns on a missing Wiki line; --unit M001 makes
   const dir = mkdtempSync(join(tmpdir(), "wiki-todo-"));
   try {
     spawnSync("git", ["init", "-q"], { cwd: dir });
-    const env = { ...process.env };
+    const env = { ...process.env, HOME: dir };
     delete env.ITSAPLAN_URL;
     delete env.ITSAPLAN_API_KEY;
     delete env.LINEAR_API_KEY;
+    delete env.FOREMAN_STATUS_DIR;
     const cfg = (wiki) => writeFileSync(join(dir, ".foreman.json"), JSON.stringify({ modules: [], wiki }));
     const statePath = join(dir, "docs/milestones/M001/STATE.md");
     mkdirSync(join(dir, "docs/milestones/M001"), { recursive: true });
@@ -461,6 +464,101 @@ t("wiki: CLI without --unit only warns on a missing Wiki line; --unit M001 makes
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+t("tracker-sync beat: tracker none beats ok, a configured tracker without credentials beats error, no status dir set means no file", () => {
+  const dir = mkdtempSync(join(tmpdir(), "mirror-beat-"));
+  try {
+    spawnSync("git", ["init", "-q"], { cwd: dir });
+    mkdirSync(join(dir, "docs/milestones/M001"), { recursive: true });
+    writeFileSync(join(dir, "docs/milestones/M001/STATE.md"), "Status: slice · since 2026-01-01T00:00Z\nTarget: dev\n\n# M001: x\n");
+    const status = join(dir, "status");
+    const base = { ...process.env, HOME: dir };
+    for (const k of ["ITSAPLAN_URL", "ITSAPLAN_API_KEY", "LINEAR_API_KEY", "FOREMAN_STATUS_DIR"]) delete base[k];
+    const run = (env) => spawnSync(process.execPath, [join(HERE, "state-mirror.mjs"), "--local"], { cwd: dir, encoding: "utf8", env: { ...base, ...env } });
+    const beat = () => { assert.ok(existsSync(join(status, "tracker-sync.json")), "tracker-sync beat file missing"); return JSON.parse(readFileSync(join(status, "tracker-sync.json"), "utf8")); };
+    writeFileSync(join(dir, ".foreman.json"), JSON.stringify({ modules: [] }));
+    assert.equal(run({}).status, 0);
+    assert.ok(!existsSync(status), "no FOREMAN_STATUS_DIR: nothing written");
+    assert.equal(run({ FOREMAN_STATUS_DIR: status }).status, 0);
+    assert.equal(beat().result, "ok");
+    writeFileSync(join(dir, ".foreman.json"), JSON.stringify({ modules: ["tracker-itsaplan"], mirror: { itsaplan: { projectKey: "P" } } }));
+    const r = run({ FOREMAN_STATUS_DIR: status });
+    assert.equal(r.status, 0, "exit code of the skip stays as before");
+    assert.equal(beat().result, "error");
+    assert.match(beat().note, /ITSAPLAN_URL/);
+    assert.ok(r.stdout.includes("SKIP|itsaplan"), r.stdout);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("tracker-sync beat R1: default status directory is used when it exists; a crash of the script beats error and exits 1", () => {
+  const dir = mkdtempSync(join(tmpdir(), "mirror-beat2-"));
+  try {
+    spawnSync("git", ["init", "-q"], { cwd: dir });
+    mkdirSync(join(dir, "docs/milestones/M001"), { recursive: true });
+    writeFileSync(join(dir, "docs/milestones/M001/STATE.md"), "Status: slice · since 2026-01-01T00:00Z\nTarget: dev\n\n# M001: x\n");
+    writeFileSync(join(dir, ".foreman.json"), JSON.stringify({ modules: [] }));
+    const base = { ...process.env, HOME: dir };
+    for (const k of ["ITSAPLAN_URL", "ITSAPLAN_API_KEY", "LINEAR_API_KEY", "FOREMAN_STATUS_DIR"]) delete base[k];
+    const run = (env = {}) => spawnSync(process.execPath, [join(HERE, "state-mirror.mjs"), "--local"], { cwd: dir, encoding: "utf8", env: { ...base, ...env } });
+    const def = join(dir, ".local/share/foreman-dispatcher/status");
+    assert.equal(run().status, 0);
+    assert.ok(!existsSync(def), "default directory absent: nothing written");
+    mkdirSync(def, { recursive: true });
+    assert.equal(run().status, 0);
+    assert.ok(existsSync(join(def, "tracker-sync.json")), "default status directory beat missing");
+    assert.equal(JSON.parse(readFileSync(join(def, "tracker-sync.json"), "utf8")).result, "ok");
+    const status = join(dir, "status");
+    writeFileSync(join(dir, ".foreman.json"), "{not json");
+    const r = run({ FOREMAN_STATUS_DIR: status });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok(existsSync(join(status, "tracker-sync.json")), "error beat missing after the crash");
+    const b = JSON.parse(readFileSync(join(status, "tracker-sync.json"), "utf8"));
+    assert.equal(b.result, "error");
+    assert.match(b.note, /JSON/i);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ----- client contract -----
+
+t("contract: real itsaplan client has every method the mirror needs", () => {
+  const real = itsaplanClient({ url: "http://x", key: "k" });
+  assert.deepEqual(mirror.missingClientMethods(real, mirror.ITSAPLAN_CLIENT_METHODS), []);
+  const lin = linearClient({ key: "k" });
+  assert.deepEqual(mirror.missingClientMethods(lin, mirror.LINEAR_CLIENT_METHODS), []);
+  assert.deepEqual(mirror.missingClientMethods({}, ["a", "b"]), ["a", "b"]);
+});
+
+t("contract: method lists match the source", () => {
+  const src = readFileSync(join(HERE, "state-mirror.mjs"), "utf8");
+  const body = (start) => {
+    const from = src.indexOf(`async function ${start}`);
+    assert.ok(from >= 0, `${start} not found`);
+    const rest = src.slice(from);
+    const end = rest.search(/\n\/\/ ----------/);
+    return end < 0 ? rest : rest.slice(0, end);
+  };
+  const used = (text) => [...new Set([...text.matchAll(/\bclient\.(\w+)\(/g)].map((m) => m[1]))].sort();
+  assert.deepEqual(used(body("mirrorItsaplan")), [...mirror.ITSAPLAN_CLIENT_METHODS].sort());
+  assert.deepEqual(used(body("mirrorLinear")), [...mirror.LINEAR_CLIENT_METHODS].sort());
+});
+
+t("contract: fakeClient covers the itsaplan list", () => {
+  assert.deepEqual(mirror.missingClientMethods(fakeClient([]), mirror.ITSAPLAN_CLIENT_METHODS), []);
+});
+
+t("contract: old client with other method names fails at once", async () => {
+  const oldClient = { projekt: async () => ({}), kommentar: async () => {}, issueAnlegen: async () => ({}) };
+  await assert.rejects(
+    () => mirrorItsaplan([], { projectKey: "P" }, true, oldClient),
+    (e) => {
+      assert.ok(e.message.includes("client"), e.message);
+      for (const name of mirror.ITSAPLAN_CLIENT_METHODS) assert.ok(e.message.includes(name), e.message);
+      assert.ok(e.message.includes("scripts/lib/itsaplan-api.mjs"), e.message);
+      assert.ok(!e.message.includes("is not a function"), e.message);
+      return true;
+    },
+  );
 });
 
 for (const [name, fn] of queue) {

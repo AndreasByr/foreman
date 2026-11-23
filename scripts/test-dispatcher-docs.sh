@@ -90,9 +90,9 @@ for term in foreman_version_source foreman_repo update_notice "foreman update av
   need docs/MODULES.md "$term"
 done
 
-# CHANGELOG.md: only the section that introduced the update notice counts (Unreleased, or 0.2.2 once released; later patch sections do not repeat it). Its parts run from the heading to the next ## or ### heading.
+# CHANGELOG.md: only the section that introduced the update notice counts (Unreleased, or 0.2.5 once released; later patch sections do not repeat it). Its parts run from the heading to the next ## or ### heading.
 [ -f CHANGELOG.md ] || fail "missing file CHANGELOG.md"
-unreleased=$(awk '/^## /{on = ($0 ~ /^## (Unreleased|0\.2\.2)( |$)/)} on' CHANGELOG.md)
+unreleased=$(awk '/^## /{on = ($0 ~ /^## (Unreleased|0\.2\.5|0\.2\.2)( |$)/)} on' CHANGELOG.md)
 [ -n "$unreleased" ] || fail "CHANGELOG.md has no section"
 # part HEADING: the lines under HEADING inside the Unreleased section
 part() { awk -v h="$1" '$0 == h {on = 1; next} /^#{2,3} / {on = 0} on' <<<"$unreleased"; }
@@ -107,5 +107,40 @@ echo "ok CHANGELOG.md Unreleased ### New contains 'foreman update available'"
 
 # docs/learnings.md
 need docs/learnings.md "foreman update available"
+
+# fix pack 2026-11-23-module-alarm: heartbeat, watcher, alarm, status
+for term in heartbeat watch.sh status.sh ALARM_PUSH_URL repeat_hours tracker-sync FOREMAN_STATUS_DIR limits_minutes; do
+  need dispatcher/README.md "$term"
+done
+for term in heartbeat alarm channels limits_minutes repeat_hours; do
+  need dispatcher/config.example.json "$term"
+done
+need dispatcher/dispatcher.env.example ALARM_PUSH_URL
+need dispatcher/crontab.example watch.sh
+need dispatcher/systemd/foreman-watcher.service watch.sh
+need dispatcher/systemd/foreman-watcher.timer OnUnitActiveSec
+for term in heartbeat tracker-sync watch.sh; do
+  need docs/MODULES.md "$term"
+done
+need docs/learnings.md heartbeat
+grep -q -F -- "heartbeat" <<<"$new" || fail "CHANGELOG.md Unreleased ### New does not contain 'heartbeat'"
+for term in watch.sh "dispatcher machine"; do
+  grep -q -F -- "$term" <<<"$upgrade" || fail "CHANGELOG.md Unreleased ### Upgrade does not contain '$term'"
+done
+echo "ok CHANGELOG.md names heartbeat and the watcher upgrade step"
+
+# dispatcher limits: max_tasks_cap, cooldown_minutes and max_tasks are asked for, not defaulted
+need dispatcher/README.md max_tasks_cap
+need dispatcher/README.md cooldown_minutes
+need dispatcher/README.md "Limits"
+need plugins/foreman/skills/foreman-project/references/tracker-and-dispatcher.md max_tasks_cap
+need plugins/foreman/skills/foreman-project/references/tracker-and-dispatcher.md cooldown_minutes
+need plugins/foreman/skills/foreman-project/SKILL.md cooldown_minutes
+need plugins/foreman/skills/foreman-setup/references/prerequisites.md cooldown_minutes
+need plugins/foreman/skills/foreman-update/SKILL.md max_tasks
+need plugins/foreman/skills/foreman-update/SKILL.md cooldown_minutes
+need docs/MODULES.md max_tasks_cap
+need CHANGELOG.md max_tasks_cap
+need docs/learnings.md max_tasks_cap
 
 echo "dispatcher docs tests: ok"

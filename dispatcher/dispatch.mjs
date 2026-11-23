@@ -9,12 +9,56 @@
 // --dry-run: update and check as usual, print what would be started, start nothing and write no state.
 // Config: see config.example.json. Secrets come from the environment (dispatcher.env), never from the config file.
 import { spawn, spawnSync } from "node:child_process";
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { judge, readBeats, statusDir, writeBeat } from "./heartbeat.mjs";
 
-const HARD_MAX_TASKS = 3;
+const DEFAULT_MAX_TASKS_CAP = 3;
+const ABSOLUTE_MAX_TASKS = 10;
+const DEFAULT_COOLDOWN_MINUTES = 45;
+const MAX_COOLDOWN_MINUTES = 1440; // 24 h: the state forgets fired units after 24 h, a longer cooldown would not hold
+
+const unset = (v) => v === undefined || v === null;
+const isPositiveInt = (v) => Number.isInteger(v) && v > 0;
+const isPositiveNumber = (v) => typeof v === "number" && Number.isFinite(v) && v > 0;
+
+/**
+ * Resolves the start limits of one project. cap: config max_tasks_cap (default 3, at most 10). max: project max_tasks
+ * (default = cap, at most cap). cooldownMinutes: valid project cooldown_minutes, then valid config value, then 45;
+ * at most 1440.
+ * Returns { cap, max, cooldownMinutes, notes: [{ level: "default" | "warn", text }] }.
+ */
+export function resolveLimits(config, project) {
+  const notes = [];
+  let cap = DEFAULT_MAX_TASKS_CAP;
+  if (!unset(config.max_tasks_cap)) {
+    if (!isPositiveInt(config.max_tasks_cap)) notes.push({ level: "warn", text: `max_tasks_cap invalid (${JSON.stringify(config.max_tasks_cap)}), ${DEFAULT_MAX_TASKS_CAP} used` });
+    else if (config.max_tasks_cap > ABSOLUTE_MAX_TASKS) { cap = ABSOLUTE_MAX_TASKS; notes.push({ level: "warn", text: `max_tasks_cap ${config.max_tasks_cap} capped to ${ABSOLUTE_MAX_TASKS}` }); }
+    else cap = config.max_tasks_cap;
+  }
+  let max = cap;
+  if (unset(project.max_tasks)) notes.push({ level: "default", text: `max_tasks not set, default used (${cap})` });
+  else if (!isPositiveInt(project.max_tasks)) notes.push({ level: "warn", text: `max_tasks invalid (${JSON.stringify(project.max_tasks)}), ${cap} used` });
+  else if (project.max_tasks > cap) { notes.push({ level: "warn", text: `max_tasks ${project.max_tasks} capped to ${cap}` }); }
+  else max = project.max_tasks;
+  let cooldownMinutes = DEFAULT_COOLDOWN_MINUTES;
+  const projectCooldownSet = !unset(project.cooldown_minutes);
+  if (projectCooldownSet && !isPositiveNumber(project.cooldown_minutes)) {
+    notes.push({ level: "warn", text: `project cooldown_minutes invalid (${JSON.stringify(project.cooldown_minutes)}), config or ${DEFAULT_COOLDOWN_MINUTES} min used` });
+  }
+  if (projectCooldownSet && isPositiveNumber(project.cooldown_minutes)) cooldownMinutes = project.cooldown_minutes;
+  else if (!unset(config.cooldown_minutes)) {
+    if (isPositiveNumber(config.cooldown_minutes)) cooldownMinutes = config.cooldown_minutes;
+    else notes.push({ level: "warn", text: `cooldown_minutes invalid (${JSON.stringify(config.cooldown_minutes)}), ${DEFAULT_COOLDOWN_MINUTES} min used` });
+  } else if (!projectCooldownSet) notes.push({ level: "default", text: `cooldown_minutes not set, default used (${DEFAULT_COOLDOWN_MINUTES} min)` });
+  if (cooldownMinutes > MAX_COOLDOWN_MINUTES) {
+    notes.push({ level: "warn", text: `cooldown_minutes ${cooldownMinutes} capped to ${MAX_COOLDOWN_MINUTES} (24 h, the state forgets fired units after that)` });
+    cooldownMinutes = MAX_COOLDOWN_MINUTES;
+  }
+  return { cap, max, cooldownMinutes, notes };
+}
 
 export function expandHome(p) {
   return p && p.startsWith("~") ? join(homedir(), p.slice(1)) : p;
@@ -70,15 +114,19 @@ function loadState(path) {
   } catch { return { fired: {} }; }
 }
 
-/** Picks the tasks to start: at most `max` (never above 3), one per unit, none fired within the cooldown. */
-export function selectTasks(tasks, state, now, { max = HARD_MAX_TASKS, cooldownMs = 45 * 60 * 1000 } = {}) {
+/**
+ * Picks the tasks to start: at most `max`, never above `cap` and never above ABSOLUTE_MAX_TASKS (10), one per unit,
+ * none fired within the cooldown (`cooldownMs`, per unit).
+ */
+export function selectTasks(tasks, state, now, { max = DEFAULT_MAX_TASKS_CAP, cap = DEFAULT_MAX_TASKS_CAP, cooldownMs = DEFAULT_COOLDOWN_MINUTES * 60 * 1000 } = {}) {
+  const limit = Math.min(max, cap, ABSOLUTE_MAX_TASKS);
   const chosen = [], skipped = [], units = new Set();
   for (const t of tasks) {
     if (!t.prompt) { skipped.push({ ...t, why: "no PROMPT block" }); continue; }
     const last = Date.parse(state.fired?.[t.unit] ?? ""); // cooldown per unit, whatever the kind
     if (units.has(t.unit) && t.unit !== "-") { skipped.push({ ...t, why: "unit already has a task" }); continue; }
     if (Number.isFinite(last) && now - last < cooldownMs) { skipped.push({ ...t, why: "fired recently" }); continue; }
-    if (chosen.length >= Math.min(max, HARD_MAX_TASKS)) { skipped.push({ ...t, why: "limit reached" }); continue; }
+    if (chosen.length >= limit) { skipped.push({ ...t, why: "limit reached" }); continue; }
     chosen.push(t);
     units.add(t.unit);
   }
@@ -210,7 +258,7 @@ export function webhookRequest(config, env, message) {
 }
 
 /** Sends a webhook. Returns "sent", "none" (no URL set, or URL/format unusable) or "failed". */
-async function notify(config, env, message, fetchImpl, log) {
+export async function notify(config, env, message, fetchImpl, log) {
   let req;
   try { req = webhookRequest(config, env, message); } catch (e) { log(`webhook not used: ${e.message}`); return "none"; }
   if (!req) return "none";
@@ -313,7 +361,7 @@ async function checkForemanVersion(project, config, dir, cache, { fetch, version
 }
 
 /** Small itsaplan REST client (same calls and errors as scripts/lib/itsaplan-api.mjs). */
-function itsaplanApi(url, key, fetchImpl) {
+export function itsaplanApi(url, key, fetchImpl) {
   const base = url.replace(/\/$/, ""), id = encodeURIComponent;
   async function request(path, method = "GET", body) {
     const res = await fetchImpl(`${base}${path}`, {
@@ -357,7 +405,7 @@ function itsaplanApi(url, key, fetchImpl) {
  * webhook, remembered in state.update. Closes tickets of versions the project has reached. Never throws.
  * Returns true when a part failed. Writes the state itself (not on a dry run).
  */
-async function updateStep(project, config, env, dir, state, statePath, { old, current }, { fetch: fetchImpl, say: log, dryRun, now, secrets }) {
+async function updateStep(project, config, env, dir, state, statePath, { old, current }, { fetch: fetchImpl, say: log, dryRun, now, secrets, notify: sendNotify = notify }) {
   const name = project.name, u = state.update, outdated = isOutdated(old, current), before = JSON.stringify(state);
   const hookEnv = config.webhook_url_env ?? "DISPATCHER_ERROR_WEBHOOK_URL";
   const say = (m) => log(redact(m, [env[hookEnv]]));
@@ -436,7 +484,7 @@ async function updateStep(project, config, env, dir, state, statePath, { old, cu
       for (const v of Object.keys(u.webhook)) if (v !== current) delete u.webhook[v];
       if (!u.webhook[current]) {
         const msg = `foreman update available for ${name}: ${old} → ${current}. Run foreman-update in the project chat. Upgrade notes: ${changelog}`;
-        const r = await notify(config, env, msg, fetchImpl, say);
+        const r = await sendNotify(config, env, msg, fetchImpl, say);
         if (r === "sent") u.webhook[current] = new Date(now).toISOString();
         else if (r === "failed") fail("webhook", new Error("delivery failed, see the webhook line above"));
       }
@@ -446,6 +494,38 @@ async function updateStep(project, config, env, dir, state, statePath, { old, cu
   return failed;
 }
 
+/** Alarms through the webhook when the watcher beat exists and is not ok, at most once per alarm.repeat_hours. Never throws. */
+async function watcherCheck(config, env, { workdir, statusPath, now, fetchImpl, say }) {
+  try {
+    const w = readBeats(statusPath).find((b) => b.module === "watcher");
+    if (!w) return;
+    const limit = config.heartbeat?.limits_minutes?.watcher ?? 45;
+    const j = judge([w], { now, limits: { watcher: limit } })[0];
+    const peerPath = join(workdir, "peer.json");
+    let peer = {};
+    try { const p = JSON.parse(readFileSync(peerPath, "utf8")); if (p && typeof p === "object" && !Array.isArray(p)) peer = p; } catch { /* none yet */ }
+    const savePeer = () => {
+      const tmp = `${peerPath}.${process.pid}.tmp`;
+      try { writeFileSync(tmp, `${JSON.stringify(peer, null, 2)}\n`); renameSync(tmp, peerPath); }
+      catch (e) { try { rmSync(tmp, { force: true }); } catch { /* ignore */ } throw e; }
+    };
+    if (j.state === "ok") {
+      if ("watcher" in peer) { delete peer.watcher; savePeer(); }
+      return;
+    }
+    const last = Date.parse(peer.watcher ?? "");
+    const repeatMs = (config.alarm?.repeat_hours ?? 6) * 3600 * 1000;
+    if (Number.isFinite(last) && now - last < repeatMs) return;
+    let msg = `foreman watcher is not reporting: last run ${w.last_run ?? "never"}, limit ${limit} min`;
+    if (w.result === "error" && w.note) msg += ` (error: ${w.note})`;
+    const r = await notify(config, env, msg, fetchImpl, say);
+    if (r === "sent") {
+      peer.watcher = new Date(now).toISOString();
+      savePeer();
+    }
+  } catch (e) { say(`watcher check failed: ${String(e?.message ?? e).split("\n")[0]}`); }
+}
+
 /** Runs the dispatcher for all projects. Returns the exit code (1 when any project failed). */
 export async function run({ config, env = process.env, dryRun = false, only = null, update = true, now = Date.now(), fetch: fetchImpl = fetch, log = (m) => console.log(m), versionFile = undefined } = {}) {
   const workdir = expandHome(config.workdir || "~/.local/share/foreman-dispatcher");
@@ -453,15 +533,30 @@ export async function run({ config, env = process.env, dryRun = false, only = nu
   mkdirSync(stateDir, { recursive: true });
   const lock = join(workdir, "dispatch.lock");
   if (!dryRun && !acquireLock(lock)) { log("another dispatcher run is active; skipping"); return 0; }
-  const cooldownMs = (config.cooldown_minutes ?? 45) * 60 * 1000;
-  let failed = false;
+  let failed = false, notifyFailed = false;
+  const failedProjects = [];
   const versionCache = { done: false, current: null };
+  const stamp = (m) => log(`[${new Date(now).toISOString()}] ${m}`);
+  const sendNotify = async (...a) => { const r = await notify(...a); if (r === "failed") notifyFailed = true; return r; };
+  const statusPath = statusDir(config, env);
+  const beat = (module, result, note, maxAgeMin = null, redactWith = []) => {
+    try { writeBeat(statusPath, module, { result, note: redact(String(note ?? "").split("\n")[0], redactWith), maxAgeMin, now }); }
+    catch (e) { stamp(`heartbeat not written: ${String(e?.message ?? e).split("\n")[0]}`); }
+  };
   try {
     for (const project of config.projects ?? []) {
       if (project.enabled === false || (only && project.name !== only)) continue;
       const secrets = [env[project.fire_token_env], project.deploy_key_env ? env[project.deploy_key_env] : null, ...Object.values(project.pass_env ?? {}).map((n) => env[n])];
       const say = (m) => log(`[${new Date(now).toISOString()}] ${redact(m, secrets)}`);
+      const limits = resolveLimits(config, project);
+      const cooldownMs = limits.cooldownMinutes * 60 * 1000;
+      let pErr = null, pNote = null, started = 0;
       try {
+        for (const n of limits.notes) if (n.level === "warn") say(`${project.name}: ${n.text}`);
+        if (dryRun) {
+          say(`${project.name}: limits max_tasks=${limits.max} (cap ${limits.cap}), cooldown=${limits.cooldownMinutes} min`);
+          for (const n of limits.notes) if (n.level === "default") say(`${project.name}: ${n.text}. Ask the human for this value (dispatcher/README.md, Limits)`);
+        }
         let dir = join(workdir, "repos", project.name);
         if (update) dir = updateRepo(project, workdir, env, say);
         else if (!existsSync(join(dir, ".git"))) throw new Error("no clone yet (run without --no-update first)");
@@ -471,13 +566,16 @@ export async function run({ config, env = process.env, dryRun = false, only = nu
         state.update = { ...state.update, webhook: state.update?.webhook ?? {}, ticket: state.update?.ticket ?? {} };
         if (project.update_notice !== false && config.update_notice !== false) {
           const versions = await checkForemanVersion(project, config, dir, versionCache, { fetch: fetchImpl, versionFile, say });
-          if (versions) failed = (await updateStep(project, config, env, dir, state, statePath, versions, { fetch: fetchImpl, say, dryRun, now, secrets })) || failed;
+          if (versions) {
+            const upFailed = await updateStep(project, config, env, dir, state, statePath, versions, { fetch: fetchImpl, say, dryRun, now, secrets, notify: sendNotify });
+            if (upFailed) { failed = true; pErr ??= "update step failed"; }
+          }
         }
         const { stdout, stderr } = runCheck(project, dir, env);
         for (const l of stderr.split("\n").filter(Boolean)) say(`${project.name}: check note: ${l}`);
         const parsed = parseCheckOutput(stdout);
-        if (parsed.nothing || !parsed.tasks.length) { say(`${project.name}: nothing to do`); continue; }
-        const { chosen, skipped } = selectTasks(parsed.tasks, state, now, { max: project.max_tasks ?? HARD_MAX_TASKS, cooldownMs });
+        if (parsed.nothing || !parsed.tasks.length) { say(`${project.name}: nothing to do`); pNote = "nothing to do"; continue; }
+        const { chosen, skipped } = selectTasks(parsed.tasks, state, now, { max: limits.max, cap: limits.cap, cooldownMs });
         for (const s of skipped) say(`${project.name}: skip ${s.kind} ${s.unit} (${s.why})`);
         for (const task of chosen) {
           if (dryRun) { say(`${project.name}: would start ${task.kind} ${task.unit} (${task.info}) via ${project.fire_command ? "command" : "fire URL"}`); continue; }
@@ -485,11 +583,13 @@ export async function run({ config, env = process.env, dryRun = false, only = nu
             const result = project.fire_command ? fireCommand(project, task, dir, join(workdir, "logs"), env) : await fireHttp(project, task, env, fetchImpl);
             say(`${project.name}: started ${task.kind} ${task.unit}: ${result}`);
             state.fired[task.unit] = new Date(now).toISOString();
+            started++;
           } catch (e) {
             failed = true;
             const msg = `Dispatcher ${project.name}: could not start ${task.kind} ${task.unit}: ${redact(e.message, secrets)}`;
+            pErr ??= msg;
             say(msg);
-            await notify(config, env, msg, fetchImpl, say);
+            await sendNotify(config, env, msg, fetchImpl, say);
           }
         }
         if (!dryRun) {
@@ -499,12 +599,24 @@ export async function run({ config, env = process.env, dryRun = false, only = nu
       } catch (e) {
         failed = true;
         const msg = `Dispatcher ${project.name}: ${redact(e.message, secrets)}. Nothing was started.`;
+        pErr = msg;
         say(msg);
-        await notify(config, env, msg, fetchImpl, say);
+        await sendNotify(config, env, msg, fetchImpl, say);
+      } finally {
+        if (!dryRun) {
+          if (pErr) failedProjects.push(project.name);
+          beat(`project:${project.name}`, pErr ? "error" : "ok", pErr ?? pNote ?? `started ${started}`, null, secrets);
+        }
       }
     }
   } finally {
     if (!dryRun) rmSync(lock, { force: true });
+  }
+  if (!dryRun) {
+    const dispatcherLimit = config.heartbeat?.limits_minutes?.dispatcher ?? 30;
+    if (failed) beat("dispatcher", "error", `failed: ${failedProjects.join(", ")}${notifyFailed ? ", notification failed" : ""}`, dispatcherLimit);
+    else beat("dispatcher", "ok", `${(config.projects ?? []).filter((p) => p.enabled !== false && (!only || p.name === only)).length} projects`, dispatcherLimit);
+    await watcherCheck(config, env, { workdir, statusPath, now, fetchImpl, say: stamp });
   }
   return failed ? 1 : 0;
 }

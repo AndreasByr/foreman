@@ -299,4 +299,59 @@ upd "$d"
 for f in $WIKI_FILES; do [ -f "$d/$f" ] || fail "17: $f missing after update"; done
 cmp -s "$d/scripts/lib/docs-wiki-scan.mjs" "$HERE/template/scripts/lib/docs-wiki-scan.mjs" || fail "17: restored docs-wiki-scan.mjs differs from the template"
 
+# 18. files foreman does not ship: listed as warnings, never touched, exit stays 0
+WARN_HEAD="warning: files that this foreman version does not ship (project files or leftovers, nothing was changed):"
+WARN_TAIL="warning: if one of them replaced a foreman script, remove or rename it by hand and run the update again."
+d="$T/left"; gitinit "$d"
+inst "$d" --project left --modules delegate,tracker-itsaplan,gateway,autopilot,pretest --session-model test-model-id >/dev/null 2>&1 || fail "18: install failed"
+commit "$d" install
+echo "// old client" > "$d/scripts/lib/old-client.mjs"
+echo "// old mirror" > "$d/scripts/old-mirror.mjs"
+echo "# project setup" > "$d/scripts/session-setup.local.sh"
+mkdir -p "$d/docs/fixpakete"; : > "$d/docs/fixpakete/README.md"
+commit "$d" leftovers
+h0=$(tree_hash "$d")
+upd "$d" --dry-run
+[ "$RC" = 0 ] || fail "18a: dry run exit $RC: $ERR"
+need_line "18a" "$WARN_HEAD"
+need_line "18a" "  scripts/lib/old-client.mjs"
+need_line "18a" "  scripts/old-mirror.mjs"
+printf '%s\n' "$OUT" | grep -q '^  docs/fixpakete/ .*older name' || fail "18a: no line starting '  docs/fixpakete/' with 'older name': $OUT"
+need_line "18a" "$WARN_TAIL"
+if printf '%s\n' "$OUT" | grep -q 'session-setup.local.sh'; then fail "18a: project-local file listed in the dry run: $OUT"; fi
+[ "$(tree_hash "$d")" = "$h0" ] || fail "18a: dry run changed the tree"
+[ -f "$d/scripts/lib/old-client.mjs" ] && [ -f "$d/scripts/old-mirror.mjs" ] && [ -f "$d/docs/fixpakete/README.md" ] || fail "18a: leftover file missing after dry run"
+upd "$d"
+[ "$RC" = 0 ] || fail "18b: update exit $RC: $ERR"
+need_line "18b" "$WARN_HEAD"
+need_line "18b" "  scripts/lib/old-client.mjs"
+if printf '%s\n' "$OUT" | grep -q 'session-setup.local.sh'; then fail "18b: project-local file listed after the update: $OUT"; fi
+[ -f "$d/scripts/session-setup.local.sh" ] || fail "18b: project-local file missing after update"
+[ -f "$d/scripts/lib/old-client.mjs" ] && [ -f "$d/scripts/old-mirror.mjs" ] && [ -f "$d/docs/fixpakete/README.md" ] || fail "18b: leftover file deleted by update"
+[ "$(tree_hash "$d")" = "$h0" ] || fail "18b: update changed the tree"
+# 18c. clean fresh installs produce no warning (default modules, and the non-default module set)
+d="$T/clean1"; gitinit "$d"
+inst "$d" --project clean1 --session-model test-model-id >/dev/null 2>&1 || fail "18c: default install failed"
+commit "$d" install
+upd "$d" --dry-run
+[ "$RC" = 0 ] || fail "18c default: exit $RC: $ERR"
+printf '%s\n' "$OUT" | grep -q '^warning:' && fail "18c default: false warning: $OUT"
+d="$T/clean2"; gitinit "$d"
+inst "$d" --project clean2 --modules delegate,tracker-itsaplan,gateway,autopilot,pretest --session-model test-model-id >/dev/null 2>&1 || fail "18c: modules install failed"
+commit "$d" install
+upd "$d" --dry-run
+[ "$RC" = 0 ] || fail "18c modules: exit $RC: $ERR"
+printf '%s\n' "$OUT" | grep -q '^warning:' && fail "18c modules: false warning: $OUT"
+# 18d. a project script foreman does not ship is listed; the update still exits 0 and keeps it
+d="$T/extra"; gitinit "$d"
+inst "$d" --project extra --session-model test-model-id >/dev/null 2>&1 || fail "18d: install failed"
+commit "$d" install
+echo "echo build" > "$d/scripts/build.sh"
+commit "$d" extra
+upd "$d"
+[ "$RC" = 0 ] || fail "18d: update exit $RC: $ERR"
+need_line "18d" "$WARN_HEAD"
+need_line "18d" "  scripts/build.sh"
+[ "$(cat "$d/scripts/build.sh")" = "echo build" ] || fail "18d: scripts/build.sh changed"
+
 echo "update tests: ok"

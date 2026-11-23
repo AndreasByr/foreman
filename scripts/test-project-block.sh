@@ -123,4 +123,17 @@ grep -q 'block-status.py' "$SKILL/SKILL.md" || fail "$SKILL/SKILL.md does not me
 grep -q 'block-status.py' plugins/foreman/skills/foreman-update/SKILL.md || fail "foreman-update/SKILL.md does not mention block-status.py"
 grep -q 'Project instructions up to date' plugins/foreman/skills/foreman-update/SKILL.md || fail "foreman-update/SKILL.md does not contain 'Project instructions up to date'"
 
+# 10. Version consistency: the block heading and the skill's example marker must name the current version N.
+grep -qxF "# Project instruction block (v$N)" <(head -n1 "$REF") || fail "$REF: first line is not '# Project instruction block (v$N)'"
+grep -qF "\`<!-- foreman-project-block v$N -->\`" "$SKILL/SKILL.md" || fail "$SKILL/SKILL.md: example marker in section 5 is not '\`<!-- foreman-project-block v$N -->\`'"
+# No stale example marker of another version may remain in the skill.
+STALE=$(grep -oE 'foreman-project-block v[0-9]+' "$SKILL/SKILL.md" | sort -u | grep -vxF "foreman-project-block v$N" || true)
+[ -z "$STALE" ] || fail "$SKILL/SKILL.md: example marker names another version: $STALE"
+
+# 11. State gate: the block names the STATE.md gate for threads and the coordinator check.
+BLOCK=$(sed -n '/<!-- foreman-project-block v/,/<!-- \/foreman-project-block -->/p' "$REF")
+grep -qF 'STATE.md` is current' <<<"$BLOCK" || fail "$REF: block lacks the gate '\`STATE.md\` is current'"
+grep -qF 'checks that the branch or PR changes `STATE.md`' <<<"$BLOCK" || fail "$REF: block lacks the coordinator check 'checks that the branch or PR changes STATE.md'"
+[ "$(wc -c <<<"$BLOCK")" -le 2600 ] || fail "$REF: block is larger than 2600 bytes"
+
 echo "project block: ok"

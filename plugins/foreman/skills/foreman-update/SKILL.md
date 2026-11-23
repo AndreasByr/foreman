@@ -49,7 +49,7 @@ From `update-classes.json`:
 One code block. Give it to the human; run nothing yourself.
 
 ```
-On a clean working tree, on a fresh branch or the batch branch:
+On a clean working tree, on a fresh branch named `foreman-update-<version>` (the STATE.md check skips it) or the batch branch:
 Steps 1-2 run in the foreman checkout (cd <foreman checkout>), the rest after cd <project path>.
 1. ./install.sh <project path> --update --dry-run
    Read the list.
@@ -73,7 +73,7 @@ Numbered, each with minutes, built from the Upgrade parts. Mark an item as apply
 1. Update the foreman plugin in claude.ai, or `/plugin update` (2 min).
 2. Set the environment variable names the dispatcher or workers now need, names only (5 min).
 3. Check the model IDs in `tools/delegate/config.toml` and merge new keys by hand, after the merge in the order above (5 min).
-4. Dispatcher: reload the config and run a dry run (5 min).
+4. Dispatcher: reload the config and run a dry run (5 min). Read the `limits` lines: every `default used` line is a question to the human (`max_tasks`, `cooldown_minutes`, each with the recommendation from `dispatcher/README.md`, Limits). The answer goes into the dispatcher `config.json`. `max_tasks_cap` only if the human wants more than 3 starts per run.
 
 Then one line per Upgrade item of the versions in between, with minutes.
 

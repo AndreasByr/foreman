@@ -29,7 +29,7 @@ Points follow, numbered `F1`, `F2`, ... Each is `Fix:` or `Analysis:` with probl
 2. **Store the order:** the order text unchanged to `docs/fixpacks/<id>/ORDER.md`. If `docs/fixpacks/<id>/STATE.md` exists (continuation), go to step 4 with the first open point.
 3. **Plan and create `STATE.md`** from `docs/fixpacks/_TEMPLATE/STATE.md`:
    - Read `docs/learnings.md` first.
-   - Table per point: `#`, type (fix/analysis), title, status (open / in progress / done / blocked), areas, check (test file or command), board, commit.
+   - Table per point: `#`, type (fix/analysis), title, status (open / in progress / done / blocked), check (test file or command), red → green (SHA), commit.
    - Board check (planning): every point has a `Board:` line. A point with a new or changed interface needs an approved board file under `docs/design-reference/` on the batch branch; without it the point is `blocked` and the unit `needs-input`, the question names the element without a board. The others go on. The Agent creates no boards. `Board: no interface` is for pure text, spacing and bug corrections.
    - **Order:** analyses first. Points sharing a cause or files go one after another. Same cause: one commit naming both numbers, noted in `STATE.md`.
    - Record the start commit of the batch branch in `STATE.md`.
@@ -40,7 +40,7 @@ Points follow, numbered `F1`, `F2`, ... Each is `Fix:` or `Analysis:` with probl
    - **Blocked** (missing prerequisite, unclear expected result, contradiction with requirements, verification fails after all worker steps): status "blocked" with reason; **continue with the next point**. A blocked point does not stop the pack.
    - **Test it yourself:** Hand nothing on, see `foreman-delegation`. A needed test is built in this pack, else the point is `blocked` (`needs-input`) with the concrete question.
    - Red that existed before the pack: prove with a run on the start commit, report as "Inherited red". Flaky tests: `docs/flaky-tests.md`.
-   - Update `STATE.md` after every point and push it.
+   - `STATE.md` is current after every point (status, branch, PR, next step); push it.
 5. **Independent review at the end:** one wrapper call with role `validation`. The task holds `ORDER.md`, `git diff <start-commit>..HEAD` and `STATE.md`. Questions: is every point met per acceptance? Was anything broken, especially permissions and tenant isolation? For UI: does the rendered output match the board? Does every fix have a test that was red before and green after? Verdict `pass` / `needs-attention` / `needs-remediation` per point, findings with severity.
    **The review blocks completion** (Review gate: `foreman-delegation`). Rework as its own commit (`Fix pack <id> F<n> R1: ...`), review again with the new diff. Still open: point `blocked`, the pack ends `needs-input` (question: the open finding).
 6. **Final run** on the final commit of the batch branch: full unit tests, typecheck, lint and the production build. The build is mandatory because the other checks miss bundling errors. Evidence rule: `foreman-delegation`.
@@ -52,7 +52,7 @@ Points follow, numbered `F1`, `F2`, ... Each is `Fix:` or `Analysis:` with probl
    - Final-run evidence and batch branch state (commits ahead of the target).
    - What only the browser or only the human can prove (re-test list for the next pretest), each with its reason. Pretest gets only what a local browser run cannot prove; the human gets only points needing a real second account or a product decision.
    - "Learned" (or "nothing new").
-   Commit and push.
+   `STATE.md` is current (State gate: `foreman-delegation`). Commit and push.
 8. Set the next status per `STATE.md` rules: `awaiting-merge` (all passed), `needs-input` (blocked or review open). Every `needs-input` writes the `**Cause:** <category> · <one sentence>` line (categories: STATE.md template; rule: `foreman-dispatch-run/references/intervention.md`).
 
 ## Out of context or time
@@ -61,4 +61,4 @@ Keep `STATE.md` current, write the report as **interim state** (done, open, next
 
 ## Excluded
 
-PR, merge, deploy, browser verification against dev/staging (that is the pretest), changes to roadmap or briefs, access to production tenants. The batch PR is created only on order (`foreman-batch`).
+PR, merge, deploy, browser verification against dev/staging (that is the pretest), changes to roadmap or briefs, access to production tenants. The batch PR is created only on order (`foreman-batch`). A merge on the human's go ends with the After-merge step (`foreman-delegation`).

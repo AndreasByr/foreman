@@ -9,6 +9,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Config check (opusplan, size limits, task files)
         run: bash scripts/check-config.sh
       - name: Push guard tests
@@ -28,3 +30,9 @@ jobs:
       - name: Pre-push hook tests
         run: bash scripts/test-pre-push.sh
         if: hashFiles('scripts/test-pre-push.sh') != ''
+      - name: State check tests
+        run: node scripts/test-check-state-touched.mjs
+        if: hashFiles('scripts/test-check-state-touched.mjs') != ''
+      - name: STATE.md changes with the work
+        if: github.event_name == 'pull_request' && hashFiles('scripts/check-state-touched.mjs') != ''
+        run: node scripts/check-state-touched.mjs --base "origin/$GITHUB_BASE_REF" --head HEAD --head-ref "$GITHUB_HEAD_REF"

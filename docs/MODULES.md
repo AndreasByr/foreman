@@ -46,8 +46,21 @@ The core needs git, Claude Code and a claude.ai account with skills. Everything 
 - `foreman_version_source`: `release` (default, newest GitHub release of `foreman_repo`) or `local` (the `VERSION` file of the foreman checkout that holds `dispatch.mjs`, for a private repository or offline). Feeds the `foreman update available` notice, see `dispatcher/README.md`.
 - `foreman_repo`: `owner/name` of the foreman repository for the release lookup. Default `AndreasByr/foreman`.
 - `update_notice`: `true` (default) or `false`. Set `false` to switch off the `foreman update available` notice for all projects, or in a project's entry for that project only.
+- `max_tasks_cap`: top level in `dispatcher/config.json`. Ceiling of work runs started per dispatcher run, for all projects. Default 3, at most 10 (a higher value is capped to 10).
+- `max_tasks`: per project in `dispatcher/config.json`. Work runs started per run for that project. Default: the value of `max_tasks_cap`; never above it. A value of 0 or below is invalid (warning, the cap applies); pause a project with `enabled: false`.
+- `cooldown_minutes`: top level as the default for all projects, or per project as override. Minutes before the same unit may start again. Default 45. At most 1440 (24 h); an invalid project value falls back to the top-level value, then 45.
 - `autopilot.batchHours`: in `.foreman.json`, the local hours (in `context.timeZone`) of the merge window in which the check starts the batch PR. Default 3, 7, 11, 15, 19, 23.
 - `autopilot.waitHours`: in `.foreman.json`, the wait time in hours after which the check starts the batch PR outside the merge window. Default 4. `FOREMAN_WAIT_SECONDS` still overrides the wait time.
+
+**Heartbeat and alarm** (`dispatcher/config.json`, details in `dispatcher/README.md`):
+
+- `heartbeat.limits_minutes`: age limit per module. Defaults `dispatcher` 30 and `watcher` 45. Keys are module names: `dispatcher`, `project:<name>`, `tracker-sync`, `watcher`.
+- `heartbeat.default_limit_minutes`: age limit for modules without their own limit. Default none, so those modules alarm only on error.
+- `alarm.channels`: `webhook` (default), `push`, `tracker`. An alarm is delivered when at least one channel sends it.
+- `alarm.repeat_hours`: hours before a still-open problem is reported again. Default 6.
+- `alarm.push_url_env`: name of the variable with the push URL. Default `ALARM_PUSH_URL`.
+- `alarm.tracker`: itsaplan project for the tracker channel (`project_key` or `project`, `url_env`, `key_env`).
+- The watcher runs as `dispatcher/watch.sh`, every 15 minutes, from its own timer or cron. Module `tracker-sync` reports when `FOREMAN_STATUS_DIR` is set or the default status directory (`~/.local/share/foreman-dispatcher/status`) exists. The watcher exits 1 as long as any module is not ok, even when the alarm was delivered (a systemd unit shows failed during an outage). A beat file of a removed or disabled project stays and keeps alarming: delete `<workdir>/status/project_<name>.json` when you remove a project. A tracker ticket that failed to open is retried every run.
 
 Upgrade note: before this version a check script inherited the whole environment, and `main` started in the merge window. Now variables must be listed in `pass_env`, and `main` needs `mainAutoMerge: true`. `FOREMAN_*` overrides (for example `FOREMAN_TZ`) set in `dispatcher.env` no longer reach the check script unless listed in `pass_env`; move them to `.foreman.json` or to `pass_env`. Proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`) are not passed either. The check script also loses `GITHUB_TOKEN` unless the project lists it in `pass_env`; without it open batch PRs are not seen, so a `main` PR started by the human is not continued. Upgrade note for the update notice (`foreman update available`): a dispatcher that should send it needs the new dispatcher code (pull the foreman checkout on the dispatcher machine). For the ticket, `ITSAPLAN_URL` and `ITSAPLAN_API_KEY` must be in the project's `pass_env`. The optional keys `foreman_version_source`, `foreman_repo` and `update_notice` need no change for the defaults.
 

@@ -28,6 +28,10 @@ DOCS_NOTION_OFF = ("scripts/docs-notion.mjs", "scripts/lib/docs-notion.mjs", "sc
                    "scripts/post-merge.d/docs-notion.sh", "scripts/lib/docs-wiki.mjs", "scripts/lib/docs-wiki-scan.mjs", "scripts/lib/docs-wiki-publish.mjs", "scripts/test-docs-wiki.mjs",
                    ".claude/skills/foreman-wiki/")
 
+# Paths an older foreman setup used; reported only, never touched. Easy to extend.
+LEGACY_PATHS = ("docs/fixpakete/",)
+UNKNOWN_EXT = (".mjs", ".sh", ".py")
+
 
 def die(code, msg):
     sys.stderr.write("foreman update: %s\n" % msg)
@@ -190,6 +194,7 @@ def main(argv):
 
     # --- sources: (rel, src path, force class)
     sources = []
+    template_rels = set()  # every template file, including those skipped for scope or modules
     for root, dirs, files in os.walk(TEMPLATE):
         dirs[:] = sorted(d for d in dirs if d != "__pycache__")
         for f in files:
@@ -197,6 +202,7 @@ def main(argv):
                 continue
             src = os.path.join(root, f)
             rel = os.path.relpath(src, TEMPLATE).replace(os.sep, "/")
+            template_rels.add(rel)
             if skip_file(rel, scope, modules, agent):
                 continue
             sources.append((rel, src, None))
@@ -312,6 +318,39 @@ def main(argv):
         out.extend(dl[:60])
         if len(dl) > 60:
             out.append("... (%d more lines)" % (len(dl) - 60))
+    warn_lines = []
+    for lp in LEGACY_PATHS:
+        p = os.path.join(target, *lp.rstrip("/").split("/"))
+        if os.path.lexists(p) and contained(real_target, p):
+            warn_lines.append("  %s  (older name; foreman uses docs/fixpacks/)" % lp)
+    unknown = []
+    for sub in ("scripts", "scripts/lib"):
+        base = os.path.join(target, *sub.split("/"))
+        if not os.path.isdir(base) or not contained(real_target, base):
+            continue
+        try:
+            names = sorted(os.listdir(base))
+        except OSError:
+            continue
+        for fn in names:
+            if not fn.endswith(UNKNOWN_EXT):
+                continue
+            if ".local." in fn:
+                continue  # project-local files foreman itself recommends, e.g. session-setup.local.sh
+            rel = sub + "/" + fn
+            path = os.path.join(base, fn)
+            if rel in template_rels or not os.path.lexists(path) or not os.path.isfile(path):
+                continue
+            if not contained(real_target, path):
+                continue
+            unknown.append(rel)
+    warn_lines.extend("  " + r for r in unknown[:10])
+    if len(unknown) > 10:
+        warn_lines.append("  ... (%d more)" % (len(unknown) - 10))
+    if warn_lines:
+        out.append("warning: files that this foreman version does not ship (project files or leftovers, nothing was changed):")
+        out.extend(warn_lines)
+        out.append("warning: if one of them replaced a foreman script, remove or rename it by hand and run the update again.")
     writes = [p for p in plan if p[0] in ("new", "update", "create")]
     if not writes:
         out.append("nothing to do")

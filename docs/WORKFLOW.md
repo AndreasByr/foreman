@@ -33,7 +33,7 @@ planning → slice ⇄ rework → validation → batch-pr → awaiting-merge →
                      needs-input ◄─── question / security finding / 3 failed rounds ──────┘            └► release-ready → done (target main, after release)
 ```
 
-`STATE.md` holds the status. Everything else (tracker, UAT list) is a mirror. With tracker `none` the question, the answer (`docs/answers/<unit>.md`) and the UAT list (`docs/uat/<unit>.md`) are files in the repo.
+`STATE.md` holds the status and must be current before every report and PR; CI (`check-state-touched.mjs`) fails a PR that changes code or unit files without a `STATE.md` change. Everything else (tracker, UAT list) is a mirror. With tracker `none` the question, the answer (`docs/answers/<unit>.md`) and the UAT list (`docs/uat/<unit>.md`) are files in the repo.
 
 The pretest verdict has three values: `fix-round` (findings about the unit, a fix pack follows), `uat-ready` (the UAT list holds only what needs a second real account or a product decision) and `intervention` (the unit cannot go on without the human; status `needs-input`).
 
@@ -67,6 +67,8 @@ A project has a project chat (coordinator) and one thread per work package. A th
 | Project chat | Triage (question, fix pack, milestone), opens a thread per package, passes UAT lists and PR links on |
 | Thread | Writes the pack or brief files and runs `foreman-fixpack` or `foreman-milestone` itself, with the same gates |
 | Human | Says "go" for PR, merge, release |
+
+A thread that merges on "go" finishes with the After-merge step (`foreman-delegation`): the `STATE.md` status, the mirror, then close.
 
 Models by class: each thread category (question, fixpack, milestone, brief, roadmap, architecture, bugRetry, release, docs) has a fixed class in `.foreman.json` `models.threads`, like the roles in the delegate's `config.toml`. Defaults: standard class at medium effort everywhere, strong class for brief, roadmap, architecture and a bug after a failed first fix; cheap class is never a thread default, bulk work goes to the delegate workers. The project chat reads the table from the project instructions and sets the class when it opens a thread.
 
