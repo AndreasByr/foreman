@@ -198,7 +198,8 @@ def endpoint_cfg(cfg, provider):
     d = cfg["defaults"]
     if provider == "gateway":
         g = cfg.get("gateway", {})
-        return {"base_url": g.get("base_url") or d.get("gateway_base_url") or os.environ.get(GATEWAY_URL_ENV) or "",
+        return {"base_url": g.get("base_url") or d.get("gateway_base_url")
+                or os.environ.get(g.get("base_url_env") or GATEWAY_URL_ENV) or "",
                 "api_key_env": g.get("api_key_env") or d.get("gateway_api_key_env") or GATEWAY_KEY_ENV,
                 "fallback_model": g.get("fallback_model", "")}
     return {"base_url": d.get("base_url", ""), "api_key_env": d.get("api_key_env", ""),
@@ -360,6 +361,7 @@ def extra_env(cfg):
 
 def secret_names(cfg):
     names = {cfg["defaults"].get("api_key_env", ""), endpoint_cfg(cfg, "gateway")["api_key_env"]} | set(claude_auth_names(cfg))
+    names.add(cfg.get("gateway", {}).get("base_url_env", ""))  # an address variable with a custom name stays out of workers too
     names |= {m.get("api_key_env", "") for m in cfg["mcp"].values()}
     return {n for n in names if n}
 

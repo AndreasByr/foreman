@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// CLI of the headless pretest runner. Config: .foreman.json "pretest"; test-login pattern: docs/test-login.md.
+// CLI of the headless pretest runner. Config: .foreman.json "pretest", overlaid by the optional, git-ignored
+// .foreman.local.json (addresses that must not be committed); test-login pattern: docs/test-login.md.
 //   node scripts/pretest-run.mjs --plan <plan.json> --out docs/pretest/<unit>-round-<N>
 // Example plan: scripts/pretest/plan-example.json. Exit codes: 0 done, 1 error, 2 call/config error, 3 dependencies missing.
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs, runPretest, scrub } from "./lib/pretest-run.mjs";
+import { mergeConfig, parseArgs, runPretest, scrub } from "./lib/pretest-run.mjs";
 
 export async function main(argv = process.argv.slice(2), deps = {}) {
   const env = deps.env ?? process.env;
@@ -16,9 +17,13 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
   try {
     o = parseArgs(argv);
     plan = JSON.parse(readFileSync(o.plan, "utf8"));
-    const conf = deps.conf ?? (existsSync(".foreman.json") ? JSON.parse(readFileSync(".foreman.json", "utf8")) : {});
+    const readJson = (file) => {
+      try { return JSON.parse(readFileSync(file, "utf8")); }
+      catch { throw Object.assign(new Error(`${file} is not valid JSON.`), { exitCode: 2 }); }
+    };
+    const conf = deps.conf ?? mergeConfig(existsSync(".foreman.json") ? readJson(".foreman.json") : {}, existsSync(".foreman.local.json") ? readJson(".foreman.local.json") : {});
     cfg = conf.pretest;
-    if (!cfg) throw Object.assign(new Error('"pretest" is missing in .foreman.json (see docs/test-login.md).'), { exitCode: 2 });
+    if (!cfg) throw Object.assign(new Error('"pretest" is missing in .foreman.json and .foreman.local.json (see docs/test-login.md).'), { exitCode: 2 });
   } catch (e) { err(scrub(e.message, secrets)); return e.exitCode ?? 2; }
   try {
     await runPretest(cfg, plan, { out: o.out, env, chromium: deps.chromium, axe: deps.axe });

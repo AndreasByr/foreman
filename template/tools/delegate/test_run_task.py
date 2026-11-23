@@ -246,6 +246,28 @@ def test_gateway_base_url_from_env():
         assert p.returncode == 0, p
 
 
+def test_gateway_base_url_env_name():
+    """[gateway] base_url_env names the variable that holds the URL (instead of FOREMAN_GATEWAY_URL)."""
+    cfg = rt.tomllib.loads(GATEWAY_CONFIG.replace('base_url = "https://gw.example"\n', 'base_url_env = "MY_GW_URL"\n'))
+    old = {k: os.environ.get(k) for k in ("MY_GW_URL", "FOREMAN_GATEWAY_URL")}
+    try:
+        os.environ["MY_GW_URL"] = "https://named.example"
+        os.environ["FOREMAN_GATEWAY_URL"] = "https://default.example"
+        assert rt.endpoint_cfg(cfg, "gateway")["base_url"] == "https://named.example"
+        del os.environ["MY_GW_URL"]
+        assert rt.endpoint_cfg(cfg, "gateway")["base_url"] == ""
+    finally:
+        for k, v in old.items():
+            os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
+
+def test_gateway_url_env_name_is_kept_from_workers():
+    """The variable named in [gateway] base_url_env holds an address; it is treated like a secret name (not passed on)."""
+    cfg = rt.tomllib.loads(GATEWAY_CONFIG.replace('base_url = "https://gw.example"\n', 'base_url_env = "MY_GW_URL"\n'))
+    cfg.setdefault("mcp", {})
+    assert "MY_GW_URL" in rt.secret_names(cfg)
+
+
 def test_gateway_key_default_name():
     cfg = rt.tomllib.loads(GATEWAY_CONFIG.replace('api_key_env = "TEST_GATEWAY_KEY"\n', ""))
     assert rt.endpoint_cfg(cfg, "gateway")["api_key_env"] == "FOREMAN_GATEWAY_KEY"

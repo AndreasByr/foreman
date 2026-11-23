@@ -346,6 +346,7 @@ if [ "$dry" = no ]; then
   # .gitignore: worker task files never go into the repo.
   touch "$target/.gitignore"
   grep -qxF 'tools/delegate/tasks/*' "$target/.gitignore" || printf '\n# foreman: worker task files\ntools/delegate/tasks/*\n!tools/delegate/tasks/.gitkeep\n' >> "$target/.gitignore"
+  grep -qxF '.foreman.local.json' "$target/.gitignore" || printf '\n# foreman: local overlay for .foreman.json (addresses and values that stay out of the repo)\n.foreman.local.json\n' >> "$target/.gitignore"
 
   if [ ! -f "$target/.foreman.json" ] || [ "$force" = yes ]; then
     python3 - "$target/.foreman.json" "$VERSION" "$project" "$name" "$scope" "$agent" "$modules" "$staging" "$tracker" "$workspace" "$tz" "$batch_csv" "$wait_norm" "$main_auto_merge" <<'PY'

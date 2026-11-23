@@ -101,6 +101,7 @@ model = "claude/<small-model-id>"
 # the wrapper repeats the role through `claude -p` with your Claude subscription (fallback_model).
 # [gateway]
 # base_url       = "https://gateway.example.com"       # Anthropic-compatible /v1/messages endpoint of the proxy; empty = FOREMAN_GATEWAY_URL
+# base_url_env   = "FOREMAN_GATEWAY_URL"              # optional: NAME of another variable that holds the address (used when base_url is empty)
 # api_key_env    = "FOREMAN_GATEWAY_KEY"               # NAME of the variable; value is a virtual key limited to task-*
 # fallback_model = "claude/<small-model-id>"
 # chatgpt_via_gateway = "accepted-risk"          # only with informed consent; see gateway/README.md (risk notice). Without it a chatgpt/ model is rejected
