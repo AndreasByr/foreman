@@ -10,6 +10,7 @@ import { judge, readBeats, statusDir, writeBeat } from "./heartbeat.mjs";
 
 const HOUR = 3600 * 1000;
 const WATCHER = "watcher";
+const MAX_TRIES = 5;
 
 const iso = (ms) => new Date(ms).toISOString();
 const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
@@ -23,12 +24,14 @@ export function decide(judged, alertState, now, { repeatMs = 6 * HOUR } = {}) {
   const problems = new Map();
   for (const j of judged ?? []) if (j.state !== "ok") problems.set(j.module, j);
   for (const [module, j] of problems) {
-    // a recovery that was already announced does not count as a known problem
-    const old = isObj(known[module]) && known[module].recoveredNotified ? undefined : known[module];
+    // a recovery that was already announced does not count as a known problem; its open ticket is carried over
+    const wasRecovered = isObj(known[module]) && known[module].recoveredNotified;
+    const old = wasRecovered ? undefined : known[module];
+    const carried = wasRecovered && known[module].ticket ? { ticket: known[module].ticket } : {};
     const base = { module, state: j.state, ageMin: j.ageMin, limitMin: j.limitMin, lastRun: j.lastRun, note: j.note };
     if (!isObj(old)) {
       alarms.push({ ...base, kind: "new", since: iso(now) });
-      next[module] = { since: iso(now), lastSent: iso(now), state: j.state };
+      next[module] = { since: iso(now), lastSent: iso(now), state: j.state, ...carried };
       continue;
     }
     const last = Date.parse(old.lastSent);
@@ -107,6 +110,13 @@ function makeTracker(config, env, workdir, fetchImpl, log) {
         await c.api.comment(ticket, text);
         await c.api.move(ticket, done);
         return { status: "sent" };
+      }
+      if (a.kind === "new" && ticket) {
+        const column = await columnId(c, "Action Required", ["Intervention needed"]);
+        if (!column) throw new Error('no column "Action Required"');
+        await c.api.comment(ticket, text);
+        await c.api.move(ticket, column);
+        return { status: "sent", ticket };
       }
       if (a.kind === "repeat" && ticket) {
         await c.api.comment(ticket, text);
@@ -204,13 +214,16 @@ export async function watch({ config, env = process.env, now = Date.now(), fetch
     const trackerOk = hasTracker && results[trackerIdx]?.status === "sent";
     if (a.kind === "recovered") {
       if (!ok) next[a.module] = old; // keep the entry, retry next run
-      else if (hasTracker && !trackerOk && isObj(old) && old.ticket) next[a.module] = { ...old, recoveredNotified: true }; // retry only the tracker part
+      else if (hasTracker && !trackerOk && isObj(old) && old.ticket) next[a.module] = { ...old, recoveredNotified: true, closeTries: 1 }; // retry only the tracker part (this attempt counts)
     } else if (ok) {
       if (ticket) {
-        const { ticketPending, ...rest } = next[a.module];
+        const { ticketPending, ticketTries, ...rest } = next[a.module];
         next[a.module] = { ...rest, ticket };
-      } else if (hasTracker && !(isObj(old) && old.ticket)) next[a.module] = { ...next[a.module], ticketPending: true };
-    } else if (a.kind === "new") delete next[a.module]; // stays unknown, retried next run
+      } else if (hasTracker && !(isObj(old) && old.ticket)) next[a.module] = { ...next[a.module], ticketPending: true, ticketTries: 1 };
+    } else if (a.kind === "new") {
+      if (isObj(old) && old.recoveredNotified) next[a.module] = old; // keep the old ticket, retried next run
+      else delete next[a.module]; // stays unknown, retried next run
+    }
     else next[a.module] = old; // repeat: keep the old lastSent
   }
 
@@ -219,7 +232,10 @@ export async function watch({ config, env = process.env, now = Date.now(), fetch
     if (!hasTracker) continue; // channel removed: drop the entry
     const old = before[a.module];
     const r = await trackerOnly(a, old.ticket);
-    if (r.status !== "sent") next[a.module] = old;
+    if (r.status === "sent") continue;
+    const tries = (Number(old.closeTries) || 0) + 1;
+    if (tries >= MAX_TRIES) say(`tracker gave up for ${a.module} after ${MAX_TRIES} tries`);
+    else next[a.module] = { ...old, closeTries: tries };
   }
   const judgedBy = new Map(judged.map((j) => [j.module, j]));
   for (const [module, entry] of Object.entries(next)) {
@@ -229,8 +245,15 @@ export async function watch({ config, env = process.env, now = Date.now(), fetch
     const a = { module, state: j.state, ageMin: j.ageMin, limitMin: j.limitMin, lastRun: j.lastRun, note: j.note, kind: "new", since: entry.since };
     const r = await trackerOnly(a, undefined);
     if (r.status === "sent" && r.ticket) {
-      const { ticketPending, ...rest } = entry;
+      const { ticketPending, ticketTries, ...rest } = entry;
       next[module] = { ...rest, ticket: r.ticket };
+    } else {
+      const tries = (Number(entry.ticketTries) || 0) + 1;
+      if (tries >= MAX_TRIES) {
+        say(`tracker gave up for ${module} after ${MAX_TRIES} tries`);
+        const { ticketPending, ticketTries, ...rest } = entry;
+        next[module] = rest;
+      } else next[module] = { ...entry, ticketTries: tries };
     }
   }
 

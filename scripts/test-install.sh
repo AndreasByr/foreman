@@ -271,7 +271,7 @@ inst "$T/docs" --project d --scope docs >/dev/null 2>&1 || fail "scope docs fail
 git -C "$T/docs" remote | grep -q . && fail "unexpected remote"
 mkdir "$T/repo" && git -C "$T/repo" init -q
 inst "$T/repo" --project r --scope repo >/dev/null 2>&1 || fail "scope repo failed"
-(cd "$T/repo" && git config user.email t@e.com && git config user.name t && git add -A && git commit -qm init && git checkout -q -b dev && node scripts/state-mirror.mjs --local | grep -q "tracker none") || fail "local repo without remote does not work"
+(cd "$T/repo" && git config user.email t@e.com && git config user.name t && git add -A && git commit -qm init && git checkout -q -b dev && HOME="$T/repo" node scripts/state-mirror.mjs --local | grep -q "tracker none") || fail "local repo without remote does not work"
 
 # 7. existing CLAUDE.md and settings.json with opusplan
 mkdir -p "$T/c/.claude" && git -C "$T/c" init -q

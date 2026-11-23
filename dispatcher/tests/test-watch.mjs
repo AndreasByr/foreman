@@ -269,6 +269,74 @@ t("watch R1: recovery webhook sent but moving the ticket to Done failed: retried
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+t("watch R2: a recovery whose ticket move keeps failing gives up after 5 tries (at most 5 comments), the entry is dropped", async () => {
+  const { dir, cfg, status } = setup({ channels: ["webhook", "tracker"], tracker: { project_key: "KEY", url_env: "TRK_URL", key_env: "TRK_KEY" } });
+  try {
+    const env = { TRK_URL: "https://plan.example", TRK_KEY: "key_SECRET_123456", DISPATCHER_ERROR_WEBHOOK_URL: HOOK };
+    mkdirSync(cfg.workdir, { recursive: true });
+    writeFileSync(join(cfg.workdir, "alerts.json"), JSON.stringify({ dispatcher: { since: iso(NOW - 3 * H), lastSent: iso(NOW - H), state: "stale", ticket: "T1" } }));
+    writeBeat(status, "dispatcher", { now: NOW - 60000, maxAgeMin: 30 });
+    const calls = [];
+    const fetch = async (url, o = {}) => {
+      const method = o.method ?? "GET", path = new URL(url).pathname;
+      calls.push({ url, method, path });
+      const json = (data) => ({ ok: true, status: 200, text: async () => JSON.stringify(data) });
+      if (url === HOOK) return json({});
+      if (method === "PATCH") return { ok: false, status: 500, text: async () => "no" };
+      if (method === "GET" && path === "/projects/KEY") return json({ columns: [{ id: "c2", name: "Action Required" }, { id: "c3", name: "Done" }] });
+      return json({});
+    };
+    for (let i = 0; i < 9; i++) {
+      writeBeat(status, "dispatcher", { now: NOW + i * 15 * 60000 - 60000, maxAgeMin: 30 });
+      await watch({ config: cfg, env, now: NOW + i * 15 * 60000, fetch, log: () => {} });
+    }
+    assert.equal(calls.filter((c) => c.url === HOOK).length, 1, "recovery message once");
+    assert.ok(calls.filter((c) => c.method === "POST" && c.path === "/issues/T1/comments").length <= 5);
+    assert.deepEqual(JSON.parse(readFileSync(join(cfg.workdir, "alerts.json"), "utf8")), {});
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("watch R2: an unusable tracker (no credentials) gives up the pending ticket after 5 tries instead of retrying forever", async () => {
+  const { dir, cfg, status } = setup({ channels: ["webhook", "tracker"], tracker: { project_key: "KEY", url_env: "TRK_URL", key_env: "TRK_KEY" } });
+  try {
+    const env = { DISPATCHER_ERROR_WEBHOOK_URL: HOOK };
+    writeBeat(status, "dispatcher", { now: NOW - 14 * H, maxAgeMin: 30 });
+    const { calls, fetch } = recorder();
+    for (let i = 0; i < 9; i++) await watch({ config: cfg, env, now: NOW + i * 15 * 60000, fetch, log: () => {} });
+    assert.equal(calls.length, 1, "webhook once");
+    const e = JSON.parse(readFileSync(join(cfg.workdir, "alerts.json"), "utf8")).dispatcher;
+    assert.ok(!e.ticketPending, "flag cleared");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+t("watch R2: a problem that returns before the old ticket was closed reuses that ticket (no second ticket)", async () => {
+  const { dir, cfg, status } = setup({ channels: ["tracker"], tracker: { project_key: "KEY", url_env: "TRK_URL", key_env: "TRK_KEY" } });
+  try {
+    const env = { TRK_URL: "https://plan.example", TRK_KEY: "key_SECRET_123456" };
+    mkdirSync(cfg.workdir, { recursive: true });
+    writeFileSync(join(cfg.workdir, "alerts.json"), JSON.stringify({ dispatcher: { since: iso(NOW - 3 * H), lastSent: iso(NOW - H), state: "stale", ticket: "T1", recoveredNotified: true } }));
+    writeBeat(status, "dispatcher", { result: "error", note: "boom", now: NOW - 60000, maxAgeMin: 30 });
+    const calls = [];
+    const fetch = async (url, o = {}) => {
+      const method = o.method ?? "GET", path = new URL(url).pathname;
+      calls.push({ method, path, body: o.body ?? "" });
+      const json = (data) => ({ ok: true, status: 200, text: async () => JSON.stringify(data) });
+      if (method === "GET" && path === "/projects/KEY") return json({ columns: [{ id: "c2", name: "Action Required" }, { id: "c3", name: "Done" }] });
+      if (method === "GET") return json({ items: [] });
+      if (method === "POST" && path === "/projects/KEY/issues") return json({ id: "T2" });
+      return json({});
+    };
+    await watch({ config: cfg, env, now: NOW, fetch, log: () => {} });
+    assert.equal(calls.filter((c) => c.method === "POST" && c.path === "/projects/KEY/issues").length, 0, "no second ticket");
+    const move = calls.find((c) => c.method === "PATCH" && c.path === "/issues/T1");
+    assert.ok(move, "old ticket moved back to Action Required");
+    assert.equal(JSON.parse(move.body).columnId, "c2");
+    const e = JSON.parse(readFileSync(join(cfg.workdir, "alerts.json"), "utf8")).dispatcher;
+    assert.equal(e.ticket, "T1");
+    assert.ok(!e.recoveredNotified);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 t("watch.sh: runs the watcher with dispatcher.env and exits with its code", () => {
   const dir = mkdtempSync(join(tmpdir(), "foreman-watchsh-"));
   try {

@@ -1,8 +1,8 @@
-Status: fixpack · since 2026-11-23T10:05Z · plan written, analysis done, tests next
+Status: uat-ready · since 2026-11-23T10:30Z · all points done, review rounds 1 and 2 reworked, waiting for UAT
 Target: dev
 Branch: claude/project-thread-p86kk4
 PR: -
-Next: write red tests, then delegate F1 to F5
+Next: open PR to dev, merge when gates are green, then UAT by the human
 Batch-branch: batch/dev
 Lock: free
 Tracker: -
@@ -17,12 +17,12 @@ Start commit: 7b90bf7
 | # | Type (fix / analysis) | Title | Status (open / in progress / done / blocked) | Check (test file or command) | Red → green (SHA) | Commit |
 |---|---|---|---|---|---|---|
 | A1 | analysis | Why a stopped module stays silent | done | code paths, see Analysis | - | - |
-| F1 | fix | Heartbeat files and judging | open | node dispatcher/tests/test-heartbeat.mjs | | |
-| F2 | fix | Dispatcher beats, loud failures | open | node dispatcher/tests/test-dispatch.mjs | | |
-| F3 | fix | Watcher and alarm channels | open | node dispatcher/tests/test-watch.mjs | | |
-| F4 | fix | status command | open | node dispatcher/tests/test-heartbeat.mjs | | |
-| F5 | fix | Tracker sync beat | open | node scripts/test-state-mirror.mjs | | |
-| F6 | fix | Docs, config examples, changelog | open | bash scripts/test-dispatcher-docs.sh | | |
+| F1 | fix | Heartbeat files and judging | done | node dispatcher/tests/test-heartbeat.mjs | rc=1 on 1885beb (module missing) → rc=0 on d764dad | d764dad |
+| F2 | fix | Dispatcher beats, loud failures | done | node dispatcher/tests/test-dispatch.mjs | rc=1 on d764dad (5 new cases) → rc=0 on 6669898 | 6669898, 65dab93 |
+| F3 | fix | Watcher and alarm channels | done | node dispatcher/tests/test-watch.mjs | rc=1 on 1885beb → rc=0 on 830382f; R1 and R2 cases red then green | 830382f, 65dab93, R2 commit |
+| F4 | fix | status command | done | node dispatcher/tests/test-heartbeat.mjs | rc=1 on 1885beb → rc=0 on d764dad | d764dad |
+| F5 | fix | Tracker sync beat | done | node template/scripts/test-state-mirror.mjs | rc=1 on 1885beb (beat file missing) → rc=0 on d764dad; R1 default dir and crash beat red → green on 65dab93 | d764dad, 65dab93 |
+| F6 | fix | Docs, config examples, changelog | done | bash scripts/test-dispatcher-docs.sh | rc=1 on 830382f (README lacks heartbeat) → rc=0 on 4ba13bc | 4ba13bc |
 
 ## Analysis A1
 
@@ -38,11 +38,15 @@ Fix direction (this pack): heartbeat file per module, a watcher that does not de
 
 ## Review
 
-Not run yet.
+Round 1 (validation, opus): F1, F4, F6 pass; F2, F3 needs-attention; F5 needs-remediation. Fixed in R1 (65dab93): default status directory for the tracker-sync beat, error beat when `state-mirror` crashes, ticket retry on partial delivery (`ticketPending`, `recoveredNotified`), `peer.json` atomic and cleared.
+
+Round 2: needs-attention, two medium findings: tests wrote into the real status directory (HOME now set in tests and in `test-install.sh`), tracker retries without limit (now 5 tries, then give up); two low: a returning problem now reuses the old ticket; a flapping watcher alarms again at once (kept, intended).
+
+Left on purpose (low): stale to error does not re-alarm before the repeat time, no lock for the watcher, `project:a` and `project_a` share a file, the first error line of a failed update step is not in the project beat, `status` knows the default dispatcher limit only from the config, beat files of removed projects stay (documented).
 
 ## Inherited red
 
-None known. Baseline run follows with F1.
+None. `bash scripts/test-all.sh` was green on the start commit 7b90bf7 (CI state) and is green again at the final commit.
 
 ## Open question
 
@@ -50,4 +54,11 @@ Where should the alarm go? Recommendation: tracker comment plus push (webhook or
 
 ## Log
 
-- 2026-11-23T10:05Z · plan, ORDER.md, A1 · done
+- 2026-11-23T10:05Z · plan, ORDER.md, A1 · done · ee49bd8
+- 2026-11-23T10:10Z · red tests · 1885beb
+- 2026-11-23T10:25Z · F1 F4 F5 · d764dad
+- 2026-11-23T10:27Z · F2 · 6669898
+- 2026-11-23T10:30Z · F3 · 830382f
+- 2026-11-23T10:40Z · F6, full run rc=0 · 4ba13bc
+- 2026-11-23T10:50Z · review 1, R1, full run rc=0 · 65dab93
+- 2026-11-23T11:05Z · review 2, R2, full run rc=0

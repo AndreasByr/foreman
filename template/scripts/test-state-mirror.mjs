@@ -345,7 +345,7 @@ t("wiki: CLI without --unit only warns on a missing Wiki line; --unit M001 makes
   const dir = mkdtempSync(join(tmpdir(), "wiki-todo-"));
   try {
     spawnSync("git", ["init", "-q"], { cwd: dir });
-    const env = { ...process.env };
+    const env = { ...process.env, HOME: dir };
     delete env.ITSAPLAN_URL;
     delete env.ITSAPLAN_API_KEY;
     delete env.LINEAR_API_KEY;
@@ -470,7 +470,7 @@ t("tracker-sync beat: tracker none beats ok, a configured tracker without creden
     mkdirSync(join(dir, "docs/milestones/M001"), { recursive: true });
     writeFileSync(join(dir, "docs/milestones/M001/STATE.md"), "Status: slice · since 2026-01-01T00:00Z\nTarget: dev\n\n# M001: x\n");
     const status = join(dir, "status");
-    const base = { ...process.env };
+    const base = { ...process.env, HOME: dir };
     for (const k of ["ITSAPLAN_URL", "ITSAPLAN_API_KEY", "LINEAR_API_KEY", "FOREMAN_STATUS_DIR"]) delete base[k];
     const run = (env) => spawnSync(process.execPath, [join(HERE, "state-mirror.mjs"), "--local"], { cwd: dir, encoding: "utf8", env: { ...base, ...env } });
     const beat = () => { assert.ok(existsSync(join(status, "tracker-sync.json")), "tracker-sync beat file missing"); return JSON.parse(readFileSync(join(status, "tracker-sync.json"), "utf8")); };
