@@ -144,6 +144,7 @@ grep -qF '<ids>' <<<"$BLOCK" || fail "$REF: block lacks the '<ids>' placeholder"
 grep -q 'claude-' <<<"$BLOCK" && fail "$REF: block hardcodes a 'claude-' model ID; use the <ids> placeholder"
 [ "$N" -ge 6 ] || fail "$REF: block version v$N is below v6"
 grep -qF 'models.ids' "$SKILL/SKILL.md" || fail "$SKILL/SKILL.md does not mention models.ids"
+grep -qF "own words" "$SKILL/SKILL.md" || fail "$SKILL/SKILL.md lacks 'own words' (platform limit text)"
 grep -q "own words" docs/WORKFLOW.md || fail "docs/WORKFLOW.md lacks 'own words' (platform limit paragraph)"
 grep -q "default model" docs/WORKFLOW.md || fail "docs/WORKFLOW.md lacks 'default model' (platform limit paragraph)"
 

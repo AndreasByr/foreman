@@ -96,6 +96,19 @@ if "models" in cfg:
                 elif v not in MODEL_CLASSES:
                     print("FAIL: models.threads." + k + " must be one of strong, standard, cheap")
                     bad = True
+        if "ids" in mo:
+            ids = mo["ids"]
+            if not isinstance(ids, dict):
+                print("FAIL: models.ids must be an object")
+                bad = True
+            else:
+                for k, v in ids.items():
+                    if k not in MODEL_CLASSES:
+                        print("FAIL: models.ids." + str(k) + " must be one of strong, standard, cheap")
+                        bad = True
+                    elif not (isinstance(v, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._\[\]-]*", v)):
+                        print("FAIL: models.ids." + k + " must be a model ID (letters, digits, . _ [ ] -, no spaces)")
+                        bad = True
 
 ap = cfg.get("autopilot")
 if isinstance(ap, dict):

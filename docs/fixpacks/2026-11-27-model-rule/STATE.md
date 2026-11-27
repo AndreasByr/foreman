@@ -1,8 +1,8 @@
-Status: fixpack · since 2026-11-27T10:50Z · analysis done, fix in progress
+Status: uat-ready · since 2026-11-27T11:00Z · review reworked, gates green, waiting for UAT
 Target: dev
 Branch: claude/project-thread-7ynkm4
-PR: -
-Next: F1 via delegate wrapper, then F2
+PR: pending
+Next: PR to dev, merge, then UAT by the human (refresh block to v6)
 Batch-branch: batch/dev
 Lock: free
 Tracker: -
@@ -17,8 +17,8 @@ Start commit: e9917c6
 | # | Type (fix / analysis) | Title | Status (open / in progress / done / blocked) | Check (test file or command) | Red → green (SHA) | Commit |
 |---|---|---|---|---|---|---|
 | A1 | analysis | Why the model rule does not take effect | done | see Analysis | - | - |
-| F1 | fix | Block v6: explicit standing model choice with IDs | open | bash scripts/test-project-block.sh; bash scripts/test-check-config.sh | - | - |
-| F2 | fix | Document platform limit and fallback | open | bash scripts/test-project-block.sh | - | - |
+| F1 | fix | Block v6: explicit standing model choice with IDs | done | bash scripts/test-project-block.sh; bash scripts/test-check-config.sh | rc=1 on 6b4641a → rc=0 on final commit | see git log |
+| F2 | fix | Document platform limit and fallback | done | bash scripts/test-project-block.sh | rc=1 on 6b4641a → rc=0 on final commit | see git log |
 
 ## Analysis A1
 
@@ -30,6 +30,8 @@ Cause: three text defects plus one platform limit.
 Proposed fix: F1 + F2. Residual risk: the host may still ignore the text; fallback is the project default model (settings) or one sentence from the human to the coordinator.
 
 ## Review
+
+Validation round 1: needs-attention (filled block over 2600 bytes, stale 2 KB line, missing SKILL.md assertion). R1 rework: block trimmed to at most 2560 bytes filled, line fixed, assertion added. Medium finding on IDs in `.foreman.json`: kept on purpose; worker-model IDs stay only in `config.toml`, thread-model IDs need a place (noted in the report). `bash scripts/test-all.sh` rc=0 after rework.
 
 ## Inherited red
 
