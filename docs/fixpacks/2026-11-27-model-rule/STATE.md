@@ -1,8 +1,8 @@
 Status: uat-ready · since 2026-11-27T11:00Z · review reworked, gates green, waiting for UAT
 Target: dev
 Branch: claude/project-thread-7ynkm4
-PR: pending
-Next: PR to dev, merge, then UAT by the human (refresh block to v6)
+PR: #40 (merged to dev f93a439)
+Next: UAT by the human: refresh project instructions to block v6, open a new thread, check its model; release only on go
 Batch-branch: batch/dev
 Lock: free
 Tracker: -
