@@ -32,11 +32,23 @@ function blockedRegexes(cfg) {
   return (cfg.blocked ?? []).map((s) => new RegExp(s, "i"));
 }
 
+/** Deep merge for the optional local overlay: objects merge key by key, arrays and scalars of the overlay replace. */
+export function mergeConfig(base, overlay) {
+  const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
+  if (!isObj(base) || !isObj(overlay)) return overlay === undefined ? base : overlay;
+  const out = { ...base };
+  for (const [k, v] of Object.entries(overlay)) {
+    if (k in Object.prototype) continue; // __proto__, constructor, toString ...: never a config key
+    out[k] = Object.hasOwn(base, k) ? mergeConfig(base[k], v) : v;
+  }
+  return out;
+}
+
 /** Base URL of a target; refuses production hosts and plain http (except localhost). */
 export function baseUrl(cfg, target) {
   if (!["dev", "staging"].includes(target)) throw new Error("target must be dev or staging.");
   const raw = cfg?.targets?.[target];
-  if (!isText(raw)) throw new Error(`pretest.targets.${target} is missing in .foreman.json.`);
+  if (!isText(raw)) throw new Error(`pretest.targets.${target} is missing in .foreman.json and .foreman.local.json.`);
   const u = new URL(raw);
   const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(u.hostname);
   if (u.protocol !== "https:" && !local) throw new Error("Only https targets are allowed (localhost excepted).");

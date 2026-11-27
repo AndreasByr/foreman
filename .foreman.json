@@ -1,5 +1,5 @@
 {
-  "foreman": "0.2.5",
+  "foreman": "0.2.6",
   "project": "foreman",
   "name": "foreman",
   "scope": "repo",
@@ -30,6 +30,7 @@
   "models": {
     "coordinator": "standard",
     "effort": "medium",
+    "ids": {"strong": "claude-opus-5-5", "standard": "claude-sonnet-5-5", "cheap": "claude-haiku-5-5"},
     "threads": {
       "question": "standard",
       "fixpack": "standard",
