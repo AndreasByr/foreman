@@ -35,9 +35,12 @@ Read `references/instruction-block.md`. Fill the placeholders from `.foreman.jso
 - `Language:` from `context.language`
 - the module line: tracker `none` or the tracker name, `autopilot` yes or no
 
-- the `Models` line from `.foreman.json` `models`: `threads` maps each category to a class (`strong`, `standard`, `cheap`), `coordinator` and `effort` are single values. Categories: `question` (answer only), `fixpack`, `milestone` (run of a brief), `brief` (milestone brief or slice), `roadmap`, `architecture`, `bugRetry` (bug after a failed first fix), `release`, `docs`. Missing keys use the defaults in the block: `standard` everywhere, `strong` for `brief`, `roadmap`, `architecture`, `bugRetry`. Classes, never version numbers: the coordinator maps a class to the host's current model when it opens the thread (its model-switch tool). No such tool or mapping: it says so once and the thread runs on the project default.
+- the `Models` line from `.foreman.json` `models`: `threads` maps each category to a class (`strong`, `standard`, `cheap`), `coordinator` and `effort` are single values. Categories: `question` (answer only), `fixpack`, `milestone` (run of a brief), `brief` (milestone brief or slice), `roadmap`, `architecture`, `bugRetry` (bug after a failed first fix), `release`, `docs`. Missing keys use the defaults in the block: `standard` everywhere, `strong` for `brief`, `roadmap`, `architecture`, `bugRetry`.
+- `models.ids` (optional object: keys `strong`, `standard`, `cheap`, values the model ID per class) fills `<ids>`. Group the categories by ID and write `<id-A>: cat, cat · <id-B>: cat, cat`. Each category gets the ID of its class.
+- Without `models.ids`: write the class table `question=standard fixpack=standard …` into `<ids>` instead, and add "No IDs set: threads run on the project default."
+- Platform limit: the host's coordinator and thread tools set or switch a model only when the human names it in their own words. The block therefore states the table as the human's standing choice; this cannot be enforced from the repo. Fallback: the human sets the default model for new threads in the project settings (once), or tells the coordinator in their own words "use <id> for <category> threads".
 
-Leave out lines for modules that are off. Keep the block under 2 KB. Never put secrets, tokens, tenant names or URLs into it.
+Leave out lines for modules that are off. Keep the block under 2600 bytes, filled. Never put secrets, tokens, tenant names or URLs into it.
 
 ## 4. Apply it
 
@@ -49,7 +52,7 @@ Either path ends with one line: `Project instructions: block v<N> written | past
 
 ## 5. Refresh (update path)
 
-The first marker line carries a version: `<!-- foreman-project-block v5 -->`. Run steps 1 to 4 again whenever:
+The first marker line carries a version: `<!-- foreman-project-block v6 -->`. Run steps 1 to 4 again whenever:
 
 - foreman was updated (`foreman-update`, or a new plugin version) and the block version in `references/instruction-block.md` is higher than the one in the instructions
 - `.foreman.json` changed branches, language or modules

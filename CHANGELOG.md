@@ -8,6 +8,10 @@
 
 - **`base_url_env` for the gateway address.** `[gateway]` in `tools/delegate/config.toml` accepts `base_url_env`, the name of the variable that holds the gateway address (default `FOREMAN_GATEWAY_URL`). An installation whose environment already uses another name sets it once; `base_url` still wins.
 
+### Fixed
+
+- **Model rule did not take effect (block v6).** The project instructions held the model table without an action, without model IDs and without the human's explicit request, so threads kept the project default. The block (v6) states the table as the human's standing choice and carries the IDs from `models.ids`; `foreman-project-mode` and `docs/WORKFLOW.md` name the platform limit and the fallback. `check-config.sh` validates `models.ids`. Upgrade steps: refresh the project instructions with `foreman-project-mode`; set `models.ids` in `.foreman.json` (keys `strong`, `standard`, `cheap`, values the exact model IDs).
+
 ### Upgrade
 - Files: `./install.sh <project> --update` replaces `tools/delegate/run_task.py`, `scripts/pretest-run.mjs`, `scripts/lib/pretest-run.mjs` and `scripts/test-pretest.mjs`; local edits there are lost, read the dry-run list first. `docs/test-login.md` and `tools/delegate/config.toml` stay yours.
 - Steps: run `./install.sh <project> --update`. This version does not change the dispatcher, so no pull of the foreman checkout on the dispatcher machine is needed. To use the overlay, move the values out of `.foreman.json` into `.foreman.local.json`, add that file to `.gitignore` (new installs get the line) and make sure the file exists where the work run starts.

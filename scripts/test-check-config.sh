@@ -140,6 +140,16 @@ printf '%s\n' '{"models":{"coordinator":"standard","effort":"medium","threads":{
 run_check "$p"
 [ "$RC" -eq 0 ] || fail "i-models-ok: exit $RC, expected 0: $OUT"
 echo "ok i-models-ok"
+# models.ids: optional object with keys strong, standard, cheap; values non-empty strings matching ^[A-Za-z0-9][A-Za-z0-9._\[\]-]*$
+bad_value i-models-ids-type '{"models":{"ids":"strong-test-id"}}' models.ids
+bad_value i-models-ids-huge '{"models":{"ids":{"huge":"strong-test-id"}}}' models.ids
+bad_value i-models-ids-empty '{"models":{"ids":{"strong":""}}}' models.ids
+bad_value i-models-ids-space '{"models":{"ids":{"strong":"two words"}}}' models.ids
+p=$(new_project i-models-ids-ok)
+printf '%s\n' '{"models":{"ids":{"strong":"strong-test-id","standard":"standard-test-id","cheap":"cheap-test-id"}}}' > "$p/.foreman.json"
+run_check "$p"
+[ "$RC" -eq 0 ] || fail "i-models-ids-ok: exit $RC, expected 0: $OUT"
+echo "ok i-models-ids-ok"
 bad_value i-wait-0 '{"autopilot":{"waitHours":0}}' autopilot.waitHours
 bad_value i-wait-neg '{"autopilot":{"waitHours":-1}}' autopilot.waitHours
 bad_value i-wait-str '{"autopilot":{"waitHours":"4"}}' autopilot.waitHours
