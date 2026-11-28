@@ -1,8 +1,8 @@
-Status: awaiting-merge · since 2026-11-28T08:41Z · plan written
+Status: uat-ready · since 2026-11-28T10:21Z · merged to dev, waiting for UAT
 Target: dev
 Branch: claude/project-thread-octwvv
-PR: -
-Next: PR to dev, merge when gates are green; release only on go
+PR: #42 (merged to dev a5f4473)
+Next: UAT by the human; release only on go
 Batch-branch: batch/dev
 Lock: free
 Tracker: -
