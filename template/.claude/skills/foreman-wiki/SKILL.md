@@ -53,6 +53,18 @@ checked: no-ai-slop, humanizer
 - Real project or person names. The repo is public: use placeholders.
 - The publish scan refuses the whole run on a hit (terms from `wiki.forbidden`, hosts, secrets, internal terms). It checks page texts and also the file and folder names below `docs/wiki/`. Do not work around it. Remove the term and run again.
 
+## Links between pages
+
+- Relative `.md` links between wiki pages are allowed, also across audiences: `[Next](../other-audience/page.md)`. At publish they become Notion links. Anchors and link titles are dropped; links in code spans and code blocks stay as written.
+- A link to a folder (`[Overview](./)` or `[Overview](../<slug>/)`) points to the audience overview page, which has no source file.
+- A link to a page that does not exist stops the run before any request (`broken link`, exit 4, also with `--dry-run`).
+- Pattern for a multilingual wiki: one audience per language, and a switcher in line 2 of each page, for example `**Deutsch** · [English](../english/<file>.md)`.
+
+## Root
+
+- `wiki.rootPageId` may be a normal page or a Notion wiki (a database). The script finds out by itself.
+- A run that fails on any page archives nothing and exits 1, so a failed run never empties the wiki.
+
 ## Publishing
 
 - Never automatic. Not from the post-merge hook, not from a batch run.
