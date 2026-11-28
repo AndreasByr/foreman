@@ -1,8 +1,8 @@
-Status: uat-ready · since 2026-11-28T10:21Z · merged to dev, waiting for UAT
+Status: done · since 2026-11-28T11:05Z · UAT approved, released in 0.2.7
 Target: dev
 Branch: claude/project-thread-octwvv
 PR: #42 (merged to dev a5f4473)
-Next: UAT by the human; release only on go
+Next: none
 Batch-branch: batch/dev
 Lock: free
 Tracker: -
