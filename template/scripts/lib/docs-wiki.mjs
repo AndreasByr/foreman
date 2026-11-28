@@ -185,16 +185,16 @@ export function resolveWikiTarget(sourcePath, rawTarget) {
 }
 
 // Repo path of a relative folder link target (no .md) seen from sourcePath, or null when the target is no folder link.
-// Supported: targets with a trailing slash, "." and a single folder name that resolves to docs/wiki/<slug> exactly.
-// ".." and anything that resolves outside docs/wiki give null.
+// Only "." and targets ending with "/" are folder links (./, ../<slug>/, <slug>/). Any other target without .md
+// (a bare name like "demo" or "../changelog") is plain text: null. Folders that resolve outside docs/wiki give null.
 export function resolveWikiFolder(sourcePath, rawTarget) {
   const t = String(rawTarget ?? "").trim();
   if (/^[a-z][a-z0-9+.-]*:/i.test(t)) return null;
   const cleaned = decodeEscapes(t.split("#")[0]);
   if (!cleaned || /\.md$/i.test(cleaned)) return null;
+  if (cleaned !== "." && !cleaned.endsWith("/")) return null;
   const dir = posix.normalize(posix.join(posix.dirname(sourcePath), cleaned)).replace(/\/$/, "");
-  if (cleaned.endsWith("/") || cleaned === ".") return dir === "docs/wiki" || dir.startsWith("docs/wiki/") ? dir : null;
-  return /^docs\/wiki\/[^/]+$/.test(dir) && /(^|\/)[a-z0-9-]+$/.test(cleaned) ? dir : null;
+  return dir === "docs/wiki" || dir.startsWith("docs/wiki/") ? dir : null;
 }
 
 // End index of the code span that starts with the backtick run at i, or -1 when no run of equal length closes it.

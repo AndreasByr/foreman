@@ -465,12 +465,10 @@ export async function runSync(client, rootId, plan, log = () => {}) {
       fail(item.path, e);
     }
   }
-  // A failed create or update: archive nothing in this run, so a failed run never empties the mirror.
-  if (errors.length) {
-    const n = plan.archives.length + plan.moved.length;
-    if (n) errors.push(`docs-notion: archive skipped: ${n} page(s) kept because earlier pages failed`);
-    return { counts, errors, ids };
-  }
+  // A failed create or update: pages without a file stay (a failed run never empties the mirror). Moved pages are still
+  // archived: their new copy exists, and keeping the old one would create a duplicate on every run.
+  const skipArchives = errors.length > 0;
+  if (skipArchives && plan.archives.length) errors.push(`docs-notion: archive skipped: ${plan.archives.length} page(s) kept because earlier pages failed`);
   const keep = new Set();
   for (const id of failedOld) for (let q = id; q; q = plan.parents.get(q)) keep.add(q);
   const depth = (p) => {
@@ -483,7 +481,8 @@ export async function runSync(client, rootId, plan, log = () => {}) {
     for (let q = plan.parents.get(p.id); q; q = plan.parents.get(q)) if (gone.has(q)) return true;
     return false;
   };
-  for (const page of [...plan.archives, ...plan.moved].sort((a, b) => depth(a) - depth(b))) {
+  const toArchive = [...(skipArchives ? [] : plan.archives), ...plan.moved];
+  for (const page of toArchive.sort((a, b) => depth(a) - depth(b))) {
     if (keep.has(page.id)) continue;
     try {
       if (!dead(page)) await client.call("PATCH", `/pages/${page.id}`, { archived: true }); // else Notion cascades

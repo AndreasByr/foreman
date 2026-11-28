@@ -2006,10 +2006,11 @@ await check("lib transformWikiLinks: folder links need the audience slugs; spell
     seen.push([target, info?.slug ?? null]);
     return info?.slug ? `${NURL}-${info.slug}` : target;
   }, ["a", "b"]);
-  assert.deepEqual(seen, [["./", "a"], ["../b/", "b"], ["../b#x", "b"], ["../c/", null], ["./sub/", null], [".#top", "a"], ["../b/#y", "b"], ["./", "a"]]);
-  assert.deepEqual(r.links.map((l) => l.line), [1, 1, 1, 1, 1, 1, 1, 6]); // [k] and [n] point outside docs/wiki: not wiki links
+  // "../b#x" and ".." have no trailing slash: plain text, no folder link.
+  assert.deepEqual(seen, [["./", "a"], ["../b/", "b"], ["../c/", null], ["./sub/", null], [".#top", "a"], ["../b/#y", "b"], ["./", "a"]]);
+  assert.deepEqual(r.links.map((l) => l.line), [1, 1, 1, 1, 1, 1, 6]); // [k] and [n] point outside docs/wiki: not wiki links
   assert.ok(r.links.every((l) => l.folder === true));
-  assert.ok(r.text.startsWith(`[a](${NURL}-a) [b](${NURL}-b) [c](${NURL}-b) [d](../c/) [e](./sub/) [f](..) [g](${NURL}-a) [h](${NURL}-b)\r\n`), r.text);
+  assert.ok(r.text.startsWith(`[a](${NURL}-a) [b](${NURL}-b) [c](../b#x) [d](../c/) [e](./sub/) [f](..) [g](${NURL}-a) [h](${NURL}-b)\r\n`), r.text);
   assert.ok(r.text.includes("`[i](./)`") && r.text.includes("[l](./)") && r.text.includes("[j](./sub)"), r.text);
   assert.ok(r.text.endsWith(`[m](${NURL}-a)\r\n`), r.text);
   // Without the slugs folder links are not recognized at all (old behaviour).
@@ -2029,12 +2030,13 @@ await check("lib wikiLinkProblems: folder links to an audience with pages are fi
     { path: "docs/wiki/a/start.md", problem: "line 8: broken link: ./sub/" },
     { path: "docs/wiki/a/start.md", problem: "line 9: broken link: ../" },
   ]);
-  assert.deepEqual(wikiLinkProblems(pages, ["a"]).map((p) => p.problem), ["line 7: broken link: ../b/", "line 7: broken link: ../b", "line 8: broken link: ../nope/", "line 8: broken link: ./sub/", "line 9: broken link: ../"]);
+  // "../b" (no trailing slash) is plain text: no problem with or without the slug b.
+  assert.deepEqual(wikiLinkProblems(pages, ["a"]).map((p) => p.problem), ["line 7: broken link: ../b/", "line 8: broken link: ../nope/", "line 8: broken link: ./sub/", "line 9: broken link: ../"]);
   assert.deepEqual(wikiLinkProblems(pages), [], "without slugs folder links are not checked");
 });
 
 await check("cli --wiki links: folder links become the id of the audience page, across audiences, code span untouched, second run unchanged without writes", async () => {
-  const start = ["# Start", "", "Back to [the overview](./) and [press](../presse/) and [admins](../admins#top).", "Code: `[code](./)`.", ""].join("\n");
+  const start = ["# Start", "", "Back to [the overview](./) and [press](../presse/) and [admins](../admins/#top) and [plain](../admins#top).", "Code: `[code](./)`.", ""].join("\n");
   const root = linkProject({ "docs/wiki/spieler-und-tester/start.md": pageTextWithHead("Spieler und Tester") + start });
   const fake = await startWikiFake({ shortLinks: true });
   try {
@@ -2092,6 +2094,21 @@ await check("publishWiki: a folder link whose audience page cannot be resolved p
   }
 });
 
+await check("lib folder links: only '.', './' and targets ending with '/' are folder links; bare names and '../<name>' stay plain text", async () => {
+  const { transformWikiLinks, wikiLinkProblems } = await loadLib();
+  const slugs = ["a", "b"];
+  const text = "[Demo](demo) [x](../changelog) [e](./sub) [f](../b/x) [g](../b/) [h](./) [i](../a/)";
+  const r = transformWikiLinks(text, SRC, (t) => t, slugs);
+  assert.deepEqual(r.links.map((l) => l.target), ["../b/", "./", "../a/"]);
+  assert.equal(r.text, text);
+  assert.deepEqual(wikiLinkProblems([{ path: SRC, body: text }], slugs), []);
+});
+
+await check("lib folder links: '../<unknown>/' is a broken link, a folder without a trailing slash stays plain", async () => {
+  const { wikiLinkProblems } = await loadLib();
+  assert.deepEqual(wikiLinkProblems([{ path: SRC, body: "[t](../c/) [u](../c)\n" }], ["a", "b"]), [{ path: SRC, problem: "line 1: broken link: ../c/" }]);
+});
+
 // ---- a failed run archives nothing
 
 await check("cli --wiki publish: a failed create keeps the orphan page (archived 0, exit 1); the next run archives it", async () => {
@@ -2119,6 +2136,49 @@ await check("cli --wiki publish: a failed create keeps the orphan page (archived
     assert.equal(lastLine(third.stdout), "created 1, updated 0, archived 1, unchanged 2", info(third));
     assert.equal(fake.page("Spielen"), undefined, "orphan still live");
     assert.ok(fake.page("Neu"), "new page missing");
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+await check("cli --wiki publish: a moved page is copied once while another page fails; its old copy is archived, the orphan without file stays", async () => {
+  const cfg = { ...PUB_CONFIG, wiki: { ...PUB_CONFIG.wiki, audiences: [...PUB_CONFIG.wiki.audiences, { name: "Presse", description: "Medien" }] } };
+  const root = pubProject({
+    ".foreman.json": JSON.stringify(cfg, null, 2),
+    "docs/wiki/presse/info.md": pageTextWithHead("Presse") + "# Info\n\nInvented press text.\n",
+    "docs/wiki/spieler-und-tester/alt.md": HEAD + "# Alt\n\nInvented old page.\n",
+  });
+  const fake = await startWikiFake();
+  try {
+    const first = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(first.status, 0, info(first));
+
+    // Spielen moves from the players' audience to the press audience, Alt loses its file, Neu is new and always fails.
+    rmSync(join(root, "docs/wiki/spieler-und-tester/spielen.md"));
+    rmSync(join(root, "docs/wiki/spieler-und-tester/alt.md"));
+    writeFiles(root, {
+      "docs/wiki/presse/spielen.md": pageTextWithHead("Presse") + "# Spielen\n\nInvented text about playing.\n",
+      "docs/wiki/spieler-und-tester/neu.md": HEAD + "# Neu\n\nInvented new page.\n",
+    });
+    fake.opts.failCreate.push("Neu");
+    const second = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(second.status, 1, info(second));
+    assert.ok(second.stderr.includes("HTTP 500"), info(second));
+    assert.ok(second.stderr.includes("docs-notion: archive skipped: 1 page(s) kept because earlier pages failed"), info(second));
+    assert.match(lastLine(second.stdout), /, archived 1, /, info(second));
+    assert.equal(fake.titled("Spielen").length, 1, "moved page not exactly once");
+    assert.equal(fake.page("Spielen").parent, fake.page("Presse").id, "moved page not under the new audience");
+    assert.ok(fake.archivedPage("Spielen"), "old copy of the moved page not archived");
+    assert.ok(fake.page("Alt"), "orphan without file was archived although the run failed");
+
+    const mark = fake.requests.length;
+    const third = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(third.status, 1, info(third));
+    assert.equal(fake.titled("Spielen").length, 1, "next run copied the moved page again");
+    assert.equal(fake.page("Spielen").parent, fake.page("Presse").id, "next run moved the page again");
+    assert.ok(fake.page("Alt"), "orphan kept in the next run");
+    assert.equal(fake.since(mark).filter((q) => q.method === "POST" && q.path === "/v1/pages").length, 1, "only Neu may be created again");
   } finally {
     await fake.close();
     rmSync(root, { recursive: true, force: true });
