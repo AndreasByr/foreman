@@ -1,7 +1,7 @@
 // docs-wiki library: the wiki config block, the audience slugs, the page head and the page collection for docs/wiki.
 // Reads only below docs/wiki: symlinks are skipped and nothing outside the project root is read. No dependencies.
 import { lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
-import { join, sep } from "node:path";
+import { join, posix, sep } from "node:path";
 import { CliError } from "./docs-notion.mjs";
 
 const UMLAUTS = { ä: "ae", ö: "oe", ü: "ue", ß: "ss", Ä: "ae", Ö: "oe", Ü: "ue" };
@@ -58,10 +58,11 @@ export function loadWikiConfig(root) {
 }
 
 // Optional head between two "---" lines at the top of a page. Only "key: value" lines and blank lines may stand inside;
-// anything else means there is no head. Returns { head: null | {audience, source[], checked[]}, body }.
+// anything else means there is no head. Returns { head: null | {audience, source[], checked[]}, body, bodyLine }.
+// bodyLine is the 1-based line of the original text where the body starts (1 without a head).
 export function parseHead(text) {
   const lines = text.split(/\r?\n/);
-  const none = { head: null, body: text };
+  const none = { head: null, body: text, bodyLine: 1 };
   if (lines[0].trim() !== "---") return none;
   const fields = {};
   let end = -1;
@@ -81,6 +82,7 @@ export function parseHead(text) {
   return {
     head: { audience: fields.audience ?? "", source: list(fields.source), checked: list(fields.checked) },
     body: lines.slice(end + 1).join("\n"),
+    bodyLine: end + 2,
   };
 }
 
@@ -113,7 +115,7 @@ export function pageTitles(pages) {
   return new Map(raw.map((r) => [r.path, suffix(r) ? `${r.title} (${r.aud})` : r.title]));
 }
 
-// Every .md file below docs/wiki, sorted by path. Returns { pages: [{path, dir, head, body}], skipped: ["<path> (reason)"] }.
+// Every .md file below docs/wiki, sorted by path. Returns { pages: [{path, dir, head, body, lineOffset}], skipped: ["<path> (reason)"] }.
 // path is the repo path (docs/wiki/...), dir the folder inside the wiki ("" at the top). Symlinks are skipped, never followed.
 export function collectWikiPages(root) {
   const pages = [];
@@ -144,12 +146,182 @@ export function collectWikiPages(root) {
           skipped.push(`${repoPath} (outside root)`);
           continue;
         }
-        const { head, body } = parseHead(readFileSync(abs, "utf8"));
-        pages.push({ path: repoPath, dir: rel, head, body });
+        const { head, body, bodyLine } = parseHead(readFileSync(abs, "utf8"));
+        pages.push({ path: repoPath, dir: rel, head, body, lineOffset: bodyLine - 1 });
       }
     }
   };
   walk("");
   pages.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   return { pages, skipped };
+}
+
+// ---------------------------------------------------------------- links between pages
+
+const FENCE_OPEN = /^\s*(`{3,}|~{3,})\s*([^`\s]*)/; // same rule as the Markdown converter
+const FENCE_CLOSE = /^\s*(`{3,}|~{3,})\s*$/;
+
+// Page key without the .md extension (any case): links and pages are compared by it.
+export const wikiPageKey = (path) => String(path).replace(/\.md$/i, "");
+
+// Percent-decoding that never throws: a malformed escape stays literal.
+const decodeEscapes = (u) =>
+  u.replace(/(%[0-9a-f]{2})+/gi, (m) => {
+    try {
+      return decodeURIComponent(m);
+    } catch {
+      return m;
+    }
+  });
+
+// Repo path of a relative .md link target seen from sourcePath, or null when the target is no such link
+// (any "scheme:" target, anchors only, other file types).
+export function resolveWikiTarget(sourcePath, rawTarget) {
+  const t = String(rawTarget ?? "").trim();
+  if (/^[a-z][a-z0-9+.-]*:/i.test(t)) return null;
+  const cleaned = decodeEscapes(t.split("#")[0]);
+  if (!/\.md$/i.test(cleaned)) return null;
+  return posix.normalize(posix.join(posix.dirname(sourcePath), cleaned));
+}
+
+// End index of the code span that starts with the backtick run at i, or -1 when no run of equal length closes it.
+function codeSpanEnd(s, i) {
+  let n = 0;
+  while (s[i + n] === "`") n++;
+  for (let j = i + n; j < s.length; ) {
+    if (s[j] !== "`") {
+      j++;
+      continue;
+    }
+    let k = 0;
+    while (s[j + k] === "`") k++;
+    if (k === n) return j + k;
+    j += k;
+  }
+  return -1;
+}
+
+// Inline link [label](target "title") starting at s[i] === "[": { end, label, target } or null. Code spans may stand in the label.
+function parseInlineLink(s, i) {
+  let depth = 0;
+  let j = i;
+  for (; j < s.length; j++) {
+    const c = s[j];
+    if (c === "\\") j++;
+    else if (c === "`") {
+      const e = codeSpanEnd(s, j);
+      if (e > 0) j = e - 1;
+      else while (s[j + 1] === "`") j++;
+    } else if (c === "[") depth++;
+    else if (c === "]" && --depth === 0) break;
+  }
+  if (j >= s.length || s[j + 1] !== "(") return null;
+  const label = s.slice(i + 1, j);
+  const ws = /\s/;
+  let p = j + 2;
+  while (ws.test(s[p] ?? "")) p++;
+  let target;
+  if (s[p] === "<") {
+    const q = s.indexOf(">", p);
+    if (q < 0) return null;
+    target = s.slice(p + 1, q);
+    p = q + 1;
+  } else {
+    const start = p;
+    let d = 0;
+    for (; p < s.length; p++) {
+      const c = s[p];
+      if (c === "\\") p++;
+      else if (ws.test(c)) break;
+      else if (c === "(") d++;
+      else if (c === ")") {
+        if (d === 0) break;
+        d--;
+      }
+    }
+    target = s.slice(start, p);
+  }
+  const before = p;
+  while (ws.test(s[p] ?? "")) p++;
+  if (p > before && (s[p] === '"' || s[p] === "'" || s[p] === "(")) {
+    const close = s[p] === "(" ? ")" : s[p];
+    let q = p + 1;
+    while (q < s.length && s[q] !== close) q += s[q] === "\\" ? 2 : 1;
+    if (q >= s.length) return null;
+    p = q + 1;
+    while (ws.test(s[p] ?? "")) p++;
+  }
+  if (s[p] !== ")") return null;
+  return { end: p + 1, label, target };
+}
+
+// Replaces relative .md links in one line outside code spans. Pushes link entries; returns the new line.
+function transformLine(line, sourcePath, resolve, lineNo, links) {
+  let out = "";
+  let last = 0;
+  let bang = false; // previous character is an unescaped "!": an image, never a link
+  for (let i = 0; i < line.length; ) {
+    const c = line[i];
+    if (c === "\\") {
+      i += 2;
+      bang = false;
+    } else if (c === "`") {
+      const e = codeSpanEnd(line, i);
+      if (e > 0) i = e;
+      else while (line[i] === "`") i++;
+      bang = false;
+    } else if (c === "[") {
+      const L = parseInlineLink(line, i);
+      const resolved = L && !bang ? resolveWikiTarget(sourcePath, L.target) : null;
+      if (resolved !== null) {
+        links.push({ line: lineNo, target: L.target, resolved, label: L.label });
+        const url = resolve(L.target, resolved);
+        if (url === null) out += line.slice(last, i) + L.label;
+        else if (typeof url === "string" && url !== L.target) out += `${line.slice(last, i)}[${L.label}](${url})`;
+        else out += line.slice(last, L.end);
+        last = L.end;
+      }
+      i = L ? L.end : i + 1;
+      bang = false;
+    } else {
+      bang = c === "!";
+      i++;
+    }
+  }
+  return out + line.slice(last);
+}
+
+// Finds Markdown inline links to relative .md files outside code. resolve(target, resolvedPath) returns the new URL,
+// null (the link becomes its label) or the target itself (unchanged). Returns { text, links: [{line, target, resolved, label}] }.
+export function transformWikiLinks(text, sourcePath, resolve = (target) => target) {
+  const parts = String(text).split(/(\r\n|\n)/);
+  const links = [];
+  let fence = null;
+  for (let k = 0; k < parts.length; k += 2) {
+    const line = parts[k];
+    if (fence) {
+      const c = line.match(FENCE_CLOSE);
+      if (c && c[1][0] === fence.ch && c[1].length >= fence.len) fence = null;
+      continue;
+    }
+    const o = line.match(FENCE_OPEN);
+    if (o) {
+      fence = { ch: o[1][0], len: o[1].length };
+      continue;
+    }
+    parts[k] = transformLine(line, sourcePath, resolve, k / 2 + 1, links);
+  }
+  return { text: parts.join(""), links };
+}
+
+// Links to pages that do not exist: [{path, problem: "line N: broken link: <target>"}]. N counts in the original file.
+export function wikiLinkProblems(pages) {
+  const known = new Set(pages.map((p) => wikiPageKey(p.path)));
+  const problems = [];
+  for (const page of pages) {
+    for (const l of transformWikiLinks(page.body ?? "", page.path).links) {
+      if (!known.has(wikiPageKey(l.resolved))) problems.push({ path: page.path, problem: `line ${l.line + (page.lineOffset ?? 0)}: broken link: ${l.target}` });
+    }
+  }
+  return problems;
 }

@@ -172,7 +172,7 @@ export function createClient({ token, base }) {
   return { call };
 }
 
-async function listChildren(client, id) {
+export async function listChildren(client, id) {
   const out = [];
   let cursor = null;
   do {
@@ -218,11 +218,21 @@ export async function readExisting(client, rootId) {
 const textOf = (b) => (b?.paragraph?.rich_text ?? []).map((r) => r.text?.content ?? r.plain_text ?? "").join("");
 const markerHash = (page) => (page.blocks[0]?.type === "paragraph" ? textOf(page.blocks[0]).match(MARKER_RE)?.[1] : undefined);
 const isMirrored = (page) => page.blocks[0]?.type === "paragraph" && MARKER_LOOSE_RE.test(textOf(page.blocks[0]));
+// Links to Notion pages compare by id: Notion answers an internal link as "/<id>", the upload used https://www.notion.so/<id>.
+// "/<32 hex>", "/<uuid>", "https://www.notion.so/<id>" and ".../<title>-<id>" all become https://www.notion.so/<32 lowercase hex>.
+const HEX_ID = "[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+const NOTION_REL_RE = new RegExp(`^/(${HEX_ID})$`, "i");
+const NOTION_ABS_RE = new RegExp(`^https://www\\.notion\\.so/(?:[^/?#]*-)?(${HEX_ID})$`, "i");
+const linkKey = (url) => {
+  if (typeof url !== "string") return url ?? null;
+  const m = url.match(NOTION_REL_RE) ?? url.match(NOTION_ABS_RE);
+  return m ? `https://www.notion.so/${m[1].replace(/-/g, "").toLowerCase()}` : url;
+};
 // Text with its formatting: set annotations (color "default" counts as none) and link url.
 const richText = (rt = []) =>
   rt.map((r) => {
     const a = Object.entries(r.annotations ?? {}).filter(([, v]) => v && v !== "default").sort(([x], [y]) => (x < y ? -1 : 1));
-    return { x: r.text?.content ?? r.plain_text ?? "", a, l: r.text?.link?.url ?? r.href ?? null };
+    return { x: r.text?.content ?? r.plain_text ?? "", a, l: linkKey(r.text?.link?.url ?? r.href ?? null) };
   });
 
 // Comparable shape of a block: type, text, code language, checked, table cells, nesting. Works for fresh and Notion blocks.
@@ -237,7 +247,7 @@ export function fingerprint(b) {
 }
 
 const sameContent = (blocks, fresh) => blocks.length === fresh.length && blocks.every((b, i) => fingerprint(b) === fingerprint(fresh[i]));
-const sha16 = (buf) => createHash("sha256").update(buf).digest("hex").slice(0, 16);
+export const sha16 = (buf) => createHash("sha256").update(buf).digest("hex").slice(0, 16);
 
 // ---------------------------------------------------------------- plan
 
@@ -420,7 +430,8 @@ async function updatePage(client, page, item) {
   }
 }
 
-// Returns { counts, errors }. A failed file does not stop the others; children of a failed parent are skipped.
+// Returns { counts, errors, ids }; ids maps the path of every plan item that has a page (created, updated, unchanged) to its page id.
+// A failed file does not stop the others; children of a failed parent are skipped.
 // Archiving comes last, so nothing is archived while it still has to be kept or re-created.
 export async function runSync(client, rootId, plan, log = () => {}) {
   const counts = { created: 0, updated: 0, archived: 0, unchanged: 0 };
@@ -477,5 +488,5 @@ export async function runSync(client, rootId, plan, log = () => {}) {
       fail(page.title, e);
     }
   }
-  return { counts, errors };
+  return { counts, errors, ids };
 }

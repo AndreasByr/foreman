@@ -1,6 +1,6 @@
 // docs-wiki scan: blocks internal wording, hosts, secrets and forbidden terms, and checks the page head.
 // Pure functions, no dependencies. A finding never holds the matched text (secrets must not be echoed).
-import { pageTitles } from "./docs-wiki.mjs";
+import { pageTitles, wikiLinkProblems } from "./docs-wiki.mjs";
 
 // Internal terms, case-insensitive, with plural and inflected endings. \p{L} lookarounds because \b is ASCII-only.
 const L = "a-zäöüß";
@@ -118,7 +118,8 @@ export function scanText(text, forbidden = []) {
   return found;
 }
 
-// Checks head, place and title of every page against the wiki config. Returns [{path, problem}], first problem per page.
+// Checks head, place and title of every page against the wiki config, then the links between pages.
+// Returns [{path, problem}]: the first head or title problem per page, every broken link.
 export function validatePages(wiki, pages) {
   const problems = [];
   for (const p of pages) {
@@ -143,6 +144,8 @@ export function validatePages(wiki, pages) {
     if (first.has(key)) problems.push({ path: p.path, problem: `duplicate title "${titles.get(p.path)}" (also ${first.get(key)})` });
     else first.set(key, p.path);
   }
+  // Relative .md links must point to a wiki page: a broken link stops the run before any request.
+  problems.push(...wikiLinkProblems(pages));
   return problems;
 }
 
