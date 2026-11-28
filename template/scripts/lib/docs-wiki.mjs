@@ -184,6 +184,19 @@ export function resolveWikiTarget(sourcePath, rawTarget) {
   return posix.normalize(posix.join(posix.dirname(sourcePath), cleaned));
 }
 
+// Repo path of a relative folder link target (no .md) seen from sourcePath, or null when the target is no folder link.
+// Supported: targets with a trailing slash, "." and a single folder name that resolves to docs/wiki/<slug> exactly.
+// ".." and anything that resolves outside docs/wiki give null.
+export function resolveWikiFolder(sourcePath, rawTarget) {
+  const t = String(rawTarget ?? "").trim();
+  if (/^[a-z][a-z0-9+.-]*:/i.test(t)) return null;
+  const cleaned = decodeEscapes(t.split("#")[0]);
+  if (!cleaned || /\.md$/i.test(cleaned)) return null;
+  const dir = posix.normalize(posix.join(posix.dirname(sourcePath), cleaned)).replace(/\/$/, "");
+  if (cleaned.endsWith("/") || cleaned === ".") return dir === "docs/wiki" || dir.startsWith("docs/wiki/") ? dir : null;
+  return /^docs\/wiki\/[^/]+$/.test(dir) && /(^|\/)[a-z0-9-]+$/.test(cleaned) ? dir : null;
+}
+
 // End index of the code span that starts with the backtick run at i, or -1 when no run of equal length closes it.
 function codeSpanEnd(s, i) {
   let n = 0;
@@ -256,7 +269,7 @@ function parseInlineLink(s, i) {
 }
 
 // Replaces relative .md links in one line outside code spans. Pushes link entries; returns the new line.
-function transformLine(line, sourcePath, resolve, lineNo, links) {
+function transformLine(line, sourcePath, resolve, lineNo, links, slugs) {
   let out = "";
   let last = 0;
   let bang = false; // previous character is an unescaped "!": an image, never a link
@@ -272,10 +285,19 @@ function transformLine(line, sourcePath, resolve, lineNo, links) {
       bang = false;
     } else if (c === "[") {
       const L = parseInlineLink(line, i);
-      const resolved = L && !bang ? resolveWikiTarget(sourcePath, L.target) : null;
+      let resolved = L && !bang ? resolveWikiTarget(sourcePath, L.target) : null;
+      let info;
+      if (resolved === null && slugs && L && !bang) {
+        const dir = resolveWikiFolder(sourcePath, L.target);
+        if (dir !== null) {
+          resolved = dir;
+          const slug = dir.startsWith("docs/wiki/") ? dir.slice(10) : "";
+          info = { folder: true, slug: slugs.has(slug) ? slug : null };
+        }
+      }
       if (resolved !== null) {
-        links.push({ line: lineNo, target: L.target, resolved, label: L.label });
-        const url = resolve(L.target, resolved);
+        links.push(info ? { line: lineNo, target: L.target, resolved, label: L.label, folder: true, slug: info.slug } : { line: lineNo, target: L.target, resolved, label: L.label });
+        const url = resolve(L.target, resolved, info);
         if (url === null) out += line.slice(last, i) + L.label;
         else if (typeof url === "string" && url !== L.target) out += `${line.slice(last, i)}[${L.label}](${url})`;
         else out += line.slice(last, L.end);
@@ -293,7 +315,10 @@ function transformLine(line, sourcePath, resolve, lineNo, links) {
 
 // Finds Markdown inline links to relative .md files outside code. resolve(target, resolvedPath) returns the new URL,
 // null (the link becomes its label) or the target itself (unchanged). Returns { text, links: [{line, target, resolved, label}] }.
-export function transformWikiLinks(text, sourcePath, resolve = (target) => target) {
+// audienceSlugs (optional list): folder links (./, ../<slug>/) are recognized too; resolve then gets a third argument
+// { folder: true, slug } (slug null when the folder is no audience in the list) and the link entry has folder: true and slug.
+export function transformWikiLinks(text, sourcePath, resolve = (target) => target, audienceSlugs = null) {
+  const slugs = audienceSlugs ? new Set(audienceSlugs) : null;
   const parts = String(text).split(/(\r\n|\n)/);
   const links = [];
   let fence = null;
@@ -309,18 +334,19 @@ export function transformWikiLinks(text, sourcePath, resolve = (target) => targe
       fence = { ch: o[1][0], len: o[1].length };
       continue;
     }
-    parts[k] = transformLine(line, sourcePath, resolve, k / 2 + 1, links);
+    parts[k] = transformLine(line, sourcePath, resolve, k / 2 + 1, links, slugs);
   }
   return { text: parts.join(""), links };
 }
 
 // Links to pages that do not exist: [{path, problem: "line N: broken link: <target>"}]. N counts in the original file.
-export function wikiLinkProblems(pages) {
+// audienceSlugs (optional): slugs of the audiences that have pages; with it folder links are checked too.
+export function wikiLinkProblems(pages, audienceSlugs = null) {
   const known = new Set(pages.map((p) => wikiPageKey(p.path)));
   const problems = [];
   for (const page of pages) {
-    for (const l of transformWikiLinks(page.body ?? "", page.path).links) {
-      if (!known.has(wikiPageKey(l.resolved))) problems.push({ path: page.path, problem: `line ${l.line + (page.lineOffset ?? 0)}: broken link: ${l.target}` });
+    for (const l of transformWikiLinks(page.body ?? "", page.path, undefined, audienceSlugs).links) {
+      if (l.folder ? !l.slug : !known.has(wikiPageKey(l.resolved))) problems.push({ path: page.path, problem: `line ${l.line + (page.lineOffset ?? 0)}: broken link: ${l.target}` });
     }
   }
   return problems;

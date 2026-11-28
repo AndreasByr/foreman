@@ -1988,6 +1988,143 @@ for (const dry of [false, true]) {
   });
 }
 
+// ---- folder links to the audience overview page
+
+await check("lib transformWikiLinks: folder links need the audience slugs; spellings, anchors, titles, code and CRLF", async () => {
+  const { transformWikiLinks } = await loadLib();
+  const text = [
+    "[a](./) [b](../b/ \"T\") [c](../b#x) [d](../c/) [e](./sub/) [f](..) [g](.#top) [h](../b/#y)",
+    "`[i](./)` [j](./sub) [k](../../) [n](../../x/)",
+    "```",
+    "[l](./)",
+    "```",
+    "[m](./)",
+    "",
+  ].join("\r\n");
+  const seen = [];
+  const r = transformWikiLinks(text, SRC, (target, resolved, info) => {
+    seen.push([target, info?.slug ?? null]);
+    return info?.slug ? `${NURL}-${info.slug}` : target;
+  }, ["a", "b"]);
+  assert.deepEqual(seen, [["./", "a"], ["../b/", "b"], ["../b#x", "b"], ["../c/", null], ["./sub/", null], [".#top", "a"], ["../b/#y", "b"], ["./", "a"]]);
+  assert.deepEqual(r.links.map((l) => l.line), [1, 1, 1, 1, 1, 1, 1, 6]); // [k] and [n] point outside docs/wiki: not wiki links
+  assert.ok(r.links.every((l) => l.folder === true));
+  assert.ok(r.text.startsWith(`[a](${NURL}-a) [b](${NURL}-b) [c](${NURL}-b) [d](../c/) [e](./sub/) [f](..) [g](${NURL}-a) [h](${NURL}-b)\r\n`), r.text);
+  assert.ok(r.text.includes("`[i](./)`") && r.text.includes("[l](./)") && r.text.includes("[j](./sub)"), r.text);
+  assert.ok(r.text.endsWith(`[m](${NURL}-a)\r\n`), r.text);
+  // Without the slugs folder links are not recognized at all (old behaviour).
+  const old = transformWikiLinks(text, SRC, () => NURL);
+  assert.deepEqual(old.links, []);
+  assert.equal(old.text, text);
+});
+
+await check("lib wikiLinkProblems: folder links to an audience with pages are fine; others are broken links with line numbers", async () => {
+  const { wikiLinkProblems } = await loadLib();
+  const pages = [
+    { path: "docs/wiki/a/start.md", body: "# S\n[ok](./) [ok2](../b/) [ok3](../b)\n[bad](../nope/) [sub](./sub/)\n[root](../)\n", lineOffset: 5 },
+    { path: "docs/wiki/b/x.md", body: "# X\n" },
+  ];
+  assert.deepEqual(wikiLinkProblems(pages, ["a", "b"]), [
+    { path: "docs/wiki/a/start.md", problem: "line 8: broken link: ../nope/" },
+    { path: "docs/wiki/a/start.md", problem: "line 8: broken link: ./sub/" },
+    { path: "docs/wiki/a/start.md", problem: "line 9: broken link: ../" },
+  ]);
+  assert.deepEqual(wikiLinkProblems(pages, ["a"]).map((p) => p.problem), ["line 7: broken link: ../b/", "line 7: broken link: ../b", "line 8: broken link: ../nope/", "line 8: broken link: ./sub/", "line 9: broken link: ../"]);
+  assert.deepEqual(wikiLinkProblems(pages), [], "without slugs folder links are not checked");
+});
+
+await check("cli --wiki links: folder links become the id of the audience page, across audiences, code span untouched, second run unchanged without writes", async () => {
+  const start = ["# Start", "", "Back to [the overview](./) and [press](../presse/) and [admins](../admins#top).", "Code: `[code](./)`.", ""].join("\n");
+  const root = linkProject({ "docs/wiki/spieler-und-tester/start.md": pageTextWithHead("Spieler und Tester") + start });
+  const fake = await startWikiFake({ shortLinks: true });
+  try {
+    const first = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(first.status, 0, info(first));
+    assert.equal(lastLine(first.stdout), "created 6, updated 0, archived 0, unchanged 0", info(first));
+    assert.deepEqual(linksOf(fake.blocksOf(fake.page("Start").id)), [`/${hexOf(fake.page("Spieler und Tester"))}`, `/${hexOf(fake.page("Presse"))}`, `/${hexOf(fake.page("Admins"))}`]);
+    assert.ok(fake.textOf(fake.page("Start").id).includes("[code](./)"), "code span changed");
+
+    const mark = fake.requests.length;
+    const second = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(second.status, 0, info(second));
+    assert.equal(lastLine(second.stdout), "created 0, updated 0, archived 0, unchanged 6", info(second));
+    assert.equal(fake.writes(mark).length, 0, `second run wrote: ${JSON.stringify(fake.writes(mark))}`);
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+for (const dry of [false, true]) {
+  await check(`cli --wiki links: folder link without audience or into a subfolder is a broken link, exit 4, no request${dry ? " (--dry-run)" : ""}`, async () => {
+    const body = ["# Start", "", "No audience [one](../nope/).", "Subfolder [two](./sub/).", "Fine [three](./).", ""].join("\n");
+    const root = pubProject({ "docs/wiki/spieler-und-tester/start.md": HEAD + body });
+    const fake = await startWikiFake();
+    try {
+      const r = await runCliAsync({ cwd: root, args: ["--wiki", ...(dry ? ["--dry-run"] : []), "--root", root], base: fake.base });
+      assert.equal(r.status, 4, info(r));
+      const path = "docs/wiki/spieler-und-tester/start.md";
+      assert.deepEqual(linesOf(r.stderr), [`docs-notion: ${path}: line 8: broken link: ../nope/`, `docs-notion: ${path}: line 9: broken link: ./sub/`], info(r));
+      assert.equal(fake.requests.length, 0, "requests were sent");
+    } finally {
+      await fake.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+await check("publishWiki: a folder link whose audience page cannot be resolved prints 'unresolved link' and exits 1", async () => {
+  const { publishWiki } = await import(pathToFileURL(PUBLISH_LIB).href);
+  const fake = await startWikiFake();
+  try {
+    const wiki = { rootPageId: WIKI_ROOT, audiences: [{ name: "Spieler und Tester", description: "", slug: "spieler-und-tester" }] };
+    const head = { audience: "Spieler und Tester", source: ["docs/design.md"], checked: ["no-ai-slop", "humanizer"] };
+    // "../other/" is not validated here (publishWiki trusts validatePages), so it stays unresolved after pass 2.
+    const pages = [{ path: "docs/wiki/spieler-und-tester/start.md", dir: "spieler-und-tester", head, body: "# Start\n\nSee [a](./) and [b](../other/).\n" }];
+    const outLines = [];
+    const errLines = [];
+    const code = await publishWiki({ wiki, pages, token: PUB_TOKEN, base: fake.base, out: (l) => outLines.push(l), err: (l) => errLines.push(l) });
+    assert.equal(code, 1, `${outLines.join("\n")}\n${errLines.join("\n")}`);
+    assert.deepEqual(errLines, ["docs-notion: docs/wiki/spieler-und-tester/start.md: unresolved link: ../other/"]);
+    assert.deepEqual(linksOf(fake.blocksOf(fake.page("Start").id)), [`https://www.notion.so/${hexOf(fake.page("Spieler und Tester"))}`]);
+  } finally {
+    await fake.close();
+  }
+});
+
+// ---- a failed run archives nothing
+
+await check("cli --wiki publish: a failed create keeps the orphan page (archived 0, exit 1); the next run archives it", async () => {
+  const root = pubProject();
+  const fake = await startWikiFake();
+  try {
+    const first = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(first.status, 0, info(first));
+
+    rmSync(join(root, "docs/wiki/spieler-und-tester/spielen.md"));
+    writeFiles(root, { "docs/wiki/spieler-und-tester/neu.md": HEAD + "# Neu\n\nInvented new page.\n" });
+    fake.opts.failCreate.push("Neu");
+    const mark = fake.requests.length;
+    const second = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(second.status, 1, info(second));
+    assert.ok(second.stderr.includes("HTTP 500"), info(second));
+    assert.ok(second.stderr.includes("docs-notion: archive skipped: 1 page(s) kept because earlier pages failed"), info(second));
+    assert.equal(lastLine(second.stdout), "created 0, updated 0, archived 0, unchanged 2", info(second));
+    assert.equal(fake.since(mark).filter((q) => q.method === "PATCH" && q.path.startsWith("/v1/pages/")).length, 0, "archive request sent");
+    assert.ok(fake.page("Spielen"), "orphan was archived");
+
+    fake.opts.failCreate.length = 0;
+    const third = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(third.status, 0, info(third));
+    assert.equal(lastLine(third.stdout), "created 1, updated 0, archived 1, unchanged 2", info(third));
+    assert.equal(fake.page("Spielen"), undefined, "orphan still live");
+    assert.ok(fake.page("Neu"), "new page missing");
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------- skill and docs
 // --lib-only skips these two checks (the skill and docs/MODULES.md are written separately).
 

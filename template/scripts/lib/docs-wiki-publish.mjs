@@ -49,13 +49,15 @@ export async function publishWiki({ wiki, pages, token, base, out, err }) {
     // Links become Notion links. Pass 1 knows only the pages that exist already (the plan on the plain text finds them);
     // a link to a page that is still to be created stays as written and is completed in pass 2.
     const known = new Map(buildPlan(tmp, entries, existing).items.filter((i) => i.existing).map((i) => [i.path, i.existing.id]));
+    const slugs = wiki.audiences.filter((x) => used.has(x.name)).map((x) => x.slug);
     const linked = (page, idOf, onMissing = () => {}) =>
-      transformWikiLinks(page.body, page.path, (target, resolved) => {
-        const id = idOf(vpOf.get(byKey.get(wikiPageKey(resolved))?.path));
+      transformWikiLinks(page.body, page.path, (target, resolved, info) => {
+        const vp = info?.folder ? (info.slug ? `${info.slug}.md` : undefined) : vpOf.get(byKey.get(wikiPageKey(resolved))?.path);
+        const id = idOf(vp);
         if (id) return notionUrl(id);
         onMissing(target);
         return target;
-      }).text;
+      }, slugs).text;
     const firstText = new Map();
     for (const p of pages) {
       const text = linked(p, (vp) => known.get(vp));

@@ -465,6 +465,12 @@ export async function runSync(client, rootId, plan, log = () => {}) {
       fail(item.path, e);
     }
   }
+  // A failed create or update: archive nothing in this run, so a failed run never empties the mirror.
+  if (errors.length) {
+    const n = plan.archives.length + plan.moved.length;
+    if (n) errors.push(`docs-notion: archive skipped: ${n} page(s) kept because earlier pages failed`);
+    return { counts, errors, ids };
+  }
   const keep = new Set();
   for (const id of failedOld) for (let q = id; q; q = plan.parents.get(q)) keep.add(q);
   const depth = (p) => {

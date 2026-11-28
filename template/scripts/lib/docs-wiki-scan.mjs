@@ -145,7 +145,9 @@ export function validatePages(wiki, pages) {
     else first.set(key, p.path);
   }
   // Relative .md links must point to a wiki page: a broken link stops the run before any request.
-  problems.push(...wikiLinkProblems(pages));
+  // Folder links (./, ../<slug>/) must name an audience that has pages.
+  const withPages = new Set(pages.map((p) => p.head?.audience));
+  problems.push(...wikiLinkProblems(pages, wiki.audiences.filter((a) => withPages.has(a.name)).map((a) => a.slug)));
   return problems;
 }
 
