@@ -394,9 +394,23 @@ function pubProject(extra = {}) {
 
 // Minimal fake Notion for the wiki publish. Records every request (method, path).
 // seed: [id, title, text] human-made child pages of the wiki root (no marker paragraph).
-async function startWikiFake({ token = PUB_TOKEN, seed = [] } = {}) {
+// rootDatabase: the wiki root is a Notion database (title property "Seite"); page parent answers 404 there.
+// shortLinks: links to Notion pages come back as "/<32 hex>" like in real Notion. failLinkUpdates: PATCH children holding a
+// notion.so link answer 400. hideCreatedPages: pages created through POST /pages are missing from child listings.
+// failCreate: titles whose POST /pages answers 500 (a mutable list: fake.opts.failCreate).
+async function startWikiFake({ token = PUB_TOKEN, seed = [], rootDatabase = false, shortLinks = false, failLinkUpdates = false, hideCreatedPages = false, failCreate = [] } = {}) {
+  const opts = { shortLinks, failLinkUpdates, hideCreatedPages, failCreate };
   let seq = 0;
-  const newId = (p) => `${p}-${++seq}`;
+  const newId = (p) => (p === "page" ? `00000000-0000-4000-8000-${String(++seq).padStart(12, "0")}` : `${p}-${++seq}`);
+  const created = new Set();
+  const shorten = (v) => {
+    if (Array.isArray(v)) return v.map(shorten);
+    if (!v || typeof v !== "object") return v;
+    const o = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, shorten(x)]));
+    const m = typeof o.url === "string" && o.url.match(/^https:\/\/www\.notion\.so\/([0-9a-f]{32})$/);
+    if (opts.shortLinks && m) o.url = `/${m[1]}`;
+    return o;
+  };
   const pages = new Map();
   pages.set(WIKI_ROOT, { id: WIKI_ROOT, title: "Wiki", parent: null, archived: false, items: [] });
   for (const [id, title, text] of seed) {
@@ -404,7 +418,7 @@ async function startWikiFake({ token = PUB_TOKEN, seed = [] } = {}) {
     pages.get(WIKI_ROOT).items.push({ child_page: id });
   }
   const requests = [];
-  const stamp = (b) => ({ ...structuredClone(b), object: "block", id: newId("blk") });
+  const stamp = (b) => ({ ...shorten(structuredClone(b)), object: "block", id: newId("blk") });
   const archive = (p) => {
     p.archived = true;
     for (const it of p.items) if (it.child_page) archive(pages.get(it.child_page));
@@ -420,7 +434,7 @@ async function startWikiFake({ token = PUB_TOKEN, seed = [] } = {}) {
     p.items.flatMap((it) => {
       if (!it.child_page) return [it];
       const c = pages.get(it.child_page);
-      return c.archived ? [] : [{ object: "block", id: c.id, type: "child_page", has_children: true, child_page: { title: c.title } }];
+      return c.archived || (opts.hideCreatedPages && created.has(c.id)) ? [] : [{ object: "block", id: c.id, type: "child_page", has_children: true, child_page: { title: c.title } }];
     });
 
   const server = http.createServer(async (req, res) => {
@@ -446,15 +460,32 @@ async function startWikiFake({ token = PUB_TOKEN, seed = [] } = {}) {
     if (!req.headers["notion-version"]) return fail(400, "missing_version", "Notion-Version header is required.");
     let m;
     if (req.method === "POST" && url.pathname === "/v1/pages") {
-      const parent = pages.get(body?.parent?.page_id);
+      if (rootDatabase && body?.parent?.page_id === WIKI_ROOT) return fail(404, "object_not_found", "parent page not found");
+      const viaDb = rootDatabase && body?.parent?.database_id === WIKI_ROOT;
+      const parent = pages.get(viaDb ? WIKI_ROOT : body?.parent?.page_id);
       if (!parent || parent.archived) return fail(404, "object_not_found", "parent page not found");
-      const tp = body.properties?.title;
+      const key = viaDb ? "Seite" : "title";
+      const tp = body.properties?.[key];
       const arr = Array.isArray(tp) ? tp : tp?.title;
-      if (!Array.isArray(arr)) return fail(400, "validation_error", "properties.title missing");
-      const page = { id: newId("page"), title: arr.map((r) => r.text?.content ?? "").join(""), parent: parent.id, archived: false, items: (body.children ?? []).map(stamp) };
+      if (!Array.isArray(arr)) return fail(400, "validation_error", `properties.${key} missing`);
+      if (opts.failCreate.includes(arr.map((r) => r.text?.content ?? "").join(""))) return fail(500, "internal_server_error", "create failed");
+      const page = {
+        id: newId("page"),
+        title: arr.map((r) => r.text?.content ?? "").join(""),
+        parent: parent.id,
+        archived: false,
+        parentType: viaDb ? "database_id" : "page_id",
+        titleProperty: key,
+        items: (body.children ?? []).map(stamp),
+      };
       pages.set(page.id, page);
+      created.add(page.id);
       parent.items.push({ child_page: page.id });
       return send(200, { object: "page", id: page.id, archived: false });
+    }
+    if (req.method === "GET" && (m = url.pathname.match(/^\/v1\/databases\/([^/]+)$/))) {
+      if (!rootDatabase || m[1] !== WIKI_ROOT) return fail(404, "object_not_found", "database not found");
+      return send(200, { object: "database", id: WIKI_ROOT, properties: { Seite: { type: "title", id: "title", title: {} } } });
     }
     if (req.method === "GET" && (m = url.pathname.match(/^\/v1\/blocks\/([^/]+)\/children$/))) {
       const p = pages.get(m[1]);
@@ -465,6 +496,7 @@ async function startWikiFake({ token = PUB_TOKEN, seed = [] } = {}) {
       const p = pages.get(m[1]);
       if (!p) return fail(404, "object_not_found", "block not found");
       if (!Array.isArray(body?.children)) return fail(400, "validation_error", "children must be an array");
+      if (opts.failLinkUpdates && JSON.stringify(body).includes("notion.so")) return fail(400, "validation_error", "link update refused");
       p.items.push(...body.children.map(stamp));
       return send(200, { object: "list", results: [], has_more: false, next_cursor: null });
     }
@@ -487,6 +519,7 @@ async function startWikiFake({ token = PUB_TOKEN, seed = [] } = {}) {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const live = () => [...pages.values()].filter((p) => p.id !== WIKI_ROOT && !p.archived);
   return {
+    opts,
     base: `http://127.0.0.1:${server.address().port}`,
     requests,
     since: (mark) => requests.slice(mark),
@@ -1422,6 +1455,37 @@ await check("cli --wiki publish: last page deleted -> audience page and page arc
   }
 });
 
+await check("cli --wiki publish: database root uses its title property and pages are found on the next run", async () => {
+  const root = pubProject();
+  const fake = await startWikiFake({ rootDatabase: true });
+  try {
+    const first = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(first.status, 0, info(first));
+    assert.equal(lastLine(first.stdout), "created 3, updated 0, archived 0, unchanged 0", info(first));
+    noToken(first);
+    const aud = fake.page("Spieler und Tester");
+    assert.ok(aud, `audience page missing\n${info(first)}`);
+    assert.equal(aud.parentType, "database_id");
+    assert.equal(aud.titleProperty, "Seite");
+    for (const title of ["Start", "Spielen"]) {
+      const p = fake.page(title);
+      assert.ok(p, `${title} missing\n${info(first)}`);
+      assert.equal(p.parentType, "page_id", title);
+      assert.equal(p.parent, aud.id, title);
+    }
+    assert.deepEqual(fake.childTitles(aud.id), ["Spielen", "Start"]);
+
+    const mark = fake.requests.length;
+    const second = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(second.status, 0, info(second));
+    assert.equal(lastLine(second.stdout), "created 0, updated 0, archived 0, unchanged 3", info(second));
+    assert.equal(fake.since(mark).filter((q) => q.method === "POST").length, 0, "second run created pages");
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 await check("cli --wiki publish: no pages and nothing published before -> 'nothing to publish', exit 0, no write requests; dry run the same", async () => {
   const root = pubProject();
   rmSync(join(root, "docs/wiki/spieler-und-tester/start.md"));
@@ -1536,6 +1600,589 @@ await check("hook contains no --wiki", async () => {
 
 await checkIfInstalled("batch run contains no --wiki", join(HERE, "..", ".claude", "skills", "foreman-dispatch-run", "references", "batch-run.md"), (text) => {
   assert.ok(!text.includes("--wiki"), "batch-run.md contains --wiki");
+});
+
+// ---------------------------------------------------------------- wiki links
+// Relative .md links between wiki pages become Notion links; a link to a missing page stops the run (exit 4).
+
+const NOTION_LIB = join(HERE, "lib", "docs-notion.mjs");
+const PUBLISH_LIB = join(HERE, "lib", "docs-wiki-publish.mjs");
+const loadNotion = () => import(pathToFileURL(NOTION_LIB).href);
+const SRC = "docs/wiki/a/start.md";
+const NURL = "https://www.notion.so/ID";
+
+await check("lib transformWikiLinks: plain brackets, escaped brackets, code spans, code blocks and non-.md targets are no candidates", async () => {
+  const { transformWikiLinks } = await loadLib();
+  const text = [
+    "[x] (a.md) and [y] and (b.md) and [z]",
+    "\\[esc](c.md) and \\[esc\\](c.md)",
+    "`[code](d.md)` and ``[code2](d.md)`` and `[x`](a.md)",
+    "```",
+    "[fenced](e.md)",
+    "```",
+    "~~~js",
+    "[fenced2](f.md)",
+    "~~~",
+    "[img](g.png) [web](https://x.example/a.md) [mail](mailto:a@b.md) [anchor](#top) [txt](notes.txt) [ftp](ftp://h/a.md)",
+  ].join("\n");
+  const r = transformWikiLinks(text, SRC, () => NURL);
+  assert.deepEqual(r.links, []);
+  assert.equal(r.text, text);
+});
+
+await check("lib transformWikiLinks: code span inside the label is a link, a code span before it does not hide it", async () => {
+  const { transformWikiLinks } = await loadLib();
+  const r = transformWikiLinks("See [`/x`](a.md) and `y` then [`]`](b.md).", SRC, () => NURL);
+  assert.equal(r.text, `See [\`/x\`](${NURL}) and \`y\` then [\`]\`](${NURL}).`);
+  assert.deepEqual(r.links, [
+    { line: 1, target: "a.md", resolved: "docs/wiki/a/a.md", label: "`/x`" },
+    { line: 1, target: "b.md", resolved: "docs/wiki/a/b.md", label: "`]`" },
+  ]);
+});
+
+await check("lib transformWikiLinks: titles in three forms, <...> targets, %20, anchors; resolve callback gets target and resolved path", async () => {
+  const { transformWikiLinks } = await loadLib();
+  const text = "[a](b%20c.md \"T\") [b](<d e.md> 'T') [c](f.md (T)) [d](g.md#x \"t\") [e](../h/i.MD)";
+  const seen = [];
+  const r = transformWikiLinks(text, SRC, (target, resolved) => {
+    seen.push([target, resolved]);
+    return NURL;
+  });
+  assert.deepEqual(seen, [
+    ["b%20c.md", "docs/wiki/a/b c.md"],
+    ["d e.md", "docs/wiki/a/d e.md"],
+    ["f.md", "docs/wiki/a/f.md"],
+    ["g.md#x", "docs/wiki/a/g.md"],
+    ["../h/i.MD", "docs/wiki/h/i.MD"],
+  ]);
+  assert.equal(r.text, `[a](${NURL}) [b](${NURL}) [c](${NURL}) [d](${NURL}) [e](${NURL})`);
+  assert.deepEqual(r.links.map((l) => l.label), ["a", "b", "c", "d", "e"]);
+});
+
+await check("lib transformWikiLinks: null keeps the label only, the target itself and the default leave the text unchanged", async () => {
+  const { transformWikiLinks } = await loadLib();
+  const text = 'x [a](b.md "T") y [`c`](d.md) z';
+  assert.equal(transformWikiLinks(text, SRC, () => null).text, "x a y `c` z");
+  assert.equal(transformWikiLinks(text, SRC, (t) => t).text, text);
+  const def = transformWikiLinks(text, SRC);
+  assert.equal(def.text, text);
+  assert.equal(def.links.length, 2);
+});
+
+await check("lib transformWikiLinks: fence closes only on a bare fence of the same char and at least the opening length", async () => {
+  const { transformWikiLinks } = await loadLib();
+  const lines = (arr) => arr.join("\n");
+  const lineOf = (text) => transformWikiLinks(text, SRC, (t) => t).links.map((l) => `${l.line}:${l.target}`);
+  // ~~~ is not closed by ``` or by a shorter fence
+  assert.deepEqual(lineOf(lines(["~~~", "[a](a.md)", "```", "[b](b.md)", "~~", "[c](c.md)", "~~~", "[d](d.md)"])), ["8:d.md"]);
+  // a longer fence is not closed by a shorter one, and closes on an equal or longer one
+  assert.deepEqual(lineOf(lines(["````", "```", "[a](a.md)", "````", "[b](b.md)"])), ["5:b.md"]);
+  assert.deepEqual(lineOf(lines(["```", "[a](a.md)", "`````", "[b](b.md)"])), ["4:b.md"]);
+  // a fence with an info string does not close
+  assert.deepEqual(lineOf(lines(["```", "[a](a.md)", "```md", "[b](b.md)", "```", "[c](c.md)"])), ["6:c.md"]);
+  // an unclosed fence runs to the end
+  assert.deepEqual(lineOf(lines(["[a](a.md)", "```", "[b](b.md)"])), ["1:a.md"]);
+});
+
+await check("lib transformWikiLinks: LF and CRLF endings survive, line numbers count both", async () => {
+  const { transformWikiLinks } = await loadLib();
+  const text = "a\r\n\r\n[x](a.md)\r\n```\r\n[y](b.md)\r\n```\r\n[z](c.md)\r\n";
+  const r = transformWikiLinks(text, SRC, () => NURL);
+  assert.deepEqual(r.links.map((l) => l.line), [3, 7]);
+  assert.equal(r.text, `a\r\n\r\n[x](${NURL})\r\n\`\`\`\r\n[y](b.md)\r\n\`\`\`\r\n[z](${NURL})\r\n`);
+  const lf = transformWikiLinks("a\n[x](a.md)\n", SRC, () => NURL);
+  assert.equal(lf.text, `a\n[x](${NURL})\n`);
+  assert.equal(lf.links[0].line, 2);
+});
+
+await check("lib resolveWikiTarget: schemes and non-.md targets give null, others a normalized repo path", async () => {
+  const { resolveWikiTarget: R } = await loadLib();
+  for (const t of ["https://x.example/a.md", "HTTP://x.example/a.md", "mailto:a@b.md", "ftp://h/a.md", "tel:1.md", "#top", "", "notes.txt", "a.md.txt", "a.mdx", "dir/", "a.png#x.md"]) {
+    assert.equal(R(SRC, t), null, `target ${JSON.stringify(t)}`);
+  }
+  assert.equal(R(SRC, "b.md"), "docs/wiki/a/b.md");
+  assert.equal(R(SRC, "../b/Page.MD#sec"), "docs/wiki/b/Page.MD");
+  assert.equal(R(SRC, "b%20c.md"), "docs/wiki/a/b c.md");
+  assert.equal(R(SRC, "b%zz.md"), "docs/wiki/a/b%zz.md");
+  assert.equal(R(SRC, "./x/../y.md"), "docs/wiki/a/y.md");
+  assert.equal(R(SRC, "x.md#a%20b"), "docs/wiki/a/x.md");
+  assert.equal(R(SRC, "../../README.md"), "docs/README.md");
+});
+
+await check("lib wikiLinkProblems: broken links with line numbers (head offset included), extension compared case-insensitively", async () => {
+  const { wikiLinkProblems } = await loadLib();
+  const pages = [
+    { path: "docs/wiki/a/start.md", body: "# S\n\n[ok](other.MD) [ok2](Third.md#x)\n[bad](missing.md)\n[web](https://x.example/a.md)\n", lineOffset: 5 },
+    { path: "docs/wiki/a/other.md", body: "# O\n[self](other.md) [up](../a/start.md) [out](../../README.md)\n" },
+    { path: "docs/wiki/a/Third.MD", body: "# T\n" },
+  ];
+  assert.deepEqual(wikiLinkProblems(pages), [
+    { path: "docs/wiki/a/start.md", problem: "line 9: broken link: missing.md" },
+    { path: "docs/wiki/a/other.md", problem: "line 2: broken link: ../../README.md" },
+  ]);
+  assert.deepEqual(wikiLinkProblems([]), []);
+});
+
+await check("lib parseHead: bodyLine is the original line where the body starts (CRLF too), 1 without head", async () => {
+  const { parseHead } = await loadLib();
+  const head = ["---", "audience: X", "source: s", "checked: c", "---"];
+  assert.equal(parseHead([...head, "# T", ""].join("\n")).bodyLine, 6);
+  assert.equal(parseHead([...head, "# T", ""].join("\r\n")).bodyLine, 6);
+  assert.equal(parseHead(["---", "audience: X", "", "---", "# T"].join("\n")).bodyLine, 5);
+  assert.equal(parseHead("# T\n\ntext\n").bodyLine, 1);
+  assert.equal(parseHead("---\nnot a head\n---\n# T\n").bodyLine, 1);
+});
+
+await check("lib collectWikiPages + wikiLinkProblems: CRLF page with a 5-line head reports 'line 8: broken link: missing.md'", async () => {
+  const root = mkdtempSync(join(tmpdir(), "docs-wiki-crlf-"));
+  try {
+    const text = ["---", "audience: Spieler und Tester", "source: docs/design.md", "checked: no-ai-slop, humanizer", "---", "# Start", "", "See [x](missing.md).", ""].join("\r\n");
+    writeFiles(root, { "docs/wiki/spieler-und-tester/start.md": text });
+    const { collectWikiPages, wikiLinkProblems } = await loadLib();
+    const { pages } = collectWikiPages(root);
+    assert.equal(pages[0].lineOffset, 5);
+    assert.deepEqual(wikiLinkProblems(pages), [{ path: "docs/wiki/spieler-und-tester/start.md", problem: "line 8: broken link: missing.md" }]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+await check("lib validatePages: a broken link is a problem of the page", async () => {
+  const probs = await problemsFor({
+    "docs/wiki/spieler-und-tester/start.md": pageTextWithHead("Spieler und Tester") + "# Start\n\n[x](gone.md)\n",
+  });
+  assert.deepEqual(probs, [{ path: "docs/wiki/spieler-und-tester/start.md", problem: "line 8: broken link: gone.md" }]);
+});
+
+await check("lib fingerprint: Notion link spellings compare equal to https://www.notion.so/<32 hex>; other URLs do not", async () => {
+  const { fingerprint } = await loadNotion();
+  const id = "0123456789abcdef0123456789abcdef";
+  const uuid = "01234567-89ab-cdef-0123-456789abcdef";
+  const fp = (url) => fingerprint({ type: "paragraph", paragraph: { rich_text: [{ type: "text", text: { content: "x", link: { url } } }] } });
+  const want = fp(`https://www.notion.so/${id}`);
+  for (const url of [`/${id}`, `/${uuid}`, `https://www.notion.so/${uuid}`, `https://www.notion.so/My-Page-${id}`, `https://www.notion.so/My-Page-${uuid}`, `https://www.notion.so/${id.toUpperCase()}`]) {
+    assert.equal(fp(url), want, url);
+  }
+  const href = fingerprint({ type: "paragraph", paragraph: { rich_text: [{ plain_text: "x", href: `/${id}` }] } });
+  assert.equal(href, want, "href spelling");
+  for (const url of [`https://example.com/${id}`, `https://www.notion.so/${id}?x=1`, `/${id.slice(0, 31)}`, `https://www.notion.so/${id}0`, `https://www.notion.so/${id.slice(1)}`, "https://example.com/a"]) {
+    assert.notEqual(fp(url), want, url);
+  }
+  assert.equal(fp("https://example.com/a"), fp("https://example.com/a"));
+});
+
+// ---- CLI: wiki links
+
+const AUD3_CONFIG = {
+  ...PUB_CONFIG,
+  wiki: {
+    ...PUB_CONFIG.wiki,
+    audiences: [
+      { name: "Spieler und Tester", description: "Spielende und Testende" },
+      { name: "Presse", description: "Medien" },
+      { name: "Admins", description: "Verwaltung" },
+    ],
+  },
+};
+const START_LINKS = [
+  "# Start",
+  "",
+  "See [the press page](../presse/info.md) and [admin setup](../admins/setup.MD#intro).",
+  "An external [site](https://example.com/guide.md) stays as it is.",
+  "Code: `[code](../presse/info.md)`.",
+  "",
+  "```text",
+  "[fenced](../presse/info.md)",
+  "```",
+  "",
+].join("\n");
+const linkProject = (extra = {}) => {
+  const root = mkdtempSync(join(tmpdir(), "docs-wiki-links-"));
+  writeFiles(root, {
+    ".foreman.json": JSON.stringify(AUD3_CONFIG, null, 2),
+    "docs/wiki/spieler-und-tester/start.md": pageTextWithHead("Spieler und Tester") + START_LINKS,
+    "docs/wiki/presse/info.md": pageTextWithHead("Presse") + "# Info\n\nInvented press text. Back to [the start](../spieler-und-tester/start.md) and [setup](../admins/setup.md).\n",
+    "docs/wiki/admins/setup.md": pageTextWithHead("Admins") + "# Setup\n\nInvented admin text. See [info](../presse/info.md).\n",
+    ...extra,
+  });
+  return root;
+};
+const hexOf = (page) => page.id.replace(/-/g, "");
+const linksOf = (blocks) => blocks.flatMap((b) => (b[b.type]?.rich_text ?? []).filter((r) => r.text?.link).map((r) => r.text.link.url));
+const reqCount = (fake, method, path, mark = 0) => fake.since(mark).filter((q) => q.method === method && q.path === path).length;
+const linesOf = (s) => s.split("\n").map((l) => l.trimEnd()).filter(Boolean);
+
+await check("cli --wiki links: three audiences link each other (also .MD with anchor), one pass 1 read, no extra POST, second run unchanged without writes", async () => {
+  const root = linkProject();
+  const fake = await startWikiFake({ shortLinks: true });
+  try {
+    const first = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(first.status, 0, info(first));
+    assert.equal(lastLine(first.stdout), "created 6, updated 0, archived 0, unchanged 0", info(first));
+    assert.equal(reqCount(fake, "GET", `/v1/blocks/${WIKI_ROOT}/children`), 1, "readExisting more than once");
+    assert.equal(reqCount(fake, "POST", "/v1/pages"), 6, "extra POST");
+    for (const t of ["Start", "Info", "Setup", "Presse", "Admins", "Spieler und Tester"]) assert.equal(fake.titled(t).length, 1, `page ${t} duplicated or missing`);
+    const start = fake.page("Start");
+    const info_ = fake.page("Info");
+    const setup = fake.page("Setup");
+    assert.deepEqual(linksOf(fake.blocksOf(start.id)), [`/${hexOf(info_)}`, `/${hexOf(setup)}`, "https://example.com/guide.md"]);
+    assert.deepEqual(linksOf(fake.blocksOf(info_.id)), [`/${hexOf(start)}`, `/${hexOf(setup)}`]);
+    assert.deepEqual(linksOf(fake.blocksOf(setup.id)), [`/${hexOf(info_)}`]);
+    const text = fake.textOf(start.id);
+    assert.ok(text.includes("[code](../presse/info.md)"), "code span text changed");
+    assert.ok(text.includes("[fenced](../presse/info.md)"), "fenced text changed");
+    assert.ok(!text.includes("intro"), "anchor text left in the page");
+
+    const mark = fake.requests.length;
+    const second = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(second.status, 0, info(second));
+    assert.equal(lastLine(second.stdout), "created 0, updated 0, archived 0, unchanged 6", info(second));
+    assert.equal(fake.writes(mark).length, 0, `second run wrote: ${JSON.stringify(fake.writes(mark))}`);
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+await check("cli --wiki links: inline-code label keeps the code annotation and links; single-quote and parenthesis titles work", async () => {
+  const body = "# Start\n\nSee [`/spielen`](spielen.md), [one](spielen.md 'T1'), [two](spielen.md (T2)) and [three](<spielen.md> \"T3\").\n";
+  const root = pubProject({ "docs/wiki/spieler-und-tester/start.md": HEAD + body });
+  const fake = await startWikiFake({ shortLinks: true });
+  try {
+    const r = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(r.status, 0, info(r));
+    assert.equal(lastLine(r.stdout), "created 3, updated 0, archived 0, unchanged 0", info(r));
+    const want = `/${hexOf(fake.page("Spielen"))}`;
+    const rich = fake.blocksOf(fake.page("Start").id).flatMap((b) => b[b.type]?.rich_text ?? []);
+    const linked = rich.filter((x) => x.text?.link);
+    assert.deepEqual(linked.map((x) => x.text.link.url), [want, want, want, want]);
+    assert.deepEqual(linked.map((x) => x.text.content), ["/spielen", "one", "two", "three"]);
+    assert.equal(linked[0].annotations?.code, true, "code annotation lost");
+    assert.ok(!fake.textOf(fake.page("Start").id).includes("spielen.md"), "link source text left in the page");
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+await check("cli --wiki links: pass 2 logs one 'updated' line for a previously unchanged page and one for a page changed in pass 1; counts once", async () => {
+  const start = (extra = "") => HEAD + `# Start\n\nGo to [play](spielen.md).${extra}\n`;
+  const root = pubProject({ "docs/wiki/spieler-und-tester/start.md": start() });
+  const fake = await startWikiFake({ shortLinks: true, failCreate: ["Spielen"] });
+  try {
+    const first = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(first.status, 1, info(first));
+    assert.ok(first.stderr.includes("HTTP 500"), info(first));
+    fake.opts.failCreate.length = 0;
+
+    // Start is unchanged in pass 1 (its link target does not exist yet), created Spielen completes it in pass 2.
+    const second = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(second.status, 0, info(second));
+    const upd = linesOf(second.stdout).filter((l) => l.startsWith("updated "));
+    assert.equal(upd.length, 1, info(second));
+    assert.ok(upd[0].endsWith("spieler-und-tester/start.md"), upd[0]);
+    assert.equal(lastLine(second.stdout), "created 1, updated 1, archived 0, unchanged 1", info(second));
+    assert.deepEqual(linksOf(fake.blocksOf(fake.page("Start").id)), [`/${hexOf(fake.page("Spielen"))}`]);
+
+    // Start changes and links a brand-new page: updated in pass 1, completed in pass 2, counted once.
+    writeFiles(root, {
+      "docs/wiki/spieler-und-tester/start.md": start(" Also [new](neu.md)."),
+      "docs/wiki/spieler-und-tester/neu.md": HEAD + "# Neu\n\nInvented new page.\n",
+    });
+    const third = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(third.status, 0, info(third));
+    assert.equal(linesOf(third.stdout).filter((l) => l.startsWith("updated ")).length, 1, info(third));
+    assert.equal(lastLine(third.stdout), "created 1, updated 1, archived 0, unchanged 2", info(third));
+    assert.deepEqual(linksOf(fake.blocksOf(fake.page("Start").id)), [`/${hexOf(fake.page("Spielen"))}`, `/${hexOf(fake.page("Neu"))}`]);
+    assert.equal(fake.titled("Neu").length, 1);
+
+    const mark = fake.requests.length;
+    const fourth = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(lastLine(fourth.stdout), "created 0, updated 0, archived 0, unchanged 4", info(fourth));
+    assert.equal(fake.writes(mark).length, 0, "fourth run wrote");
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+await check("cli --wiki links: a failing pass 2 update names the repo path, exit 1, summary still printed", async () => {
+  const root = pubProject({ "docs/wiki/spieler-und-tester/start.md": HEAD + "# Start\n\nGo to [play](spielen.md).\n" });
+  const fake = await startWikiFake({ failLinkUpdates: true });
+  try {
+    const r = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(r.status, 1, info(r));
+    assert.equal(r.stderr.trim(), "docs-notion: docs/wiki/spieler-und-tester/start.md: HTTP 400", info(r));
+    assert.equal(lastLine(r.stdout), "created 3, updated 0, archived 0, unchanged 0", info(r));
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+await check("cli --wiki links: pass 2 needs only the ids from the sync (created pages missing from listings): one tree read, one PATCH on the page, N POST", async () => {
+  const root = pubProject({ "docs/wiki/spieler-und-tester/start.md": HEAD + "# Start\n\nGo to [play](spielen.md).\n" });
+  const fake = await startWikiFake({ hideCreatedPages: true, shortLinks: true });
+  try {
+    const r = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(r.status, 0, info(r));
+    assert.equal(lastLine(r.stdout), "created 3, updated 0, archived 0, unchanged 0", info(r));
+    const start = fake.page("Start");
+    assert.equal(reqCount(fake, "PATCH", `/v1/blocks/${start.id}/children`), 1, "PATCH count on the start page");
+    assert.equal(reqCount(fake, "GET", `/v1/blocks/${start.id}/children`), 1, "tree reads of the start page");
+    assert.equal(reqCount(fake, "GET", `/v1/blocks/${WIKI_ROOT}/children`), 1, "readExisting more than once");
+    assert.equal(reqCount(fake, "POST", "/v1/pages"), 3);
+    assert.deepEqual(linksOf(fake.blocksOf(start.id)), [`/${hexOf(fake.page("Spielen"))}`]);
+    assert.equal(fake.titled("Start").length, 1);
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+await check("publishWiki: a link that is still unresolved after pass 2 prints 'unresolved link' with the repo path and exits 1", async () => {
+  const { publishWiki } = await import(pathToFileURL(PUBLISH_LIB).href);
+  const fake = await startWikiFake();
+  try {
+    const wiki = { rootPageId: WIKI_ROOT, audiences: [{ name: "Spieler und Tester", description: "", slug: "spieler-und-tester" }] };
+    const head = { audience: "Spieler und Tester", source: ["docs/design.md"], checked: ["no-ai-slop", "humanizer"] };
+    const pages = [
+      { path: "docs/wiki/spieler-und-tester/start.md", dir: "spieler-und-tester", head, body: "# Start\n\nSee [a](missing.md) and [b](gone/other.md#x) and [c](spielen.md).\n" },
+      { path: "docs/wiki/spieler-und-tester/spielen.md", dir: "spieler-und-tester", head, body: "# Spielen\n\nText.\n" },
+    ];
+    const outLines = [];
+    const errLines = [];
+    const code = await publishWiki({ wiki, pages, token: PUB_TOKEN, base: fake.base, out: (l) => outLines.push(l), err: (l) => errLines.push(l) });
+    assert.equal(code, 1, `${outLines.join("\n")}\n${errLines.join("\n")}`);
+    assert.deepEqual(errLines, [
+      "docs-notion: docs/wiki/spieler-und-tester/start.md: unresolved link: missing.md",
+      "docs-notion: docs/wiki/spieler-und-tester/start.md: unresolved link: gone/other.md#x",
+    ]);
+    assert.equal(outLines.at(-1), "created 3, updated 0, archived 0, unchanged 0");
+    assert.deepEqual(linksOf(fake.blocksOf(fake.page("Start").id)), [`https://www.notion.so/${hexOf(fake.page("Spielen"))}`]);
+  } finally {
+    await fake.close();
+  }
+});
+
+for (const dry of [false, true]) {
+  await check(`cli --wiki links: broken links (also inline-code label, also outside docs/wiki) exit 4 with line numbers, no request${dry ? " (--dry-run)" : ""}`, async () => {
+    const body = ["# Start", "", "Missing [one](missing.md).", "Code label [`x`](gone.md) here.", "Outside [readme](../../README.md).", "Fine [play](spielen.md).", ""].join("\n");
+    const root = pubProject({ "docs/wiki/spieler-und-tester/start.md": HEAD + body });
+    const fake = await startWikiFake();
+    try {
+      const r = await runCliAsync({ cwd: root, args: ["--wiki", ...(dry ? ["--dry-run"] : []), "--root", root], base: fake.base });
+      assert.equal(r.status, 4, info(r));
+      const path = "docs/wiki/spieler-und-tester/start.md";
+      assert.deepEqual(linesOf(r.stderr), [
+        `docs-notion: ${path}: line 8: broken link: missing.md`,
+        `docs-notion: ${path}: line 9: broken link: gone.md`,
+        `docs-notion: ${path}: line 10: broken link: ../../README.md`,
+      ], info(r));
+      assert.equal(fake.requests.length, 0, "requests were sent");
+      noToken(r);
+    } finally {
+      await fake.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+// ---- folder links to the audience overview page
+
+await check("lib transformWikiLinks: folder links need the audience slugs; spellings, anchors, titles, code and CRLF", async () => {
+  const { transformWikiLinks } = await loadLib();
+  const text = [
+    "[a](./) [b](../b/ \"T\") [c](../b#x) [d](../c/) [e](./sub/) [f](..) [g](.#top) [h](../b/#y)",
+    "`[i](./)` [j](./sub) [k](../../) [n](../../x/)",
+    "```",
+    "[l](./)",
+    "```",
+    "[m](./)",
+    "",
+  ].join("\r\n");
+  const seen = [];
+  const r = transformWikiLinks(text, SRC, (target, resolved, info) => {
+    seen.push([target, info?.slug ?? null]);
+    return info?.slug ? `${NURL}-${info.slug}` : target;
+  }, ["a", "b"]);
+  // "../b#x" and ".." have no trailing slash: plain text, no folder link.
+  assert.deepEqual(seen, [["./", "a"], ["../b/", "b"], ["../c/", null], ["./sub/", null], [".#top", "a"], ["../b/#y", "b"], ["./", "a"]]);
+  assert.deepEqual(r.links.map((l) => l.line), [1, 1, 1, 1, 1, 1, 6]); // [k] and [n] point outside docs/wiki: not wiki links
+  assert.ok(r.links.every((l) => l.folder === true));
+  assert.ok(r.text.startsWith(`[a](${NURL}-a) [b](${NURL}-b) [c](../b#x) [d](../c/) [e](./sub/) [f](..) [g](${NURL}-a) [h](${NURL}-b)\r\n`), r.text);
+  assert.ok(r.text.includes("`[i](./)`") && r.text.includes("[l](./)") && r.text.includes("[j](./sub)"), r.text);
+  assert.ok(r.text.endsWith(`[m](${NURL}-a)\r\n`), r.text);
+  // Without the slugs folder links are not recognized at all (old behaviour).
+  const old = transformWikiLinks(text, SRC, () => NURL);
+  assert.deepEqual(old.links, []);
+  assert.equal(old.text, text);
+});
+
+await check("lib wikiLinkProblems: folder links to an audience with pages are fine; others are broken links with line numbers", async () => {
+  const { wikiLinkProblems } = await loadLib();
+  const pages = [
+    { path: "docs/wiki/a/start.md", body: "# S\n[ok](./) [ok2](../b/) [ok3](../b)\n[bad](../nope/) [sub](./sub/)\n[root](../)\n", lineOffset: 5 },
+    { path: "docs/wiki/b/x.md", body: "# X\n" },
+  ];
+  assert.deepEqual(wikiLinkProblems(pages, ["a", "b"]), [
+    { path: "docs/wiki/a/start.md", problem: "line 8: broken link: ../nope/" },
+    { path: "docs/wiki/a/start.md", problem: "line 8: broken link: ./sub/" },
+    { path: "docs/wiki/a/start.md", problem: "line 9: broken link: ../" },
+  ]);
+  // "../b" (no trailing slash) is plain text: no problem with or without the slug b.
+  assert.deepEqual(wikiLinkProblems(pages, ["a"]).map((p) => p.problem), ["line 7: broken link: ../b/", "line 8: broken link: ../nope/", "line 8: broken link: ./sub/", "line 9: broken link: ../"]);
+  assert.deepEqual(wikiLinkProblems(pages), [], "without slugs folder links are not checked");
+});
+
+await check("cli --wiki links: folder links become the id of the audience page, across audiences, code span untouched, second run unchanged without writes", async () => {
+  const start = ["# Start", "", "Back to [the overview](./) and [press](../presse/) and [admins](../admins/#top) and [plain](../admins#top).", "Code: `[code](./)`.", ""].join("\n");
+  const root = linkProject({ "docs/wiki/spieler-und-tester/start.md": pageTextWithHead("Spieler und Tester") + start });
+  const fake = await startWikiFake({ shortLinks: true });
+  try {
+    const first = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(first.status, 0, info(first));
+    assert.equal(lastLine(first.stdout), "created 6, updated 0, archived 0, unchanged 0", info(first));
+    assert.deepEqual(linksOf(fake.blocksOf(fake.page("Start").id)), [`/${hexOf(fake.page("Spieler und Tester"))}`, `/${hexOf(fake.page("Presse"))}`, `/${hexOf(fake.page("Admins"))}`]);
+    assert.ok(fake.textOf(fake.page("Start").id).includes("[code](./)"), "code span changed");
+
+    const mark = fake.requests.length;
+    const second = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(second.status, 0, info(second));
+    assert.equal(lastLine(second.stdout), "created 0, updated 0, archived 0, unchanged 6", info(second));
+    assert.equal(fake.writes(mark).length, 0, `second run wrote: ${JSON.stringify(fake.writes(mark))}`);
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+for (const dry of [false, true]) {
+  await check(`cli --wiki links: folder link without audience or into a subfolder is a broken link, exit 4, no request${dry ? " (--dry-run)" : ""}`, async () => {
+    const body = ["# Start", "", "No audience [one](../nope/).", "Subfolder [two](./sub/).", "Fine [three](./).", ""].join("\n");
+    const root = pubProject({ "docs/wiki/spieler-und-tester/start.md": HEAD + body });
+    const fake = await startWikiFake();
+    try {
+      const r = await runCliAsync({ cwd: root, args: ["--wiki", ...(dry ? ["--dry-run"] : []), "--root", root], base: fake.base });
+      assert.equal(r.status, 4, info(r));
+      const path = "docs/wiki/spieler-und-tester/start.md";
+      assert.deepEqual(linesOf(r.stderr), [`docs-notion: ${path}: line 8: broken link: ../nope/`, `docs-notion: ${path}: line 9: broken link: ./sub/`], info(r));
+      assert.equal(fake.requests.length, 0, "requests were sent");
+    } finally {
+      await fake.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+await check("publishWiki: a folder link whose audience page cannot be resolved prints 'unresolved link' and exits 1", async () => {
+  const { publishWiki } = await import(pathToFileURL(PUBLISH_LIB).href);
+  const fake = await startWikiFake();
+  try {
+    const wiki = { rootPageId: WIKI_ROOT, audiences: [{ name: "Spieler und Tester", description: "", slug: "spieler-und-tester" }] };
+    const head = { audience: "Spieler und Tester", source: ["docs/design.md"], checked: ["no-ai-slop", "humanizer"] };
+    // "../other/" is not validated here (publishWiki trusts validatePages), so it stays unresolved after pass 2.
+    const pages = [{ path: "docs/wiki/spieler-und-tester/start.md", dir: "spieler-und-tester", head, body: "# Start\n\nSee [a](./) and [b](../other/).\n" }];
+    const outLines = [];
+    const errLines = [];
+    const code = await publishWiki({ wiki, pages, token: PUB_TOKEN, base: fake.base, out: (l) => outLines.push(l), err: (l) => errLines.push(l) });
+    assert.equal(code, 1, `${outLines.join("\n")}\n${errLines.join("\n")}`);
+    assert.deepEqual(errLines, ["docs-notion: docs/wiki/spieler-und-tester/start.md: unresolved link: ../other/"]);
+    assert.deepEqual(linksOf(fake.blocksOf(fake.page("Start").id)), [`https://www.notion.so/${hexOf(fake.page("Spieler und Tester"))}`]);
+  } finally {
+    await fake.close();
+  }
+});
+
+await check("lib folder links: only '.', './' and targets ending with '/' are folder links; bare names and '../<name>' stay plain text", async () => {
+  const { transformWikiLinks, wikiLinkProblems } = await loadLib();
+  const slugs = ["a", "b"];
+  const text = "[Demo](demo) [x](../changelog) [e](./sub) [f](../b/x) [g](../b/) [h](./) [i](../a/)";
+  const r = transformWikiLinks(text, SRC, (t) => t, slugs);
+  assert.deepEqual(r.links.map((l) => l.target), ["../b/", "./", "../a/"]);
+  assert.equal(r.text, text);
+  assert.deepEqual(wikiLinkProblems([{ path: SRC, body: text }], slugs), []);
+});
+
+await check("lib folder links: '../<unknown>/' is a broken link, a folder without a trailing slash stays plain", async () => {
+  const { wikiLinkProblems } = await loadLib();
+  assert.deepEqual(wikiLinkProblems([{ path: SRC, body: "[t](../c/) [u](../c)\n" }], ["a", "b"]), [{ path: SRC, problem: "line 1: broken link: ../c/" }]);
+});
+
+// ---- a failed run archives nothing
+
+await check("cli --wiki publish: a failed create keeps the orphan page (archived 0, exit 1); the next run archives it", async () => {
+  const root = pubProject();
+  const fake = await startWikiFake();
+  try {
+    const first = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(first.status, 0, info(first));
+
+    rmSync(join(root, "docs/wiki/spieler-und-tester/spielen.md"));
+    writeFiles(root, { "docs/wiki/spieler-und-tester/neu.md": HEAD + "# Neu\n\nInvented new page.\n" });
+    fake.opts.failCreate.push("Neu");
+    const mark = fake.requests.length;
+    const second = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(second.status, 1, info(second));
+    assert.ok(second.stderr.includes("HTTP 500"), info(second));
+    assert.ok(second.stderr.includes("docs-notion: archive skipped: 1 page(s) kept because earlier pages failed"), info(second));
+    assert.equal(lastLine(second.stdout), "created 0, updated 0, archived 0, unchanged 2", info(second));
+    assert.equal(fake.since(mark).filter((q) => q.method === "PATCH" && q.path.startsWith("/v1/pages/")).length, 0, "archive request sent");
+    assert.ok(fake.page("Spielen"), "orphan was archived");
+
+    fake.opts.failCreate.length = 0;
+    const third = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(third.status, 0, info(third));
+    assert.equal(lastLine(third.stdout), "created 1, updated 0, archived 1, unchanged 2", info(third));
+    assert.equal(fake.page("Spielen"), undefined, "orphan still live");
+    assert.ok(fake.page("Neu"), "new page missing");
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+await check("cli --wiki publish: a moved page is copied once while another page fails; its old copy is archived, the orphan without file stays", async () => {
+  const cfg = { ...PUB_CONFIG, wiki: { ...PUB_CONFIG.wiki, audiences: [...PUB_CONFIG.wiki.audiences, { name: "Presse", description: "Medien" }] } };
+  const root = pubProject({
+    ".foreman.json": JSON.stringify(cfg, null, 2),
+    "docs/wiki/presse/info.md": pageTextWithHead("Presse") + "# Info\n\nInvented press text.\n",
+    "docs/wiki/spieler-und-tester/alt.md": HEAD + "# Alt\n\nInvented old page.\n",
+  });
+  const fake = await startWikiFake();
+  try {
+    const first = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(first.status, 0, info(first));
+
+    // Spielen moves from the players' audience to the press audience, Alt loses its file, Neu is new and always fails.
+    rmSync(join(root, "docs/wiki/spieler-und-tester/spielen.md"));
+    rmSync(join(root, "docs/wiki/spieler-und-tester/alt.md"));
+    writeFiles(root, {
+      "docs/wiki/presse/spielen.md": pageTextWithHead("Presse") + "# Spielen\n\nInvented text about playing.\n",
+      "docs/wiki/spieler-und-tester/neu.md": HEAD + "# Neu\n\nInvented new page.\n",
+    });
+    fake.opts.failCreate.push("Neu");
+    const second = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(second.status, 1, info(second));
+    assert.ok(second.stderr.includes("HTTP 500"), info(second));
+    assert.ok(second.stderr.includes("docs-notion: archive skipped: 1 page(s) kept because earlier pages failed"), info(second));
+    assert.match(lastLine(second.stdout), /, archived 1, /, info(second));
+    assert.equal(fake.titled("Spielen").length, 1, "moved page not exactly once");
+    assert.equal(fake.page("Spielen").parent, fake.page("Presse").id, "moved page not under the new audience");
+    assert.ok(fake.archivedPage("Spielen"), "old copy of the moved page not archived");
+    assert.ok(fake.page("Alt"), "orphan without file was archived although the run failed");
+
+    const mark = fake.requests.length;
+    const third = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(third.status, 1, info(third));
+    assert.equal(fake.titled("Spielen").length, 1, "next run copied the moved page again");
+    assert.equal(fake.page("Spielen").parent, fake.page("Presse").id, "next run moved the page again");
+    assert.ok(fake.page("Alt"), "orphan kept in the next run");
+    assert.equal(fake.since(mark).filter((q) => q.method === "POST" && q.path === "/v1/pages").length, 1, "only Neu may be created again");
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 // ---------------------------------------------------------------- skill and docs
