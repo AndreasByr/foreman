@@ -172,7 +172,7 @@ export function createClient({ token, base }) {
   return { call };
 }
 
-async function listChildren(client, id) {
+export async function listChildren(client, id) {
   const out = [];
   let cursor = null;
   do {
@@ -218,11 +218,21 @@ export async function readExisting(client, rootId) {
 const textOf = (b) => (b?.paragraph?.rich_text ?? []).map((r) => r.text?.content ?? r.plain_text ?? "").join("");
 const markerHash = (page) => (page.blocks[0]?.type === "paragraph" ? textOf(page.blocks[0]).match(MARKER_RE)?.[1] : undefined);
 const isMirrored = (page) => page.blocks[0]?.type === "paragraph" && MARKER_LOOSE_RE.test(textOf(page.blocks[0]));
+// Links to Notion pages compare by id: Notion answers an internal link as "/<id>", the upload used https://www.notion.so/<id>.
+// "/<32 hex>", "/<uuid>", "https://www.notion.so/<id>" and ".../<title>-<id>" all become https://www.notion.so/<32 lowercase hex>.
+const HEX_ID = "[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+const NOTION_REL_RE = new RegExp(`^/(${HEX_ID})$`, "i");
+const NOTION_ABS_RE = new RegExp(`^https://www\\.notion\\.so/(?:[^/?#]*-)?(${HEX_ID})$`, "i");
+const linkKey = (url) => {
+  if (typeof url !== "string") return url ?? null;
+  const m = url.match(NOTION_REL_RE) ?? url.match(NOTION_ABS_RE);
+  return m ? `https://www.notion.so/${m[1].replace(/-/g, "").toLowerCase()}` : url;
+};
 // Text with its formatting: set annotations (color "default" counts as none) and link url.
 const richText = (rt = []) =>
   rt.map((r) => {
     const a = Object.entries(r.annotations ?? {}).filter(([, v]) => v && v !== "default").sort(([x], [y]) => (x < y ? -1 : 1));
-    return { x: r.text?.content ?? r.plain_text ?? "", a, l: r.text?.link?.url ?? r.href ?? null };
+    return { x: r.text?.content ?? r.plain_text ?? "", a, l: linkKey(r.text?.link?.url ?? r.href ?? null) };
   });
 
 // Comparable shape of a block: type, text, code language, checked, table cells, nesting. Works for fresh and Notion blocks.
@@ -237,7 +247,7 @@ export function fingerprint(b) {
 }
 
 const sameContent = (blocks, fresh) => blocks.length === fresh.length && blocks.every((b, i) => fingerprint(b) === fingerprint(fresh[i]));
-const sha16 = (buf) => createHash("sha256").update(buf).digest("hex").slice(0, 16);
+export const sha16 = (buf) => createHash("sha256").update(buf).digest("hex").slice(0, 16);
 
 // ---------------------------------------------------------------- plan
 
@@ -355,21 +365,58 @@ async function appendChunks(client, id, chunks, state = {}) {
   }
 }
 
-async function createPage(client, parentId, item) {
+// parent: {id, type: "page" | "database", titleProperty?}. A page takes the title under "title", a database under its title property.
+async function createPage(client, parent, item) {
   const chunks = chunk(item.blocks ?? pageBlocks(item));
   const head = chunks[0] && !chunks[0].big ? chunks.shift().blocks : [];
+  const isDb = parent.type === "database";
   const page = await client.call("POST", "/pages", {
-    parent: { page_id: parentId },
-    properties: { title: { title: [{ type: "text", text: { content: titleOf(item) } }] } },
+    parent: isDb ? { database_id: parent.id } : { page_id: parent.id },
+    properties: { [isDb ? parent.titleProperty : "title"]: { title: [{ type: "text", text: { content: titleOf(item) } }] } },
     children: head,
   });
   try {
     await appendChunks(client, page.id, chunks);
   } catch (e) {
     await client.call("PATCH", `/pages/${page.id}`, { archived: true }).catch(() => {}); // no half page with a valid marker
+    if (e && typeof e === "object") e.pageCreated = true; // the page exists: its parent is right, no fallback
     throw e;
   }
   return page.id;
+}
+
+// Pages directly under the root. A Notion wiki is a database: POST /pages with page_id answers 400/404 there.
+// state: {parent (cached once known), checked (GET /databases made), error (cached failure)}. Only a failed POST falls back.
+async function createUnderRoot(client, rootId, item, state) {
+  if (state.parent) return createPage(client, state.parent, item);
+  if (state.error) throw state.error;
+  const pageParent = { id: rootId, type: "page" };
+  try {
+    const id = await createPage(client, pageParent, item);
+    state.parent = pageParent;
+    return id;
+  } catch (e) {
+    if (e?.pageCreated) {
+      state.parent = pageParent;
+      throw e;
+    }
+    if (!(e instanceof HttpError) || ![400, 404].includes(e.status) || state.checked) throw e;
+    state.checked = true;
+    let db;
+    try {
+      db = await client.call("GET", `/databases/${rootId}`);
+    } catch {
+      throw e; // not a database either: the original error stands
+    }
+    if (db?.object !== "database") throw e;
+    const titleProperty = Object.entries(db.properties ?? {}).find(([, p]) => p?.type === "title")?.[0];
+    if (!titleProperty) {
+      state.error = new Error("root database has no title property");
+      throw state.error;
+    }
+    state.parent = { id: rootId, type: "database", titleProperty };
+    return createPage(client, state.parent, item);
+  }
 }
 
 async function updatePage(client, page, item) {
@@ -383,18 +430,19 @@ async function updatePage(client, page, item) {
   }
 }
 
-// Returns { counts, errors }. A failed file does not stop the others; children of a failed parent are skipped.
+// Returns { counts, errors, ids }; ids maps the path of every plan item that has a page (created, updated, unchanged) to its page id.
+// A failed file does not stop the others; children of a failed parent are skipped.
 // Archiving comes last, so nothing is archived while it still has to be kept or re-created.
 export async function runSync(client, rootId, plan, log = () => {}) {
   const counts = { created: 0, updated: 0, archived: 0, unchanged: 0 };
   const errors = [];
   const ids = new Map();
   const failedOld = new Set(); // old pages of failed files: they and their ancestors stay
+  const rootState = {}; // parent of the root pages, resolved once per run (see createUnderRoot)
   const fail = (path, e) => errors.push(`docs-notion: ${path}: ${e instanceof HttpError ? e.message : (e?.message ?? "error")}`);
   for (const item of plan.items) {
     try {
       if (item.parent && !ids.has(item.parent)) throw new Error(`skipped, parent ${item.parent} failed`);
-      const parentId = item.parent ? ids.get(item.parent) : rootId;
       if (item.action === "unchanged") {
         ids.set(item.path, item.existing.id);
         counts.unchanged++;
@@ -404,7 +452,10 @@ export async function runSync(client, rootId, plan, log = () => {}) {
         counts.updated++;
         log(`updated ${item.path}`);
       } else {
-        ids.set(item.path, await createPage(client, parentId, item));
+        ids.set(
+          item.path,
+          item.parent ? await createPage(client, { id: ids.get(item.parent), type: "page" }, item) : await createUnderRoot(client, rootId, item, rootState),
+        );
         counts.created++;
         log(`created ${item.path}`);
       }
@@ -414,6 +465,10 @@ export async function runSync(client, rootId, plan, log = () => {}) {
       fail(item.path, e);
     }
   }
+  // A failed create or update: pages without a file stay (a failed run never empties the mirror). Moved pages are still
+  // archived: their new copy exists, and keeping the old one would create a duplicate on every run.
+  const skipArchives = errors.length > 0;
+  if (skipArchives && plan.archives.length) errors.push(`docs-notion: archive skipped: ${plan.archives.length} page(s) kept because earlier pages failed`);
   const keep = new Set();
   for (const id of failedOld) for (let q = id; q; q = plan.parents.get(q)) keep.add(q);
   const depth = (p) => {
@@ -426,7 +481,8 @@ export async function runSync(client, rootId, plan, log = () => {}) {
     for (let q = plan.parents.get(p.id); q; q = plan.parents.get(q)) if (gone.has(q)) return true;
     return false;
   };
-  for (const page of [...plan.archives, ...plan.moved].sort((a, b) => depth(a) - depth(b))) {
+  const toArchive = [...(skipArchives ? [] : plan.archives), ...plan.moved];
+  for (const page of toArchive.sort((a, b) => depth(a) - depth(b))) {
     if (keep.has(page.id)) continue;
     try {
       if (!dead(page)) await client.call("PATCH", `/pages/${page.id}`, { archived: true }); // else Notion cascades
@@ -437,5 +493,5 @@ export async function runSync(client, rootId, plan, log = () => {}) {
       fail(page.title, e);
     }
   }
-  return { counts, errors };
+  return { counts, errors, ids };
 }

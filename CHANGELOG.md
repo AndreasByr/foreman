@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased (patch)
+
+### New
+
+- **Links between wiki pages.** Relative `.md` links in `docs/wiki` (also across audiences) become Notion links at publish. A link to a folder (`./` or `../<slug>/`) points to the audience overview page. A link to a missing page stops the run with `broken link` and a line number (exit 4, before any request, also with `--dry-run`). Links to pages that do not exist yet are written in a second pass; links that stay open give `unresolved link` and exit 1. Anchors and link titles are dropped, code spans and code blocks are not touched. The comparison reads Notion's internal link form, so the next run reports `unchanged`. Projects that used a fixed Notion address for the overview can switch to the folder link.
+- **A failed wiki run archives nothing.** If a page fails to create or update, no page is archived in that run and the run exits 1 (`archive skipped`). The next run archives as usual.
+
+### Fixed
+
+- **Wiki root that is a Notion wiki (database).** Creating pages under such a root answered 404, the sync archived the old pages first and ended with an empty wiki. The sync now tries a page parent first, and on 400/404 asks once whether the root is a database and creates the pages with its title property. Page roots cost no extra request.
+
+### Upgrade
+- Files: `./install.sh <project> --update` replaces `scripts/docs-notion.mjs`, `scripts/lib/docs-notion*.mjs`, `scripts/lib/docs-wiki*.mjs`, `scripts/test-docs-notion.mjs`, `scripts/test-docs-wiki.mjs` and the skill `foreman-wiki`; local edits there are lost, read the dry-run list first.
+- Steps: run `./install.sh <project> --update`, then `node scripts/docs-notion.mjs --wiki --dry-run`. A wiki that links to missing pages now exits 4 until the link is fixed. This version does not change the dispatcher, so no pull of the foreman checkout on the dispatcher machine is needed (dispatcher update not required).
+- Optional: replace fixed Notion addresses of the overview page with `[Overview](./)`. `pass_env`, `webhook_format` and `mainAutoMerge` stay as before.
+
 ## 0.2.6 (2026-11-27)
 
 ### New
