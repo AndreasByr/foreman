@@ -355,21 +355,58 @@ async function appendChunks(client, id, chunks, state = {}) {
   }
 }
 
-async function createPage(client, parentId, item) {
+// parent: {id, type: "page" | "database", titleProperty?}. A page takes the title under "title", a database under its title property.
+async function createPage(client, parent, item) {
   const chunks = chunk(item.blocks ?? pageBlocks(item));
   const head = chunks[0] && !chunks[0].big ? chunks.shift().blocks : [];
+  const isDb = parent.type === "database";
   const page = await client.call("POST", "/pages", {
-    parent: { page_id: parentId },
-    properties: { title: { title: [{ type: "text", text: { content: titleOf(item) } }] } },
+    parent: isDb ? { database_id: parent.id } : { page_id: parent.id },
+    properties: { [isDb ? parent.titleProperty : "title"]: { title: [{ type: "text", text: { content: titleOf(item) } }] } },
     children: head,
   });
   try {
     await appendChunks(client, page.id, chunks);
   } catch (e) {
     await client.call("PATCH", `/pages/${page.id}`, { archived: true }).catch(() => {}); // no half page with a valid marker
+    if (e && typeof e === "object") e.pageCreated = true; // the page exists: its parent is right, no fallback
     throw e;
   }
   return page.id;
+}
+
+// Pages directly under the root. A Notion wiki is a database: POST /pages with page_id answers 400/404 there.
+// state: {parent (cached once known), checked (GET /databases made), error (cached failure)}. Only a failed POST falls back.
+async function createUnderRoot(client, rootId, item, state) {
+  if (state.parent) return createPage(client, state.parent, item);
+  if (state.error) throw state.error;
+  const pageParent = { id: rootId, type: "page" };
+  try {
+    const id = await createPage(client, pageParent, item);
+    state.parent = pageParent;
+    return id;
+  } catch (e) {
+    if (e?.pageCreated) {
+      state.parent = pageParent;
+      throw e;
+    }
+    if (!(e instanceof HttpError) || ![400, 404].includes(e.status) || state.checked) throw e;
+    state.checked = true;
+    let db;
+    try {
+      db = await client.call("GET", `/databases/${rootId}`);
+    } catch {
+      throw e; // not a database either: the original error stands
+    }
+    if (db?.object !== "database") throw e;
+    const titleProperty = Object.entries(db.properties ?? {}).find(([, p]) => p?.type === "title")?.[0];
+    if (!titleProperty) {
+      state.error = new Error("root database has no title property");
+      throw state.error;
+    }
+    state.parent = { id: rootId, type: "database", titleProperty };
+    return createPage(client, state.parent, item);
+  }
 }
 
 async function updatePage(client, page, item) {
@@ -390,11 +427,11 @@ export async function runSync(client, rootId, plan, log = () => {}) {
   const errors = [];
   const ids = new Map();
   const failedOld = new Set(); // old pages of failed files: they and their ancestors stay
+  const rootState = {}; // parent of the root pages, resolved once per run (see createUnderRoot)
   const fail = (path, e) => errors.push(`docs-notion: ${path}: ${e instanceof HttpError ? e.message : (e?.message ?? "error")}`);
   for (const item of plan.items) {
     try {
       if (item.parent && !ids.has(item.parent)) throw new Error(`skipped, parent ${item.parent} failed`);
-      const parentId = item.parent ? ids.get(item.parent) : rootId;
       if (item.action === "unchanged") {
         ids.set(item.path, item.existing.id);
         counts.unchanged++;
@@ -404,7 +441,10 @@ export async function runSync(client, rootId, plan, log = () => {}) {
         counts.updated++;
         log(`updated ${item.path}`);
       } else {
-        ids.set(item.path, await createPage(client, parentId, item));
+        ids.set(
+          item.path,
+          item.parent ? await createPage(client, { id: ids.get(item.parent), type: "page" }, item) : await createUnderRoot(client, rootId, item, rootState),
+        );
         counts.created++;
         log(`created ${item.path}`);
       }

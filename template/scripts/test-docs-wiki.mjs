@@ -394,7 +394,8 @@ function pubProject(extra = {}) {
 
 // Minimal fake Notion for the wiki publish. Records every request (method, path).
 // seed: [id, title, text] human-made child pages of the wiki root (no marker paragraph).
-async function startWikiFake({ token = PUB_TOKEN, seed = [] } = {}) {
+// rootDatabase: the wiki root is a Notion database (title property "Seite"); page parent answers 404 there.
+async function startWikiFake({ token = PUB_TOKEN, seed = [], rootDatabase = false } = {}) {
   let seq = 0;
   const newId = (p) => `${p}-${++seq}`;
   const pages = new Map();
@@ -446,15 +447,30 @@ async function startWikiFake({ token = PUB_TOKEN, seed = [] } = {}) {
     if (!req.headers["notion-version"]) return fail(400, "missing_version", "Notion-Version header is required.");
     let m;
     if (req.method === "POST" && url.pathname === "/v1/pages") {
-      const parent = pages.get(body?.parent?.page_id);
+      if (rootDatabase && body?.parent?.page_id === WIKI_ROOT) return fail(404, "object_not_found", "parent page not found");
+      const viaDb = rootDatabase && body?.parent?.database_id === WIKI_ROOT;
+      const parent = pages.get(viaDb ? WIKI_ROOT : body?.parent?.page_id);
       if (!parent || parent.archived) return fail(404, "object_not_found", "parent page not found");
-      const tp = body.properties?.title;
+      const key = viaDb ? "Seite" : "title";
+      const tp = body.properties?.[key];
       const arr = Array.isArray(tp) ? tp : tp?.title;
-      if (!Array.isArray(arr)) return fail(400, "validation_error", "properties.title missing");
-      const page = { id: newId("page"), title: arr.map((r) => r.text?.content ?? "").join(""), parent: parent.id, archived: false, items: (body.children ?? []).map(stamp) };
+      if (!Array.isArray(arr)) return fail(400, "validation_error", `properties.${key} missing`);
+      const page = {
+        id: newId("page"),
+        title: arr.map((r) => r.text?.content ?? "").join(""),
+        parent: parent.id,
+        archived: false,
+        parentType: viaDb ? "database_id" : "page_id",
+        titleProperty: key,
+        items: (body.children ?? []).map(stamp),
+      };
       pages.set(page.id, page);
       parent.items.push({ child_page: page.id });
       return send(200, { object: "page", id: page.id, archived: false });
+    }
+    if (req.method === "GET" && (m = url.pathname.match(/^\/v1\/databases\/([^/]+)$/))) {
+      if (!rootDatabase || m[1] !== WIKI_ROOT) return fail(404, "object_not_found", "database not found");
+      return send(200, { object: "database", id: WIKI_ROOT, properties: { Seite: { type: "title", id: "title", title: {} } } });
     }
     if (req.method === "GET" && (m = url.pathname.match(/^\/v1\/blocks\/([^/]+)\/children$/))) {
       const p = pages.get(m[1]);
@@ -1416,6 +1432,37 @@ await check("cli --wiki publish: last page deleted -> audience page and page arc
     assert.equal(fake.page("Start"), undefined, "page still live");
     assert.equal(fake.page("Spieler und Tester"), undefined, "audience page still live");
     noToken(second);
+  } finally {
+    await fake.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+await check("cli --wiki publish: database root uses its title property and pages are found on the next run", async () => {
+  const root = pubProject();
+  const fake = await startWikiFake({ rootDatabase: true });
+  try {
+    const first = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(first.status, 0, info(first));
+    assert.equal(lastLine(first.stdout), "created 3, updated 0, archived 0, unchanged 0", info(first));
+    noToken(first);
+    const aud = fake.page("Spieler und Tester");
+    assert.ok(aud, `audience page missing\n${info(first)}`);
+    assert.equal(aud.parentType, "database_id");
+    assert.equal(aud.titleProperty, "Seite");
+    for (const title of ["Start", "Spielen"]) {
+      const p = fake.page(title);
+      assert.ok(p, `${title} missing\n${info(first)}`);
+      assert.equal(p.parentType, "page_id", title);
+      assert.equal(p.parent, aud.id, title);
+    }
+    assert.deepEqual(fake.childTitles(aud.id), ["Spielen", "Start"]);
+
+    const mark = fake.requests.length;
+    const second = await runCliAsync({ cwd: root, args: ["--wiki", "--root", root], base: fake.base });
+    assert.equal(second.status, 0, info(second));
+    assert.equal(lastLine(second.stdout), "created 0, updated 0, archived 0, unchanged 3", info(second));
+    assert.equal(fake.since(mark).filter((q) => q.method === "POST").length, 0, "second run created pages");
   } finally {
     await fake.close();
     rmSync(root, { recursive: true, force: true });
